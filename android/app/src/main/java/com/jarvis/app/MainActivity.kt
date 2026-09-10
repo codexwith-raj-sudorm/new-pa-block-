@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontStyle
@@ -274,6 +276,8 @@ fun TopBar(
     wakeOn: Boolean,
     onWake: () -> Unit
 ) {
+    val busLvl by BubbleLevelBus.level.collectAsState()
+    val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     Column(Modifier.fillMaxWidth().background(Panel)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
@@ -317,7 +321,8 @@ fun TopBar(
                 Text(
                     if (wakeOn) "👂 Wake on" else "👂 Wake",
                     fontSize = 13.sp,
-                    color = if (wakeOn) JarvisRed else Color.Unspecified
+                    color = if (wakeOn) JarvisRed else Color.Unspecified,
+                    modifier = Modifier.graphicsLayer { val s = 1f + 0.18f * wakePulse; scaleX = s; scaleY = s }
                 )
             }
         }
@@ -355,6 +360,8 @@ fun Bubble(m: ChatMessage) {
 @Composable
 fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean) {
     var input by remember { mutableStateOf("") }
+    val busLvl by BubbleLevelBus.level.collectAsState()
+    val micPulse by animateFloatAsState(if (listening) busLvl else 0f)
     val keyboard = LocalSoftwareKeyboardController.current
     fun submit() {
         if (input.isBlank()) return
@@ -375,7 +382,12 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (micVisible) {
-                IconButton(onClick = onMic) {
+                IconButton(
+                    onClick = onMic,
+                    modifier = Modifier.graphicsLayer {
+                        val s = 1f + 0.28f * micPulse; scaleX = s; scaleY = s
+                    }
+                ) {
                     Icon(
                         Icons.Filled.Mic,
                         contentDescription = if (listening) "Stop listening" else "Voice input",

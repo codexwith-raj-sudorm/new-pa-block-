@@ -771,6 +771,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
                 override fun onResults(results: Bundle?) {
                     listening = false
+                    BubbleLevelBus.reset()
                     val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()?.trim().orEmpty()
                     destroyRecognizer()
@@ -783,6 +784,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
                 override fun onError(error: Int) {
                     listening = false
+                    BubbleLevelBus.reset()
                     destroyRecognizer()
                     if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && ++listenTries <= 3) {
                         // Mic still held (e.g. by the wake loop shutting down) — retry.
@@ -805,9 +807,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     resumeWakeService()
                 }
 
-                override fun onEndOfSpeech() {}
+                override fun onEndOfSpeech() { BubbleLevelBus.reset() }
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onRmsChanged(rmsdB: Float) { BubbleLevelBus.pushRms(rmsdB) }
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -844,6 +846,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
         }
         listening = false
+        BubbleLevelBus.reset()
         commandAudioEnd()
     }
 
@@ -872,13 +875,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    @Suppress("DEPRECATION")
+    /** Mute ALL non-critical streams for the session (Google's beep routes per-OEM). */
     private fun muteBeeps(mute: Boolean) {
-        try {
-            audio.setStreamMute(AudioManager.STREAM_MUSIC, mute)
-            audio.setStreamMute(AudioManager.STREAM_SYSTEM, mute)
-        } catch (_: Exception) {
-        }
+        if (mute) SoundMuter.mute(audio) else SoundMuter.unmute(audio)
     }
 
     private fun toast(msg: String) {

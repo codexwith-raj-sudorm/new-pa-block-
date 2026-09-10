@@ -158,6 +158,8 @@ class WakeService : Service() {
                 override fun onResults(results: Bundle?) {
                     val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
                     destroyWakeRecognizer()
+                    BubbleLevelBus.reset()
+                    calmBubble()
                     if (!started) return
                     restarts = 0
                     if (heard.any { hearsWakeWord(it) }) onWakeWord()
@@ -174,6 +176,8 @@ class WakeService : Service() {
 
                 override fun onError(error: Int) {
                     destroyWakeRecognizer()
+                    BubbleLevelBus.reset()
+                    calmBubble()
                     if (!started) return
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH,
@@ -194,9 +198,9 @@ class WakeService : Service() {
                     }
                 }
 
-                override fun onEndOfSpeech() {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onEndOfSpeech() { unmute(); calmBubble(); BubbleLevelBus.reset() }
+                override fun onBeginningOfSpeech() { unmute() }
+                override fun onRmsChanged(rmsdB: Float) { pulseBubble(rmsdB); BubbleLevelBus.pushRms(rmsdB) }
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
@@ -208,7 +212,13 @@ class WakeService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                // Long sessions: fewer restarts = fewer chances for any start beep.
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 60_000)
+                putExtra("android.speech.extra.DICTATION_MODE", true)
             }
+            muteBlip(900) // cover the start beep on EVERY restart, all streams
             r.startListening(intent)
         } catch (_: Exception) {
             destroyWakeRecognizer()
@@ -222,6 +232,8 @@ class WakeService : Service() {
     private fun onWakeWord() {
         if (!started) return
         restarts = 0
+        BubbleLevelBus.reset()
+        calmBubble()
         flashBubble()
         speakYes()
         openAppForCommand()
@@ -372,6 +384,22 @@ class WakeService : Service() {
         }, 1500)
     }
 
+    /** Gemini-style reaction: bubble grows/glows with real mic level, still in silence. */
+    private fun pulseBubble(rmsdB: Float) {
+        val b = bubble ?: return
+        val lvl = normalizeRms(rmsdB)
+        b.scaleX = 1f + 0.35f * lvl
+        b.scaleY = 1f + 0.35f * lvl
+        b.elevation = 8f + 18f * lvl
+    }
+
+    private fun calmBubble() {
+        val b = bubble ?: return
+        b.scaleX = 1f
+        b.scaleY = 1f
+        b.elevation = 8f
+    }
+
     // ---- notification ----
 
     private fun makeChannel() {
@@ -426,23 +454,14 @@ class WakeService : Service() {
 
     // ---- misc ----
 
-    @Suppress("DEPRECATION")
+    /** Mute ALL non-critical streams (Google's beep routes differently per OEM). */
     private fun muteBlip(ms: Long) {
-        try {
-            audio.setStreamMute(AudioManager.STREAM_MUSIC, true)
-            audio.setStreamMute(AudioManager.STREAM_SYSTEM, true)
-        } catch (_: Exception) {
-        }
+        SoundMuter.mute(audio)
         main.postDelayed({ unmute() }, ms)
     }
 
-    @Suppress("DEPRECATION")
     private fun unmute() {
-        try {
-            audio.setStreamMute(AudioManager.STREAM_MUSIC, false)
-            audio.setStreamMute(AudioManager.STREAM_SYSTEM, false)
-        } catch (_: Exception) {
-        }
+        SoundMuter.unmute(audio)
     }
 
     private fun toast(msg: String) {
