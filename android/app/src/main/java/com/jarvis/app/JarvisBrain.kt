@@ -3,6 +3,8 @@ package com.jarvis.app
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -527,6 +529,7 @@ object GeminiApi {
 
 class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
+    private val audio: AudioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
@@ -553,13 +556,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var listening by mutableStateOf(false)
         private set
-    var wakeOn by mutableStateOf(false)
+    var wakeOn by mutableStateOf(WakeService.isRunning)
         private set
 
     private var tts: TextToSpeech? = null
     private var recognizer: SpeechRecognizer? = null
-    private var wakeRecognizer: SpeechRecognizer? = null
-    private var wakeRestarts = 0
+    private var listenTries = 0
+    private val focusRequest: AudioFocusRequest by lazy {
+        AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).build()
+    }
 
     // Owner key, baked at build time from the GEMINI_API_KEY repo secret
     // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
@@ -612,7 +617,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             tts?.shutdown()
         } catch (_: Exception) {
         }
-        stopWakeLoop()
+        commandAudioEnd()
         destroyRecognizer()
         super.onCleared()
     }
@@ -647,6 +652,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (match != null) {
                 t.voice = match
                 voiceName = match.name
+                store.ttsVoice = match.name // persist auto-pick so the service uses it too
             } else {
                 t.language = Locale.getDefault()
                 voiceName = ""
@@ -741,22 +747,26 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- voice input (in-app, no Google popup) ----
+    // ---- voice input (in-app, no Google popup, no beeps) ----
 
     fun startListening() {
         try {
             destroyRecognizer()
-            destroyWakeRecognizer()
+            pauseWakeService()
             val ctx = getApplication<Application>()
             if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
                 toast("Voice input not available on this device")
+                commandAudioEnd()
+                resumeWakeService()
                 return
             }
+            commandAudioBegin()
             val r = SpeechRecognizer.createSpeechRecognizer(ctx)
             recognizer = r
             r.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     listening = true
+                    bubbleRed()
                 }
 
                 override fun onResults(results: Bundle?) {
@@ -764,13 +774,25 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()?.trim().orEmpty()
                     destroyRecognizer()
+                    listenTries = 0
+                    commandAudioEnd()
+                    bubbleBlue()
                     if (heard.isNotEmpty()) send(heard)
-                    resumeWakeLoop()
+                    resumeWakeService()
                 }
 
                 override fun onError(error: Int) {
                     listening = false
                     destroyRecognizer()
+                    if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && ++listenTries <= 3) {
+                        // Mic still held (e.g. by the wake loop shutting down) — retry.
+                        viewModelScope.launch {
+                            delay(600)
+                            startListening()
+                        }
+                        return
+                    }
+                    listenTries = 0
                     if (error == SpeechRecognizer.ERROR_NO_MATCH ||
                         error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                     ) {
@@ -778,7 +800,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     } else if (error != SpeechRecognizer.ERROR_CLIENT) {
                         toast("Voice error ($error)")
                     }
-                    resumeWakeLoop()
+                    commandAudioEnd()
+                    bubbleBlue()
+                    resumeWakeService()
                 }
 
                 override fun onEndOfSpeech() {}
@@ -800,7 +824,17 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
             listening = false
             destroyRecognizer()
-            resumeWakeLoop()
+            listenTries = 0
+            commandAudioEnd()
+            bubbleBlue()
+            resumeWakeService()
+        }
+    }
+
+    fun startListeningDelayed(ms: Long) {
+        viewModelScope.launch {
+            delay(ms)
+            if (!listening) startListening()
         }
     }
 
@@ -810,6 +844,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
         }
         listening = false
+        commandAudioEnd()
     }
 
     private fun destroyRecognizer() {
@@ -820,6 +855,32 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         recognizer = null
     }
 
+    /** Duck everything + mute recognition beeps for a voice-command session. */
+    private fun commandAudioBegin() {
+        try {
+            audio.requestAudioFocus(focusRequest)
+        } catch (_: Exception) {
+        }
+        muteBeeps(true)
+    }
+
+    private fun commandAudioEnd() {
+        muteBeeps(false)
+        try {
+            audio.abandonAudioFocusRequest(focusRequest)
+        } catch (_: Exception) {
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun muteBeeps(mute: Boolean) {
+        try {
+            audio.setStreamMute(AudioManager.STREAM_MUSIC, mute)
+            audio.setStreamMute(AudioManager.STREAM_SYSTEM, mute)
+        } catch (_: Exception) {
+        }
+    }
+
     private fun toast(msg: String) {
         try {
             Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
@@ -827,134 +888,64 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ---- wake word ("Hey Jarvis", while the app is open) ----
+    // ---- wake word service control ----
 
     fun setWakeEnabled(on: Boolean) {
-        if (on == wakeOn) return
-        wakeOn = on
-        wakeRestarts = 0
+        val appCtx = getApplication<Application>()
         if (on) {
-            stopSpeaking()
             stopListening()
-            toast("Wake word on — say \"Hey Jarvis\"")
-            startWakeLoop()
-        } else {
-            stopWakeLoop()
-            toast("Wake word off")
-        }
-    }
-
-    private fun resumeWakeLoop() {
-        if (wakeOn) startWakeLoop()
-    }
-
-    private fun startWakeLoop() {
-        if (!wakeOn) return
-        try {
-            destroyWakeRecognizer()
-            val ctx = getApplication<Application>()
-            if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
-                setWakeEnabled(false)
-                toast("Voice input not available on this device")
+            try {
+                appCtx.startForegroundService(
+                    Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_START)
+                )
+            } catch (e: Exception) {
+                toast("Couldn't start wake service")
                 return
             }
-            val r = SpeechRecognizer.createSpeechRecognizer(ctx)
-            wakeRecognizer = r
-            r.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {}
-
-                override fun onResults(results: Bundle?) {
-                    val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-                    destroyWakeRecognizer()
-                    if (!wakeOn) return
-                    wakeRestarts = 0
-                    if (heard.any { hearsWakeWord(it) }) onWakeWord()
-                    else startWakeLoop()
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val heard = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-                    if (wakeOn && heard.any { hearsWakeWord(it) }) {
-                        destroyWakeRecognizer()
-                        onWakeWord()
-                    }
-                }
-
-                override fun onError(error: Int) {
-                    destroyWakeRecognizer()
-                    if (!wakeOn) return
-                    when (error) {
-                        SpeechRecognizer.ERROR_NO_MATCH,
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> startWakeLoop()
-                        SpeechRecognizer.ERROR_CLIENT,
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                            // Real problem (not just silence) — give up after a few.
-                            if (++wakeRestarts > 10) {
-                                setWakeEnabled(false)
-                                toast("Wake word stopped (mic busy)")
-                            } else {
-                                startWakeLoop()
-                            }
-                        }
-                        else -> {
-                            setWakeEnabled(false)
-                            toast("Wake word stopped (error $error)")
-                        }
-                    }
-                }
-
-                override fun onEndOfSpeech() {}
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            wakeOn = true
+        } else {
+            try {
+                appCtx.stopService(Intent(appCtx, WakeService::class.java))
+            } catch (_: Exception) {
             }
-            r.startListening(intent)
-        } catch (_: Exception) {
-            destroyWakeRecognizer()
-            if (wakeOn) {
-                setWakeEnabled(false)
-                toast("Couldn't start wake-word listening")
-            }
+            wakeOn = false
         }
     }
 
-    private fun onWakeWord() {
-        if (!wakeOn) return
-        wakeRestarts = 0
-        stopListening()
-        speak("Yes?", force = true)
-        // Let "Yes?" finish so the mic doesn't hear our own voice.
-        viewModelScope.launch {
-            delay(1200)
-            if (wakeOn && !listening) startListening()
-        }
+    fun syncWakeState() {
+        wakeOn = WakeService.isRunning
     }
 
-    private fun stopWakeLoop() {
+    private fun pauseWakeService() {
         try {
-            wakeRecognizer?.cancel()
+            val appCtx = getApplication<Application>()
+            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_PAUSE))
         } catch (_: Exception) {
         }
-        destroyWakeRecognizer()
-        wakeRestarts = 0
     }
 
-    private fun destroyWakeRecognizer() {
+    private fun resumeWakeService() {
         try {
-            wakeRecognizer?.destroy()
+            val appCtx = getApplication<Application>()
+            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_RESUME))
         } catch (_: Exception) {
         }
-        wakeRecognizer = null
+    }
+
+    private fun bubbleRed() {
+        try {
+            val appCtx = getApplication<Application>()
+            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_BUBBLE_RED))
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun bubbleBlue() {
+        try {
+            val appCtx = getApplication<Application>()
+            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_BUBBLE_BLUE))
+        } catch (_: Exception) {
+        }
     }
 
     // ---- multi-chat ----

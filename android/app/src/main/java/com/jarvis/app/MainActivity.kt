@@ -2,8 +2,12 @@ package com.jarvis.app
 
 import android.Manifest
 import android.app.Application
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -61,12 +65,47 @@ val Good = Color(0xFF3FB950)
 val Warn = Color(0xFFD29922)
 val JarvisRed = Color(0xFFE5484D)
 
+class JarvisVmFactory(private val app: Application) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return JarvisViewModel(app) as T
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 JarvisScreen()
+            }
+        }
+        handleWakeIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleWakeIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Service may have died while away — re-sync the Wake toggle.
+        try {
+            ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java].syncWakeState()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun handleWakeIntent(intent: Intent?) {
+        if (intent?.action == WakeService.ACTION_WAKE_COMMAND) {
+            intent.action = null // consume (avoid re-trigger on rotation)
+            setIntent(intent)
+            try {
+                ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
+                    .startListeningDelayed(800)
+            } catch (_: Exception) {
             }
         }
     }
@@ -76,24 +115,20 @@ class MainActivity : ComponentActivity() {
 fun JarvisScreen() {
     val context = LocalContext.current
     val vm: JarvisViewModel = viewModel(factory = remember {
-        object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return JarvisViewModel(context.applicationContext as Application) as T
-            }
-        }
+        JarvisVmFactory(context.applicationContext as Application)
     })
 
-    // Mic permission → voice input or wake word (no Google popup).
-    val voiceAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    // Permission launchers (set flags only — effects below drive the follow-ups).
     var wakeRequest by remember { mutableStateOf(false) }
+    var micGrantedTick by remember { mutableStateOf(0) }
+    var notifTick by remember { mutableStateOf(0) }
     val micPerm = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
             if (wakeRequest) {
                 wakeRequest = false
-                vm.setWakeEnabled(true)
+                micGrantedTick++
             } else {
                 vm.startListening()
             }
@@ -102,8 +137,19 @@ fun JarvisScreen() {
             Toast.makeText(context, "Mic permission needed for voice input", Toast.LENGTH_SHORT).show()
         }
     }
+    val notifPerm = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) notifTick++
+        else Toast.makeText(context, "Allow notifications for the listening indicator", Toast.LENGTH_LONG).show()
+    }
     fun hasMicPerm(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+    fun hasNotifPerm(): Boolean {
+        if (Build.VERSION.SDK_INT < 33) return true
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
     }
     fun onMicTap() {
@@ -119,12 +165,39 @@ fun JarvisScreen() {
             vm.setWakeEnabled(false)
             return
         }
-        if (hasMicPerm()) {
-            vm.setWakeEnabled(true)
-        } else {
+        if (!hasMicPerm()) {
             wakeRequest = true
             micPerm.launch(Manifest.permission.RECORD_AUDIO)
+            return
         }
+        if (!Settings.canDrawOverlays(context)) {
+            Toast.makeText(
+                context,
+                "Allow 'Display over other apps', then tap Wake again",
+                Toast.LENGTH_LONG
+            ).show()
+            try {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + context.packageName)
+                    )
+                )
+            } catch (_: Exception) {
+            }
+            return
+        }
+        if (!hasNotifPerm()) {
+            notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        vm.setWakeEnabled(true)
+    }
+    LaunchedEffect(micGrantedTick) {
+        if (micGrantedTick > 0) onWakeTap()
+    }
+    LaunchedEffect(notifTick) {
+        if (notifTick > 0) onWakeTap()
     }
 
     Column(Modifier.fillMaxSize().background(Bg)) {
@@ -171,7 +244,7 @@ fun JarvisScreen() {
         InputRow(
             onSend = vm::send,
             onMic = ::onMicTap,
-            micVisible = voiceAvailable,
+            micVisible = voiceAvailable(context),
             listening = vm.listening
         )
     }
@@ -179,6 +252,14 @@ fun JarvisScreen() {
     if (vm.showSettings) SettingsDialog(vm)
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
+}
+
+private fun voiceAvailable(context: android.content.Context): Boolean {
+    return try {
+        SpeechRecognizer.isRecognitionAvailable(context)
+    } catch (_: Exception) {
+        false
+    }
 }
 
 @Composable
