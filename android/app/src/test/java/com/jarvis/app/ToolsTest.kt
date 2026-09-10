@@ -80,4 +80,25 @@ class ToolsTest {
         )
         assertEquals(listOf("gemini-2.0-flash"), picked)
     }
+
+    @Test fun chatTitleFromFirstUser() {
+        assertEquals(
+            "hello world",
+            chatTitle(listOf("user" to "hello world", "model" to "hi"))
+        )
+    }
+
+    @Test fun chatTitleSkipsBotFirst() {
+        assertEquals("abc", chatTitle(listOf("model" to "greet", "user" to "abc")))
+    }
+
+    @Test fun chatTitleLong() {
+        val long = "this is a very long first message indeed yes"
+        assertEquals(long.take(32).trimEnd() + "…", chatTitle(listOf("user" to long)))
+    }
+
+    @Test fun chatTitleEmpty() {
+        assertEquals("New chat", chatTitle(emptyList()))
+        assertEquals("New chat", chatTitle(listOf("model" to "hi")))
+    }
 }

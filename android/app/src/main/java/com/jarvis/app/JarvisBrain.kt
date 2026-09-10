@@ -25,6 +25,15 @@ import java.util.concurrent.TimeUnit
 
 data class ChatMessage(val role: String, val text: String) // role: user | bot
 
+data class ChatData(val id: String, var title: String, val msgs: MutableList<Pair<String, String>>)
+
+/** Chat list title = first user message, truncated. Pure, tested. */
+fun chatTitle(msgs: List<Pair<String, String>>): String {
+    val first = msgs.firstOrNull { it.first == "user" }?.second?.trim().orEmpty()
+    if (first.isEmpty()) return "New chat"
+    return if (first.length <= 32) first else first.take(32).trimEnd() + "…"
+}
+
 object Models {
     // Hardcoded fallback only — Jarvis auto-discovers working models per key (ListModels).
     val FALLBACK = listOf(
@@ -194,7 +203,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (key, model, facts, history, model cache) ----------
+// ---------- on-device storage (key, model, facts, chats, model cache) ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -216,13 +225,23 @@ class Store(context: Context) {
         p.edit().putStringSet("facts", all.take(50).toSet()).apply()
     }
 
+    fun removeFact(f: String) {
+        val all = facts()
+        all.remove(f)
+        p.edit().putStringSet("facts", all.toSet()).apply()
+    }
+
+    fun clearFacts() {
+        p.edit().remove("facts").apply()
+    }
+
     fun searchFacts(q: String): List<String> {
         val all = facts()
         if (q.isBlank()) return all.take(10)
         return all.filter { it.contains(q, ignoreCase = true) }.take(10)
     }
 
-    /** History as (geminiRole, text) pairs, newest last. */
+    /** Legacy single history (pre-chats). Read once for migration, then deleted. */
     fun loadHistory(): MutableList<Pair<String, String>> {
         val out = mutableListOf<Pair<String, String>>()
         try {
@@ -236,16 +255,46 @@ class Store(context: Context) {
         return out
     }
 
-    fun saveHistory(h: List<Pair<String, String>>) {
+    fun removeLegacyHistory() {
+        p.edit().remove("history").apply()
+    }
+
+    fun loadChats(): MutableList<ChatData> {
+        val out = mutableListOf<ChatData>()
+        try {
+            val arr = JSONArray(p.getString("chats_v1", "[]") ?: "[]")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val marr = o.optJSONArray("msgs") ?: JSONArray()
+                val msgs = mutableListOf<Pair<String, String>>()
+                for (j in 0 until marr.length()) {
+                    val m = marr.getJSONObject(j)
+                    msgs.add(m.getString("r") to m.getString("t"))
+                }
+                out.add(ChatData(o.getString("id"), o.optString("title", "Chat"), msgs))
+            }
+        } catch (_: Exception) {
+        }
+        return out.take(30).toMutableList()
+    }
+
+    fun saveChats(chats: List<ChatData>) {
         try {
             val arr = JSONArray()
-            for ((r, t) in h.takeLast(40)) {
-                arr.put(JSONObject().put("r", r).put("t", t.take(2000)))
+            for (c in chats.take(30)) {
+                val marr = JSONArray()
+                for ((r, t) in c.msgs.takeLast(40)) {
+                    marr.put(JSONObject().put("r", r).put("t", t.take(2000)))
+                }
+                arr.put(JSONObject().put("id", c.id).put("title", c.title.take(60)).put("msgs", marr))
             }
-            p.edit().putString("history", arr.toString()).apply()
+            p.edit().putString("chats_v1", arr.toString()).apply()
         } catch (_: Exception) {
         }
     }
+
+    fun loadActiveId(): String = p.getString("active_chat", "") ?: ""
+    fun saveActiveId(id: String) = p.edit().putString("active_chat", id).apply()
 
     fun cachedModels(): List<String> {
         return try {
@@ -417,14 +466,21 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
+    val chats = mutableStateListOf<ChatData>()
     var busy by mutableStateOf(false)
         private set
     var showSettings by mutableStateOf(false)
+    var showChats by mutableStateOf(false)
+    var showMemory by mutableStateOf(false)
     var settingsMsg by mutableStateOf("")
         private set
     var apiKey by mutableStateOf(store.apiKey)
         private set
     var model by mutableStateOf(store.model)
+        private set
+    var activeChatId by mutableStateOf("")
+        private set
+    var memTick by mutableStateOf(0)
         private set
 
     // Owner key, baked at build time from the GEMINI_API_KEY repo secret
@@ -449,19 +505,107 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     init {
         val cached = store.cachedModels()
         availableModels.addAll(cached.ifEmpty { Models.FALLBACK })
-        for ((r, t) in store.loadHistory()) {
+        val loaded = store.loadChats()
+        if (loaded.isEmpty()) {
+            val legacy = store.loadHistory()
+            if (legacy.isNotEmpty()) {
+                loaded.add(ChatData("c1", chatTitle(legacy), legacy.toMutableList()))
+            } else {
+                loaded.add(ChatData("c1", "New chat", mutableListOf()))
+            }
+            store.removeLegacyHistory()
+        }
+        chats.addAll(loaded)
+        val savedId = store.loadActiveId()
+        activeChatId = if (loaded.any { it.id == savedId }) savedId else loaded[0].id
+        val active = loaded.first { it.id == activeChatId }
+        for ((r, t) in active.msgs) {
             messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
         }
         if (messages.isEmpty()) {
-            messages.add(
-                ChatMessage(
-                    "bot",
-                    if (brainOk) "Hello. I am Jarvis. How can I help?"
-                    else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
-                )
-            )
+            messages.add(ChatMessage("bot", greet()))
         }
     }
+
+    private fun greet(): String =
+        if (brainOk) "Hello. I am Jarvis. How can I help?"
+        else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
+
+    // ---- multi-chat ----
+
+    fun newChat() {
+        persist()
+        val c = ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf())
+        chats.add(0, c)
+        activeChatId = c.id
+        messages.clear()
+        messages.add(
+            ChatMessage(
+                "bot",
+                if (brainOk) "New chat started. What's on your mind?"
+                else "New chat started. Add a key in ⚙️ to wake my brain."
+            )
+        )
+        showChats = false
+        persist()
+    }
+
+    fun switchChat(id: String) {
+        if (id == activeChatId) {
+            showChats = false
+            return
+        }
+        persist()
+        val c = chats.firstOrNull { it.id == id } ?: return
+        activeChatId = id
+        messages.clear()
+        for ((r, t) in c.msgs) {
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
+        }
+        if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
+        showChats = false
+        persist()
+    }
+
+    fun deleteChat(id: String) {
+        persist()
+        chats.removeAll { it.id == id }
+        if (chats.isEmpty()) {
+            chats.add(ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf()))
+        }
+        if (activeChatId == id) {
+            activeChatId = chats[0].id
+            messages.clear()
+            for ((r, t) in chats[0].msgs) {
+                messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
+            }
+            if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
+        }
+        persist()
+    }
+
+    // ---- memories ----
+
+    fun memories(): List<String> = store.facts()
+
+    fun addMemory(s: String) {
+        val t = s.trim()
+        if (t.isEmpty()) return
+        store.addFact(t)
+        memTick++
+    }
+
+    fun removeMemory(s: String) {
+        store.removeFact(s)
+        memTick++
+    }
+
+    fun clearMemories() {
+        store.clearFacts()
+        memTick++
+    }
+
+    // ---- settings ----
 
     fun openSettings() {
         settingsMsg = ""
@@ -588,6 +732,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (hit.arg.isBlank()) "Tell me what to remember."
             else {
                 store.addFact(hit.arg)
+                memTick++
                 "Noted! I'll remember that."
             }
         }
@@ -607,8 +752,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun persist() {
-        store.saveHistory(
-            messages.map { (if (it.role == "user") "user" else "model") to it.text }
-        )
+        val c = chats.firstOrNull { it.id == activeChatId } ?: return
+        c.msgs.clear()
+        c.msgs.addAll(messages.map { (if (it.role == "user") "user" else "model") to it.text })
+        c.title = chatTitle(c.msgs)
+        store.saveChats(chats)
+        store.saveActiveId(activeChatId)
     }
 }

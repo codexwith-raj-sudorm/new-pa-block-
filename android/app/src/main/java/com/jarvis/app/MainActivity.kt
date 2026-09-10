@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,6 +20,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -72,7 +74,13 @@ fun JarvisScreen() {
     })
 
     Column(Modifier.fillMaxSize().background(Bg)) {
-        TopBar(online = vm.brainOk, onSettings = vm::openSettings)
+        TopBar(
+            online = vm.brainOk,
+            onSettings = vm::openSettings,
+            onNewChat = vm::newChat,
+            onChats = { vm.showChats = true },
+            onMemory = { vm.showMemory = true }
+        )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
@@ -106,32 +114,50 @@ fun JarvisScreen() {
     }
 
     if (vm.showSettings) SettingsDialog(vm)
+    if (vm.showChats) ChatsDialog(vm)
+    if (vm.showMemory) MemoryDialog(vm)
 }
 
 @Composable
-fun TopBar(online: Boolean, onSettings: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(Panel).padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier.size(38.dp).clip(CircleShape).background(UserBlue),
-            contentAlignment = Alignment.Center
-        ) { Text("J", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text("JARVIS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 2.sp)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Good else Warn))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    if (online) "brain connected" else "API key needed",
-                    color = Muted, fontSize = 12.sp
-                )
+fun TopBar(
+    online: Boolean,
+    onSettings: () -> Unit,
+    onNewChat: () -> Unit,
+    onChats: () -> Unit,
+    onMemory: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().background(Panel)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(38.dp).clip(CircleShape).background(UserBlue),
+                contentAlignment = Alignment.Center
+            ) { Text("J", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("JARVIS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 2.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Good else Warn))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (online) "brain connected" else "API key needed",
+                        color = Muted, fontSize = 12.sp
+                    )
+                }
+            }
+            IconButton(onClick = onSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
             }
         }
-        IconButton(onClick = onSettings) {
-            Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onNewChat) { Text("＋ New", fontSize = 13.sp) }
+            TextButton(onClick = onChats) { Text("💬 Chats", fontSize = 13.sp) }
+            TextButton(onClick = onMemory) { Text("🧠 Memory", fontSize = 13.sp) }
         }
     }
 }
@@ -264,6 +290,124 @@ fun SettingsDialog(vm: JarvisViewModel) {
         },
         dismissButton = {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun ChatsDialog(vm: JarvisViewModel) {
+    AlertDialog(
+        onDismissRequest = { vm.showChats = false },
+        title = { Text("💬 Chats") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (vm.chats.isEmpty()) {
+                    Text("No chats yet.", color = Muted, fontSize = 14.sp)
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                        items(vm.chats, key = { it.id }) { c ->
+                            val active = c.id == vm.activeChatId
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { vm.switchChat(c.id) }
+                                    .background(if (active) BotGray else Color.Transparent)
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        c.title,
+                                        fontSize = 14.sp,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        "${c.msgs.count { it.first == "user" }} messages" +
+                                            if (active) " • open" else "",
+                                        fontSize = 12.sp, color = Muted
+                                    )
+                                }
+                                IconButton(onClick = { vm.deleteChat(c.id) }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Delete chat",
+                                        tint = Muted
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.newChat() }) { Text("＋ New chat") }
+        },
+        dismissButton = {
+            TextButton(onClick = { vm.showChats = false }) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+fun MemoryDialog(vm: JarvisViewModel) {
+    var input by remember { mutableStateOf("") }
+    val mems = remember(vm.memTick) { vm.memories() }
+    AlertDialog(
+        onDismissRequest = { vm.showMemory = false },
+        title = { Text("🧠 Memory") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Things Jarvis remembers about you (also via “remember …” in chat):",
+                    fontSize = 13.sp, color = Muted
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        placeholder = { Text("Add a memory…") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = {
+                        vm.addMemory(input)
+                        input = ""
+                    }) { Text("Add") }
+                }
+                if (mems.isEmpty()) {
+                    Text("No memories yet.", color = Muted, fontSize = 14.sp)
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                        items(mems) { m ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("• $m", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { vm.removeMemory(m) }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Forget",
+                                        tint = Muted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (mems.isNotEmpty()) {
+                TextButton(onClick = { vm.clearMemories() }) { Text("Clear all") }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { vm.showMemory = false }) { Text("Close") }
         }
     )
 }
