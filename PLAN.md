@@ -265,3 +265,9 @@ Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
 - Chainlit gives chat UI, streaming, sessions, starters, welcome screen for free.
 - Customization roadmap (tools, memory, personality) now builds as Chainlit/LiteLLM features.
 - Deploy unchanged: `render.yaml` Blueprint, startCommand runs Chainlit headless.
+
+## Phase 2 update (2026-09-10): tools live
+- 4 tools: `get_time`, `calculate` (safe AST eval + % / ^ humanizers), `web_search`, `fetch_page` (keyless DuckDuckGo).
+- Agentic loop in `agent/runner.py` (provider-agnostic, max 5 steps); Chainlit Steps show tool activity.
+- Demo keyword router (`tools/demo_router.py`) runs offline tools for real in sandbox preview.
+- 21/21 tests pass (`python3 tests/test_tools.py`). Web tools degrade gracefully here; verify live on Render.

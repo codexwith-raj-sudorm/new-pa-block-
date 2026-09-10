@@ -1,0 +1,45 @@
+"""Agentic tool loop (provider-agnostic).
+
+call_llm(messages) -> {"content": str|None, "tool_calls": [{id, name, arguments}]}
+on_tool(name, args, result) -> awaitable UI hook (Chainlit Step in prod).
+Returns the final assistant text.
+"""
+
+import json
+
+from tools.registry import execute_tool
+
+
+async def run_with_tools(messages, call_llm, on_tool=None, max_iterations=5):
+    working = list(messages)
+    for _ in range(max_iterations):
+        resp = call_llm(working)
+        content = resp.get("content") or ""
+        calls = resp.get("tool_calls") or []
+        if not calls:
+            return content
+        working.append(
+            {
+                "role": "assistant",
+                "content": content,
+                "tool_calls": [
+                    {
+                        "id": c["id"],
+                        "type": "function",
+                        "function": {
+                            "name": c["name"],
+                            "arguments": c.get("arguments")
+                            if isinstance(c.get("arguments"), str)
+                            else json.dumps(c.get("arguments", {})),
+                        },
+                    }
+                    for c in calls
+                ],
+            }
+        )
+        for c in calls:
+            result = execute_tool(c["name"], c.get("arguments", "{}"))
+            if on_tool:
+                await on_tool(c["name"], c.get("arguments"), result)
+            working.append({"role": "tool", "tool_call_id": c["id"], "content": result})
+    return "(stopped: too many tool steps — try a simpler request)"
