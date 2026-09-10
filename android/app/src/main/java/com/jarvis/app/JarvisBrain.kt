@@ -45,14 +45,20 @@ fun chatTitle(msgs: List<Pair<String, String>>): String {
 }
 
 private val URL_RX = Regex("https?://\\S+|www\\.\\S+")
-private val EMOJI_RX =
-    Regex("[\\u2190-\\u21FF\\u2300-\\u27BF\\u2B00-\\u2BFF\\uFE00-\\uFEFF\\u200D]+|[\\uD83C-\\uDBFF][\\uDC00-\\uDFFF]+")
+
+/** True for emoji/symbol chars (incl. surrogate halves) that TTS reads aloud badly. */
+private fun isSpeechNoise(c: Char): Boolean {
+    val v = c.code
+    return v in 0x2190..0x21FF || v in 0x2300..0x27BF || v in 0x2B00..0x2BFF ||
+        v in 0xFE00..0xFEFF || v == 0x200D || v in 0xD800..0xDFFF
+}
 
 /** Strip things TTS reads aloud badly (emoji, markdown, URLs). Pure, tested. */
 fun cleanForSpeech(text: String): String {
-    var s = text
+    val sb = StringBuilder(text.length)
+    for (c in text) sb.append(if (isSpeechNoise(c)) ' ' else c)
+    var s = sb.toString()
     s = URL_RX.replace(s, " link ")
-    s = EMOJI_RX.replace(s, " ")
     s = s.replace(Regex("[*_`#>~|]+"), " ")
     s = s.replace("•", ", ").replace("→", ", ").replace("—", ", ").replace("–", ", ")
     s = s.replace("&", " and ").replace("%", " percent ").replace("=", " equals ")
