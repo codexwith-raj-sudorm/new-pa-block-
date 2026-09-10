@@ -279,12 +279,19 @@ class WakeService : Service() {
     private fun applySavedVoice() {
         val t = tts ?: return
         try {
-            val saved = store.ttsVoice
-            val match = t.voices?.firstOrNull { it.name == saved }
+            val key = personaKeyOrDefault(store.ttsVoice)
+            val persona = personaForKey(key)
+            val all = try { t.voices } catch (_: Exception) { null }.orEmpty()
+            val loc = Locale.getDefault()
+            val infos = all.map {
+                EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired)
+            }
+            val want = resolvePersonaVoices(infos, loc.language, loc.country ?: "")[key]
+            val match = all.firstOrNull { it.name == want?.name }
             if (match != null) t.voice = match
-            else t.language = Locale.getDefault()
-            t.setSpeechRate(0.95f)
-            t.setPitch(0.9f)
+            else t.language = loc
+            t.setSpeechRate(persona.rate)
+            t.setPitch(persona.pitch)
         } catch (_: Exception) {
         }
     }

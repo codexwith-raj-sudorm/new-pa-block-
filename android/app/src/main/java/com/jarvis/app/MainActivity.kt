@@ -466,7 +466,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     TextButton(onClick = { vm.previewVoice() }) { Text("Preview") }
                 }
                 if (vm.ttsVoices.isNotEmpty()) {
-                    LazyColumn(Modifier.heightIn(max = 140.dp)) {
+                    LazyColumn(Modifier.heightIn(max = 210.dp)) {
                         items(vm.ttsVoices) { v ->
                             Row(
                                 Modifier.fillMaxWidth()
@@ -482,7 +482,10 @@ fun SettingsDialog(vm: JarvisViewModel) {
                                     selected = vm.voiceName == v.id,
                                     onClick = { vm.selectVoice(v.id) }
                                 )
-                                Text(v.label, fontSize = 14.sp)
+                                Text(
+                                    (if (personaForKey(v.id).gender == PersonaGender.FEMALE) "♀ " else "♂ ") + v.label,
+                                    fontSize = 14.sp
+                                )
                             }
                         }
                     }

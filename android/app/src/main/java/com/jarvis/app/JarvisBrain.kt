@@ -647,64 +647,34 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun applyVoice() {
         val t = tts ?: return
         try {
-            val saved = store.ttsVoice
-            val match = t.voices?.firstOrNull { it.name == saved } ?: pickJarvisVoice(t)
-            if (match != null) {
-                t.voice = match
-                voiceName = match.name
-                store.ttsVoice = match.name // persist auto-pick so the service uses it too
-            } else {
-                t.language = Locale.getDefault()
-                voiceName = ""
-            }
-            t.setSpeechRate(0.95f)
-            t.setPitch(0.9f)
+            val key = personaKeyOrDefault(store.ttsVoice)
+            val persona = personaForKey(key)
+            val match = resolveEngineVoice(t, key)
+            if (match != null) t.voice = match
+            else t.language = Locale.getDefault()
+            voiceName = key
+            store.ttsVoice = key // persona key now (legacy engine names auto-heal to jarvis)
+            t.setSpeechRate(persona.rate)
+            t.setPitch(persona.pitch)
         } catch (_: Exception) {
         }
     }
 
-    private fun pickJarvisVoice(t: TextToSpeech): android.speech.tts.Voice? {
-        val all = try {
-            t.voices
-        } catch (_: Exception) {
-            null
-        } ?: return null
-        val lang = Locale.getDefault().language
-        fun isMale(v: android.speech.tts.Voice): Boolean =
-            v.name.contains("male", ignoreCase = true) &&
-                !v.name.contains("female", ignoreCase = true)
-        return all.firstOrNull { isMale(it) && it.locale?.language == lang }
-            ?: all.firstOrNull { isMale(it) }
-            ?: all.firstOrNull { it.locale?.language == lang }
+    private fun resolveEngineVoice(t: TextToSpeech, personaKey: String): android.speech.tts.Voice? {
+        val all = try { t.voices } catch (_: Exception) { null }.orEmpty()
+        if (all.isEmpty()) return null
+        val infos = all.map {
+            EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired)
+        }
+        val loc = Locale.getDefault()
+        val want = resolvePersonaVoices(infos, loc.language, loc.country ?: "")[personaKey] ?: return null
+        return all.firstOrNull { it.name == want.name }
     }
 
     private fun loadVoices() {
-        val t = tts ?: return
         try {
-            val all = t.voices ?: return
-            val lang = Locale.getDefault().language
-            val scored = all.map { v ->
-                val male = v.name.contains("male", ignoreCase = true) &&
-                    !v.name.contains("female", ignoreCase = true)
-                val score = when {
-                    male && v.locale?.language == lang -> 0
-                    male -> 1
-                    v.locale?.language == lang -> 2
-                    else -> 3
-                }
-                v to score
-            }.sortedWith(compareBy({ it.second }, { it.first.name }))
             ttsVoices.clear()
-            ttsVoices.addAll(scored.take(14).map { (v, _) ->
-                val isMale = v.name.contains("male", ignoreCase = true) &&
-                    !v.name.contains("female", ignoreCase = true)
-                TtsVoice(
-                    v.name,
-                    "${v.locale?.displayLanguage ?: "?"} • " +
-                        (if (isMale) "Male" else "Voice") +
-                        (if (v.isNetworkConnectionRequired) " • online" else "")
-                )
-            })
+            ttsVoices.addAll(VOICE_PERSONAS.map { p -> TtsVoice(p.key, "${p.name} — ${p.tagline}") })
         } catch (_: Exception) {
         }
     }
@@ -717,7 +687,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun previewVoice() {
-        speak("Hello. I am Jarvis, at your service.", force = true)
+        val name = personaForKey(voiceName).name
+        speak("Hello. I am $name, at your service.", force = true)
     }
 
     fun toggleTts() {
