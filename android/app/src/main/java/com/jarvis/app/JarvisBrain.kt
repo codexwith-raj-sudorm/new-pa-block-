@@ -608,8 +608,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
     var listening by mutableStateOf(false)
-    var permRequest by mutableStateOf<String?>(null)
         private set
+    var permRequest by mutableStateOf<String?>(null)
     var wakeOn by mutableStateOf(WakeService.isRunning)
         private set
 
