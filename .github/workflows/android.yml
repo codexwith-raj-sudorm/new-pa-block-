@@ -29,6 +29,7 @@ jobs:
           grep -o "ACTUAL_IS\[[^]]*\]" ../build-output.log | head -3 | while IFS= read -r line; do echo "::error ::REVEAL::$line"; done || true
           grep -o "CODES\[[^]]*\]" ../build-output.log | head -3 | while IFS= read -r line; do echo "::error ::REVEAL::$line"; done || true
           grep -B1 -A3 "AssertionError\|ComparisonFailure" ../build-output.log | head -20 | while IFS= read -r line; do echo "::error ::ASSERT::$line"; done || true
+          find app/build -name "*ToolsTest*.xml" 2>/dev/null | head -5 | while IFS= read -r f; do echo "::error ::FOUND::$f"; grep -o 'message="[^"]*"' "$f" | head -4 | while IFS= read -r m; do echo "::error ::FAILMSG::$m"; done; done || true
       - run: gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
