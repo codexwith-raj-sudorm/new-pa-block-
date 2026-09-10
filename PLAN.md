@@ -252,6 +252,6 @@ Each phase is 1–3 focused sessions. We demo each phase live in your phone brow
 
 ## 12. Immediate next steps
 
-1. ~~Scaffold the repo (Phase 0)~~ — doing now: `server.py`, `config.yaml`, `web/index.html`, `/health`, live preview.
-2. You open the preview on your phone and confirm the chat UI works.
-3. You answer Q1 (LLM key) → we build Phase 1 (real brain).
+1. ✅ Phases 0–1 code done + pushed (`arena/01a08a6b-new-pa-block`).
+2. **You deploy on Render from your phone** (steps in chat) → real Jarvis at a permanent URL.
+3. You confirm real chat works there → we build Phase 2 (tool loop + offline tools here, web tools verified on deploy).
