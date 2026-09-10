@@ -271,3 +271,11 @@ Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
 - Agentic loop in `agent/runner.py` (provider-agnostic, max 5 steps); Chainlit Steps show tool activity.
 - Demo keyword router (`tools/demo_router.py`) runs offline tools for real in sandbox preview.
 - 21/21 tests pass (`python3 tests/test_tools.py`). Web tools degrade gracefully here; verify live on Render.
+
+## Phase 3 update (2026-09-10): memory + hardening (autopilot loop 1)
+- 9 new tools: remember/recall, note_add/note_list, todo_add/todo_list/todo_done, reminder_add/reminders_due (13 total).
+- `memory/store.py`: SQLite facts/notes/todos/reminders + conversation log. Natural-date parser (in N min/hrs, at HH:MM).
+- Due reminders announced on chat start. Demo router covers all offline tools (testable in preview).
+- Password login wall (env-gated: JARVIS_USER/JARVIS_PASSWORD) for public hosting.
+- Dockerfile + .dockerignore, CI workflow (tests on push), README rewrite.
+- Tests: 51/51 pass (test_tools 21 + test_memory 30).
