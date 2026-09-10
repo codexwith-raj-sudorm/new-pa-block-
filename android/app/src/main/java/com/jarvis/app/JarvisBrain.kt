@@ -46,7 +46,7 @@ fun chatTitle(msgs: List<Pair<String, String>>): String {
 
 private val URL_RX = Regex("https?://\\S+|www\\.\\S+")
 private val EMOJI_RX =
-    Regex("[←-⇿⏀-⯿Ⰰ-⯿︀-️‍]+|[\\uD83C-\\uDBFF][\\uDC00-\\uDFFF]+")
+    Regex("[\\u2190-\\u21FF\\u2300-\\u27BF\\u2B00-\\u2BFF\\uFE00-\\uFEFF\\u200D]+|[\\uD83C-\\uDBFF][\\uDC00-\\uDFFF]+")
 
 /** Strip things TTS reads aloud badly (emoji, markdown, URLs). Pure, tested. */
 fun cleanForSpeech(text: String): String {

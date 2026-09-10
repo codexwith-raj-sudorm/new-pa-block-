@@ -254,7 +254,7 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",
                 color = JarvisRed, fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, paddingTop = 6.dp)
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
             )
         }
         Row(
