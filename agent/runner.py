@@ -1,4 +1,4 @@
-"""Agentic tool loop (provider-agnostic).
+"""Agentic tool loop (provider-agnostic) + history trimming.
 
 call_llm(messages) -> {"content": str|None, "tool_calls": [{id, name, arguments}]}
 on_tool(name, args, result) -> awaitable UI hook (Chainlit Step in prod).
@@ -9,9 +9,18 @@ import json
 
 from tools.registry import execute_tool
 
+MAX_HISTORY = 30  # last N non-system messages sent to the LLM (token guard)
+
+
+def trim_history(messages, keep=MAX_HISTORY):
+    """Keep system message(s) + last `keep` others. Pure function, tested."""
+    system = [m for m in messages if m.get("role") == "system"]
+    rest = [m for m in messages if m.get("role") != "system"]
+    return system + rest[-keep:]
+
 
 async def run_with_tools(messages, call_llm, on_tool=None, max_iterations=5):
-    working = list(messages)
+    working = trim_history(list(messages))
     for _ in range(max_iterations):
         resp = call_llm(working)
         content = resp.get("content") or ""

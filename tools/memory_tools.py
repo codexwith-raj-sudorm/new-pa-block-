@@ -1,5 +1,6 @@
 """Memory tools: facts, notes, todos, reminders. SQLite-backed, fully offline."""
 
+import os
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -8,9 +9,9 @@ from memory import store
 try:
     from zoneinfo import ZoneInfo
 
-    _IST = ZoneInfo("Asia/Kolkata")
+    _USER_TZ = ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
 except Exception:
-    _IST = None
+    _USER_TZ = None
 
 
 def _tool(name, description, properties, required=None):
@@ -70,8 +71,8 @@ REMINDERS_DUE_SCHEMA = _tool(
 def _fmt_dt(iso):
     try:
         dt = datetime.fromisoformat(iso)
-        if _IST:
-            dt = dt.astimezone(_IST)
+        if _USER_TZ:
+            dt = dt.astimezone(_USER_TZ)
         return dt.strftime("%d %b, %I:%M %p")
     except Exception:
         return iso
@@ -151,7 +152,7 @@ def parse_when(s):
             hr = 0
         if hr > 23 or mn > 59:
             return None
-        base = datetime.now(_IST) if _IST else now_utc
+        base = datetime.now(_USER_TZ) if _USER_TZ else now_utc
         target = base.replace(hour=hr, minute=mn, second=0, microsecond=0)
         if target <= base:
             target += timedelta(days=1)
@@ -159,7 +160,7 @@ def parse_when(s):
     try:
         dt = datetime.fromisoformat(s)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=_IST or timezone.utc)
+            dt = dt.replace(tzinfo=_USER_TZ or timezone.utc)
         return dt.astimezone(timezone.utc).isoformat()
     except Exception:
         return None

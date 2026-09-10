@@ -286,3 +286,9 @@ Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
 - Web search: Tavily when TAVILY_API_KEY set, DuckDuckGo fallback, graceful offline message.
 - Dark theme default, BACKLOG.md roadmap, CI runs all 3 suites.
 - Tests: 62/62 pass (tools 21 + memory 30 + safety 11).
+
+## Autopilot loop 3 (2026-09-10): robustness + docs
+- History trim (system + last 30) enforced in agent loop — token-bloat guard.
+- TIMEZONE env everywhere (was hardcoded Asia/Kolkata).
+- .env.example documents all 9 vars; new DEPLOY.md (Koyeb/Render/Docker guide).
+- Tests: 65/65 pass (tools 24 + memory 30 + safety 11).

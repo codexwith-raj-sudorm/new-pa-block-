@@ -3,6 +3,7 @@
 import ast
 import math
 import operator
+import os
 import re
 from datetime import datetime
 
@@ -10,6 +11,11 @@ try:
     from zoneinfo import ZoneInfo
 except Exception:  # pragma: no cover
     ZoneInfo = None
+
+
+def _default_tz():
+    return os.getenv("TIMEZONE", "Asia/Kolkata")
+
 
 GET_TIME_SCHEMA = {
     "type": "function",
@@ -21,7 +27,7 @@ GET_TIME_SCHEMA = {
             "properties": {
                 "timezone": {
                     "type": "string",
-                    "description": "IANA timezone, e.g. Asia/Kolkata, UTC. Default: Asia/Kolkata.",
+                    "description": "IANA timezone, e.g. Asia/Kolkata, UTC. Default: server TIMEZONE.",
                 }
             },
         },
@@ -45,7 +51,8 @@ CALCULATE_SCHEMA = {
 }
 
 
-def get_time(timezone: str = "Asia/Kolkata") -> str:
+def get_time(timezone: str = None) -> str:
+    timezone = timezone or _default_tz()
     tz = None
     if ZoneInfo is not None:
         try:

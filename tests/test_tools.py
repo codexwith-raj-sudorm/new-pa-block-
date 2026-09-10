@@ -92,5 +92,16 @@ def fake_unknown(messages):
 out2 = asyncio.run(run_with_tools([{"role": "user", "content": "x"}], fake_unknown))
 check("unknown tool handled", out2 == "handled:True", repr(out2))
 
+print("history trim:")
+from agent.runner import trim_history
+
+big = [{"role": "system", "content": "sys"}] + [
+    {"role": "user" if i % 2 == 0 else "assistant", "content": f"m{i}"} for i in range(40)
+]
+trimmed = trim_history(big)
+check("keeps system + 30", len(trimmed) == 31 and trimmed[0]["content"] == "sys", str(len(trimmed)))
+check("keeps newest", trimmed[-1]["content"] == "m39" and trimmed[1]["content"] == "m10")
+check("short untouched", trim_history(big[:5]) == big[:5])
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)
