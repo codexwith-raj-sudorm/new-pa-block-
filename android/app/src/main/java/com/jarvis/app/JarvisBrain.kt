@@ -290,6 +290,14 @@ class Store(context: Context) {
         get() = p.getString("tts_voice", "") ?: ""
         set(v) = p.edit().putString("tts_voice", v).apply()
 
+    var wakeEnabled: Boolean
+        get() = p.getBoolean("wake", false)
+        set(v) = p.edit().putBoolean("wake", v).apply()
+
+    var batteryAsked: Boolean
+        get() = p.getBoolean("battery_asked", false)
+        set(v) = p.edit().putBoolean("battery_asked", v).apply()
+
     fun facts(): MutableList<String> =
         p.getStringSet("facts", emptySet())?.toMutableList() ?: mutableListOf()
 
@@ -898,6 +906,27 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- wake word service control ----
 
+    fun batteryUnrestricted(): Boolean {
+        return try {
+            val ctx = getApplication<Application>()
+            val pm = ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            pm.isIgnoringBatteryOptimizations(ctx.packageName)
+        } catch (_: Exception) { true }
+    }
+
+    fun requestBatteryUnrestricted() {
+        try {
+            val ctx = getApplication<Application>()
+            val i = Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:" + ctx.packageName)
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+        } catch (_: Exception) {
+            toast("Allow Jarvis to run unrestricted in battery settings.")
+        }
+    }
+
     fun setWakeEnabled(on: Boolean) {
         val appCtx = getApplication<Application>()
         if (on) {
@@ -911,12 +940,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             wakeOn = true
+            store.wakeEnabled = true
+            if (!store.batteryAsked) {
+                store.batteryAsked = true
+                if (!batteryUnrestricted()) requestBatteryUnrestricted()
+            }
         } else {
             try {
                 appCtx.stopService(Intent(appCtx, WakeService::class.java))
             } catch (_: Exception) {
             }
             wakeOn = false
+            store.wakeEnabled = false
         }
     }
 
@@ -1175,19 +1210,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setReminderAlarm(id: Int, at: Long, text: String): Boolean {
         return try {
-            val ctx = getApplication<Application>()
-            val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val pi = PendingIntent.getBroadcast(
-                ctx, id,
-                Intent(ctx, ReminderReceiver::class.java).putExtra("rid", id).putExtra("text", text),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            if (android.os.Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-            } else {
-                try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
-                catch (_: SecurityException) { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
-            }
+            armReminderAlarm(getApplication(), id, at, text)
             true
         } catch (_: Exception) { false }
     }

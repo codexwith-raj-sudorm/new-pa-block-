@@ -79,7 +79,7 @@ class WakeService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> startUp()
-            ACTION_STOP -> shutDown()
+            ACTION_STOP -> shutDown(userStopped = true)
             ACTION_PAUSE -> haltLoop()
             ACTION_RESUME -> if (started) startWakeLoop()
             ACTION_BUBBLE_RED -> tintBubble(0xFFE5484D.toInt())
@@ -120,9 +120,10 @@ class WakeService : Service() {
         startWakeLoop()
     }
 
-    private fun shutDown() {
+    private fun shutDown(userStopped: Boolean = false) {
         started = false
         isRunning = false
+        if (userStopped) runCatching { store.wakeEnabled = false }
         haltLoop()
         removeBubble()
         unmute()

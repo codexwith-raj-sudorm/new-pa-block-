@@ -465,6 +465,15 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     )
                     TextButton(onClick = { vm.previewVoice() }) { Text("Preview") }
                 }
+                val battOk = remember { vm.batteryUnrestricted() }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (battOk) "Battery: unrestricted ✓" else "Battery: optimized (wake can be killed)",
+                        fontSize = 13.sp, color = Muted,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!battOk) TextButton(onClick = { vm.requestBatteryUnrestricted() }) { Text("Fix") }
+                }
                 if (vm.ttsVoices.isNotEmpty()) {
                     LazyColumn(Modifier.heightIn(max = 210.dp)) {
                         items(vm.ttsVoices) { v ->

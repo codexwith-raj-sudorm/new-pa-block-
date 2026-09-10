@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -38,5 +39,21 @@ class ReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
         runCatching { nm.notify(5000 + id, notif) }
+    }
+}
+
+/** Shared alarm arming: the VM schedules, BootReceiver re-arms after reboot. */
+fun armReminderAlarm(ctx: Context, id: Int, at: Long, text: String) {
+    val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val pi = PendingIntent.getBroadcast(
+        ctx, id,
+        Intent(ctx, ReminderReceiver::class.java).putExtra("rid", id).putExtra("text", text),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+    } else {
+        try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
+        catch (_: SecurityException) { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
     }
 }
