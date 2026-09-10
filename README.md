@@ -5,13 +5,14 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 
 ![android](https://github.com/codexwith-raj-sudorm/new-pa-block-/actions/workflows/android.yml/badge.svg?branch=arena/01a08a6b-new-pa-block)
 
-## Features (v1)
+## Features (v2)
 
-- 💬 Chat with Gemini (free API key, yours) + 20-message history, saved on-device
-- 🔄 Model fallback chain (`gemini-2.5-flash-lite` → `2.5-flash` → `3-flash`) on quota errors
-- ⏰ Offline tools (no key needed): time, calculator, `remember`/`recall` memory
-- 🧠 Saved facts auto-injected into every chat — Jarvis knows you
-- ⚙️ In-app Settings: paste key once, pick preferred model
+- 💬 Chat with Gemini + auto model discovery, 20-message context, on-device history
+- 💬 Multi-chat: new / switch / delete chats with auto-titles
+- 🧠 Memory manager: view/add/delete memories (or “remember …” in chat)
+- 🎙️ Voice I/O: mic input + spoken replies with mute toggle (top bar)
+- ⏰ Offline tools (no key needed): time, calculator, memory
+- ⚙️ Settings: optional own key, preferred model, refresh models
 
 ## Install (phone, no PC needed)
 

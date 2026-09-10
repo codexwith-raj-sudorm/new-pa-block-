@@ -1,9 +1,16 @@
 package com.jarvis.app
 
+import android.app.Activity
 import android.app.Application
+import android.content.Intent
 import android.os.Bundle
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,8 +28,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,13 +83,39 @@ fun JarvisScreen() {
         }
     })
 
+    // Voice input via the system recognizer (no mic permission needed in-app).
+    val voiceAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val heard = result.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()?.trim().orEmpty()
+            if (heard.isNotEmpty()) vm.send(heard)
+        }
+    }
+    fun startVoice() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to Jarvis…")
+            }
+            voiceLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Voice input not available", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(Bg)) {
         TopBar(
             online = vm.brainOk,
             onSettings = vm::openSettings,
             onNewChat = vm::newChat,
             onChats = { vm.showChats = true },
-            onMemory = { vm.showMemory = true }
+            onMemory = { vm.showMemory = true },
+            ttsOn = vm.ttsOn,
+            onToggleTts = vm::toggleTts
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -110,7 +146,7 @@ fun JarvisScreen() {
                 }
             }
         }
-        InputRow(onSend = vm::send)
+        InputRow(onSend = vm::send, onMic = ::startVoice, micVisible = voiceAvailable)
     }
 
     if (vm.showSettings) SettingsDialog(vm)
@@ -124,7 +160,9 @@ fun TopBar(
     onSettings: () -> Unit,
     onNewChat: () -> Unit,
     onChats: () -> Unit,
-    onMemory: () -> Unit
+    onMemory: () -> Unit,
+    ttsOn: Boolean,
+    onToggleTts: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().background(Panel)) {
         Row(
@@ -146,6 +184,13 @@ fun TopBar(
                         color = Muted, fontSize = 12.sp
                     )
                 }
+            }
+            IconButton(onClick = onToggleTts) {
+                Icon(
+                    if (ttsOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                    contentDescription = if (ttsOn) "Mute voice" else "Unmute voice",
+                    tint = if (ttsOn) Accent else Muted
+                )
             }
             IconButton(onClick = onSettings) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
@@ -191,7 +236,7 @@ fun Bubble(m: ChatMessage) {
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit) {
+fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean) {
     var input by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     fun submit() {
@@ -204,6 +249,11 @@ fun InputRow(onSend: (String) -> Unit) {
         Modifier.fillMaxWidth().background(Panel).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (micVisible) {
+            IconButton(onClick = onMic) {
+                Icon(Icons.Filled.Mic, contentDescription = "Voice input", tint = Accent)
+            }
+        }
         TextField(
             value = input,
             onValueChange = { input = it },

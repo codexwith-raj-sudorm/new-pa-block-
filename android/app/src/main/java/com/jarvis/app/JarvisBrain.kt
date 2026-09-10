@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import android.app.Application
 import android.content.Context
+import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -19,6 +20,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 // ---------- models ----------
@@ -203,7 +205,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (key, model, facts, chats, model cache) ----------
+// ---------- on-device storage (key, model, facts, chats, model cache, voice) ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -215,6 +217,10 @@ class Store(context: Context) {
     var model: String
         get() = p.getString("model", Models.FALLBACK[0]) ?: Models.FALLBACK[0]
         set(v) = p.edit().putString("model", v).apply()
+
+    var ttsEnabled: Boolean
+        get() = p.getBoolean("tts", true)
+        set(v) = p.edit().putBoolean("tts", v).apply()
 
     fun facts(): MutableList<String> =
         p.getStringSet("facts", emptySet())?.toMutableList() ?: mutableListOf()
@@ -459,7 +465,7 @@ object GeminiApi {
     }
 }
 
-// ---------- ViewModel: chat state + tools + brain ----------
+// ---------- ViewModel: chat state + tools + brain + voice ----------
 
 class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
@@ -482,6 +488,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var memTick by mutableStateOf(0)
         private set
+    var ttsOn by mutableStateOf(store.ttsEnabled)
+        private set
+
+    private var tts: TextToSpeech? = null
 
     // Owner key, baked at build time from the GEMINI_API_KEY repo secret
     // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
@@ -525,15 +535,62 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (messages.isEmpty()) {
             messages.add(ChatMessage("bot", greet()))
         }
+        tts = TextToSpeech(app) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                try {
+                    tts?.language = Locale.getDefault()
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        try {
+            tts?.stop()
+            tts?.shutdown()
+        } catch (_: Exception) {
+        }
+        super.onCleared()
     }
 
     private fun greet(): String =
         if (brainOk) "Hello. I am Jarvis. How can I help?"
         else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
 
+    // ---- voice output ----
+
+    fun toggleTts() {
+        ttsOn = !ttsOn
+        store.ttsEnabled = ttsOn
+        if (!ttsOn) {
+            try {
+                tts?.stop()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun stopSpeaking() {
+        try {
+            tts?.stop()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun speak(text: String) {
+        if (!ttsOn) return
+        try {
+            val clean = text.replace(Regex("[*_`#>\\-]"), "").trim().take(3900)
+            if (clean.isNotEmpty()) tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "jarvis")
+        } catch (_: Exception) {
+        }
+    }
+
     // ---- multi-chat ----
 
     fun newChat() {
+        stopSpeaking()
         persist()
         val c = ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf())
         chats.add(0, c)
@@ -551,6 +608,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun switchChat(id: String) {
+        stopSpeaking()
         if (id == activeChatId) {
             showChats = false
             return
@@ -574,6 +632,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             chats.add(ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf()))
         }
         if (activeChatId == id) {
+            stopSpeaking()
             activeChatId = chats[0].id
             messages.clear()
             for ((r, t) in chats[0].msgs) {
@@ -680,17 +739,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         messages.add(ChatMessage("user", text))
         persist()
         Router.detect(text)?.let { hit ->
-            messages.add(ChatMessage("bot", runTool(hit)))
+            val reply = runTool(hit)
+            messages.add(ChatMessage("bot", reply))
+            speak(reply)
             persist()
             return
         }
         if (!brainOk) {
-            messages.add(
-                ChatMessage(
-                    "bot",
-                    "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, and memory."
-                )
-            )
+            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, and memory."
+            messages.add(ChatMessage("bot", reply))
+            speak(reply)
             persist()
             return
         }
@@ -708,6 +766,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
                 }
                 messages.add(ChatMessage("bot", reply))
+                speak(reply)
             } catch (e: Exception) {
                 messages.add(ChatMessage("bot", "⚠️ ${e.message}"))
             } finally {
