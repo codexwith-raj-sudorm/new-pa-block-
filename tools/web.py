@@ -1,11 +1,12 @@
-"""Web tools: search + page fetch. Keyless (DuckDuckGo) so deploy just works.
+"""Web tools: search + page fetch.
 
-Needs internet access to search engines — unavailable in the dev sandbox
+Search uses Tavily when TAVILY_API_KEY is set (better results), otherwise
+keyless DuckDuckGo. Both need internet — unavailable in the dev sandbox
 (firewall), where these return a graceful 'unavailable' message instead.
-Upgrade path: swap web_search internals for Tavily/Brave with an API key.
 """
 
 import html as _html
+import os
 import re
 from urllib.parse import unquote, urlparse, parse_qs
 
@@ -64,42 +65,68 @@ def _real_url(u: str) -> str:
     return u
 
 
+def _tavily_search(query, max_results, api_key):
+    r = httpx.post(
+        "https://api.tavily.com/search",
+        json={"api_key": api_key, "query": query, "max_results": max_results, "include_answer": True},
+        timeout=TIMEOUT,
+    )
+    r.raise_for_status()
+    data = r.json()
+    lines = []
+    if data.get("answer"):
+        lines.append(f"Answer: {data['answer']}")
+    for x in (data.get("results") or [])[:max_results]:
+        lines.append(f"- {x.get('title', '')} — {(x.get('content') or '')[:300]} ({x.get('url', '')})")
+    return "\n".join(lines) if lines else "No results found."
+
+
+def _ddg_search(query, max_results):
+    # 1) Instant-answer JSON (often has a summary + related topics)
+    r = httpx.get(
+        "https://api.duckduckgo.com/",
+        params={"q": query, "format": "json", "no_html": 1},
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+    r.raise_for_status()
+    data = r.json()
+    lines = []
+    if data.get("AbstractText"):
+        lines.append(f"Summary: {data['AbstractText']} (source: {data.get('AbstractURL', '')})")
+    for t in (data.get("RelatedTopics") or [])[:max_results]:
+        if isinstance(t, dict) and t.get("Text"):
+            lines.append(f"- {t['Text']} ({t.get('FirstURL', '')})")
+    if lines:
+        return "\n".join(lines[: max_results + 1])
+    # 2) HTML fallback (titles + links)
+    r = httpx.get(
+        "https://html.duckduckgo.com/html/",
+        params={"q": query},
+        headers=HEADERS,
+        timeout=TIMEOUT,
+    )
+    r.raise_for_status()
+    hits = re.findall(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', r.text, re.S)
+    out = []
+    for href, title in hits[:max_results]:
+        out.append(f"- {_clean(title)} ({_real_url(href)})")
+    return "\n".join(out) if out else "No results found."
+
+
 def web_search(query: str, max_results: int = 5) -> str:
     query = (query or "").strip()
     if not query:
         return "Error: empty search query."
     max_results = max(1, min(int(max_results or 5), 8))
+    tavily_key = os.getenv("TAVILY_API_KEY", "").strip()
+    if tavily_key:
+        try:
+            return _tavily_search(query, max_results, tavily_key)
+        except Exception:
+            pass  # fall through to DuckDuckGo
     try:
-        # 1) Instant-answer JSON (often has a summary + related topics)
-        r = httpx.get(
-            "https://api.duckduckgo.com/",
-            params={"q": query, "format": "json", "no_html": 1},
-            headers=HEADERS,
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        data = r.json()
-        lines = []
-        if data.get("AbstractText"):
-            lines.append(f"Summary: {data['AbstractText']} (source: {data.get('AbstractURL', '')})")
-        for t in (data.get("RelatedTopics") or [])[:max_results]:
-            if isinstance(t, dict) and t.get("Text"):
-                lines.append(f"- {t['Text']} ({t.get('FirstURL', '')})")
-        if lines:
-            return "\n".join(lines[: max_results + 1])
-        # 2) HTML fallback (titles + links)
-        r = httpx.get(
-            "https://html.duckduckgo.com/html/",
-            params={"q": query},
-            headers=HEADERS,
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        hits = re.findall(r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', r.text, re.S)
-        out = []
-        for href, title in hits[:max_results]:
-            out.append(f"- {_clean(title)} ({_real_url(href)})")
-        return "\n".join(out) if out else "No results found."
+        return _ddg_search(query, max_results)
     except Exception as e:
         return f"Web search is unavailable right now ({e})."
 

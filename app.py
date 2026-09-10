@@ -5,6 +5,7 @@
 - In this sandbox (LLM APIs firewall-blocked): demo mode. A keyword router
   still runs the offline tools for real, so they're testable in the preview.
 - Set JARVIS_PASSWORD (+ optional JARVIS_USER) to lock the UI with a login.
+- Safety rails: 20 msg/min rate limit + daily LLM spend cap (default $2).
 """
 
 import json
@@ -14,6 +15,7 @@ import chainlit as cl
 import litellm
 from dotenv import load_dotenv
 
+from agent.limits import RateLimiter, budget_ok
 from agent.runner import run_with_tools
 from memory import store
 from tools.demo_router import detect_demo_tool
@@ -25,6 +27,8 @@ APP_NAME = "Jarvis"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 TEMPERATURE = 0.7
 MAX_TOKENS = 1024
+DAILY_CAP_USD = os.getenv("DAILY_SPEND_CAP_USD", "2.0")
+RATE_LIMITER = RateLimiter(max_calls=20, window_sec=60)
 
 SYSTEM_PROMPT = (
     "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. "
@@ -76,7 +80,10 @@ async def on_chat_start():
     conv_id = store.new_conversation()
     cl.user_session.set("conv_id", conv_id)
     if _brain_available():
-        status = "Brain: connected 🟢 · Tools: 13 (time, calc, web, memory, notes, todos, reminders) 🛠️"
+        status = (
+            f"Brain: connected 🟢 · Tools: 13 🛠️ · Spend cap ${DAILY_CAP_USD}/day "
+            f"(used ${store.day_spend():.4f})"
+        )
     else:
         status = (
             "Brain: demo mode 📻 (set GEMINI_API_KEY on deploy for the real brain)\n"
@@ -104,8 +111,8 @@ if hasattr(cl, "set_starters"):
         ]
 
 
-def _litellm_call(messages):
-    """Synchronous LiteLLM call normalized for the runner (single-user MVP)."""
+def _litellm_call(messages, _sink=None):
+    """LiteLLM call normalized for the runner. Appends USD cost to _sink if given."""
     resp = litellm.completion(
         model=f"gemini/{GEMINI_MODEL}",
         messages=messages,
@@ -114,6 +121,11 @@ def _litellm_call(messages):
         max_tokens=MAX_TOKENS,
         api_key=os.getenv("GEMINI_API_KEY"),
     )
+    if _sink is not None:
+        try:
+            _sink.append(float(litellm.completion_cost(completion_response=resp) or 0))
+        except Exception:
+            pass
     msg = resp.choices[0].message
     calls = [
         {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
@@ -124,6 +136,9 @@ def _litellm_call(messages):
 
 @cl.on_message
 async def on_message(message: cl.Message):
+    if not RATE_LIMITER.allow():
+        await cl.Message(content="⏳ Slow down a little — 20 messages per minute max.").send()
+        return
     history = cl.user_session.get("history")
     conv_id = cl.user_session.get("conv_id")
     history.append({"role": "user", "content": message.content})
@@ -136,13 +151,26 @@ async def on_message(message: cl.Message):
         await _handle_demo(message.content, history, conv_id, reply)
         return
 
+    if not budget_ok(DAILY_CAP_USD):
+        text = (
+            f"💰 Daily spend cap (${DAILY_CAP_USD}) reached — I'm resting the brain until tomorrow "
+            f"(used ${store.day_spend():.4f} today). Offline tools below still work: time, calc, "
+            "memory, notes, todos, reminders."
+        )
+        await _stream_text(reply, text)
+        history.append({"role": "assistant", "content": text})
+        store.log_message(conv_id, "assistant", text)
+        return
+
     async def on_tool(name, args, result):
         async with cl.Step(name=f"🔧 {name}", type="tool") as step:
             step.input = args if isinstance(args, str) else json.dumps(args)
             step.output = (result or "")[:2000]
 
     try:
-        text = await run_with_tools(history, _litellm_call, on_tool)
+        sink = []
+        text = await run_with_tools(history, lambda m: _litellm_call(m, sink), on_tool)
+        store.log_spend(sum(sink))
     except Exception as e:
         text = f"⚠️ Brain glitch: {e}"
     await _stream_text(reply, text or "(empty reply)")

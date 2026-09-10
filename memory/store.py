@@ -1,4 +1,4 @@
-"""SQLite memory: facts, notes, todos, reminders + conversation log.
+"""SQLite memory: facts, notes, todos, reminders, conversation log + LLM spend.
 
 DB lives at data/jarvis.db (JARVIS_DB env overrides — tests use a temp file).
 Dependency-free, and every function degrades gracefully.
@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS todos(id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT
 CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT NOT NULL, remind_at TEXT NOT NULL, done INTEGER DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS conversations(id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS spend(id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, usd REAL NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_spend_day ON spend(day);
 """
 
 _inited = set()
@@ -38,6 +40,10 @@ def _connect():
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _today():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
 def _rows(cursor):
@@ -184,3 +190,31 @@ def log_message(conv_id, role, content):
         conn.close()
     except Exception:
         pass  # logging must never break chat
+
+
+# ---- LLM spend tracking (daily cap enforcement) ----
+
+
+def log_spend(usd):
+    try:
+        if usd and usd > 0:
+            conn = _connect()
+            conn.execute(
+                "INSERT INTO spend(day, usd, created_at) VALUES (?, ?, ?)", (_today(), float(usd), _now())
+            )
+            conn.commit()
+            conn.close()
+    except Exception:
+        pass
+
+
+def day_spend(day=None):
+    try:
+        conn = _connect()
+        row = conn.execute(
+            "SELECT COALESCE(SUM(usd), 0) AS total FROM spend WHERE day = ?", (day or _today(),)
+        ).fetchone()
+        conn.close()
+        return float(row["total"])
+    except Exception:
+        return 0.0

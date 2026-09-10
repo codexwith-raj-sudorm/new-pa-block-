@@ -279,3 +279,10 @@ Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
 - Password login wall (env-gated: JARVIS_USER/JARVIS_PASSWORD) for public hosting.
 - Dockerfile + .dockerignore, CI workflow (tests on push), README rewrite.
 - Tests: 51/51 pass (test_tools 21 + test_memory 30).
+
+## Autopilot loop 2 (2026-09-10): safety rails + search upgrade
+- Daily LLM spend cap ($2 default, env DAILY_SPEND_CAP_USD): tracked in SQLite, enforced pre-call, shown in greeting.
+- Global rate limit: 20 msg/min (single-user MVP).
+- Web search: Tavily when TAVILY_API_KEY set, DuckDuckGo fallback, graceful offline message.
+- Dark theme default, BACKLOG.md roadmap, CI runs all 3 suites.
+- Tests: 62/62 pass (tools 21 + memory 30 + safety 11).
