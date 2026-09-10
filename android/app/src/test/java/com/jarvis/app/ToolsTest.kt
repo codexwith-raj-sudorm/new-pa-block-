@@ -103,7 +103,9 @@ class ToolsTest {
     }
 
     @Test fun cleanSpeechStripsEmoji() {
-        assertEquals("Hello , world", cleanForSpeech("Hello 👋 • world"))
+        val actual = cleanForSpeech("Hello 👋 • world")
+        val codes = actual.map { it.code.toString(16) }.joinToString(",")
+        assertTrue("ACTUAL_IS[$actual] CODES[$codes]", actual == "Hello , world")
     }
 
     @Test fun cleanSpeechLinks() {
