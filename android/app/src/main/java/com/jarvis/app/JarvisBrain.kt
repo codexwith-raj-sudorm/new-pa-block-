@@ -272,6 +272,7 @@ object Router {
         if (low == "reminders" || "my reminder" in low || low.startsWith("list reminders")) return Hit("reminders", "")
         if (low.startsWith("remind me")) return Hit("remind", t)
         parseDeviceCommand(t)?.let { return Hit("device", t) }
+        parseListCommand(t)?.let { return Hit("lists", t) }
         return null
     }
 }
@@ -358,6 +359,41 @@ class Store(context: Context) {
         val n = p.getInt("reminder_seq", 1)
         p.edit().putInt("reminder_seq", n + 1).apply()
         return n
+    }
+
+    fun loadTodos(): MutableList<TodoItem> {
+        val out = mutableListOf<TodoItem>()
+        try {
+            val arr = JSONArray(p.getString("todos_v1", "[]") ?: "[]")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(TodoItem(o.optString("text", ""), o.optBoolean("done", false)))
+            }
+        } catch (_: Exception) { }
+        return out.filterTo(mutableListOf()) { it.text.isNotBlank() }
+    }
+
+    fun saveTodos(list: List<TodoItem>) {
+        try {
+            val arr = JSONArray()
+            for (x in list.take(100)) arr.put(JSONObject().put("text", x.text).put("done", x.done))
+            p.edit().putString("todos_v1", arr.toString()).apply()
+        } catch (_: Exception) { }
+    }
+
+    fun loadNotes(): MutableList<String> =
+        p.getStringSet("notes_v1", emptySet())?.toMutableList() ?: mutableListOf()
+
+    fun addNote(n: String) {
+        val all = loadNotes()
+        all.add(0, n)
+        p.edit().putStringSet("notes_v1", all.take(100).toSet()).apply()
+    }
+
+    fun removeNote(n: String) {
+        val all = loadNotes()
+        all.remove(n)
+        p.edit().putStringSet("notes_v1", all.toSet()).apply()
     }
 
     /** Legacy single history (pre-chats). Read once for migration, then deleted. */
@@ -593,6 +629,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showSettings by mutableStateOf(false)
     var showChats by mutableStateOf(false)
     var showMemory by mutableStateOf(false)
+    var showList by mutableStateOf(false)
     var settingsMsg by mutableStateOf("")
         private set
     var apiKey by mutableStateOf(store.apiKey)
@@ -602,6 +639,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var activeChatId by mutableStateOf("")
         private set
     var memTick by mutableStateOf(0)
+    var listTick by mutableStateOf(0)
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
         private set
@@ -1059,6 +1097,84 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- memories ----
 
+    fun todoItems(): List<TodoItem> = store.loadTodos()
+    fun noteItems(): List<String> = store.loadNotes()
+
+    fun addTodo(s: String) {
+        val t = s.trim()
+        if (t.isEmpty()) return
+        val all = store.loadTodos()
+        all.add(TodoItem(t, false))
+        store.saveTodos(all)
+        listTick++
+    }
+
+    fun toggleTodo(i: Int) {
+        val all = store.loadTodos()
+        if (i !in all.indices) return
+        all[i] = all[i].copy(done = !all[i].done)
+        store.saveTodos(all)
+        listTick++
+    }
+
+    fun removeTodo(i: Int) {
+        val all = store.loadTodos()
+        if (i !in all.indices) return
+        all.removeAt(i)
+        store.saveTodos(all)
+        listTick++
+    }
+
+    fun addNote(s: String) {
+        val t = s.trim()
+        if (t.isEmpty()) return
+        store.addNote(t)
+        listTick++
+    }
+
+    fun removeNote(s: String) {
+        store.removeNote(s)
+        listTick++
+    }
+
+    private fun runLists(arg: String): String {
+        return when (val c = parseListCommand(arg)) {
+            is AddTodo -> { addTodo(c.text); "Added to your list: “${c.text}”." }
+            is DoneTodo -> {
+                val all = store.loadTodos()
+                if (c.index < 1 || c.index > all.size) "No todo #${c.index}. Say “my todos” to see them."
+                else {
+                    all[c.index - 1] = all[c.index - 1].copy(done = true)
+                    store.saveTodos(all)
+                    listTick++
+                    "Done: “${all[c.index - 1].text}”."
+                }
+            }
+            is RemoveTodo -> {
+                val all = store.loadTodos()
+                if (c.index < 1 || c.index > all.size) "No todo #${c.index}."
+                else { val t = all[c.index - 1].text; removeTodo(c.index - 1); "Removed: “$t”." }
+            }
+            is ShowTodos -> {
+                val all = store.loadTodos()
+                if (all.isEmpty()) "Your list is empty. Say “add milk to my list”."
+                else "Your list:\n" + all.mapIndexed { i, x -> "${i + 1}. ${if (x.done) "done" else "todo"} — ${x.text}" }.joinToString("\n")
+            }
+            is AddNote -> { addNote(c.text); "Noted: “${c.text}”." }
+            is RemoveNote -> {
+                val all = store.loadNotes()
+                if (c.index < 1 || c.index > all.size) "No note #${c.index}."
+                else { val t = all[c.index - 1]; removeNote(t); "Deleted note: “$t”." }
+            }
+            is ShowNotes -> {
+                val all = store.loadNotes()
+                if (all.isEmpty()) "No notes yet. Say “note …” to add one."
+                else "Notes:\n" + all.mapIndexed { i, x -> "${i + 1}. $x" }.joinToString("\n")
+            }
+            null -> "Try “add milk to my list”, “my todos”, “done 2”, or “note …”."
+        }
+    }
+
     fun memories(): List<String> = store.facts()
 
     fun addMemory(s: String) {
@@ -1162,7 +1278,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (!brainOk) {
-            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, and device control."
+            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
             speak(reply)
             persist()
@@ -1386,6 +1502,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "reminders" -> listReminders()
         "reminder_cancel" -> cancelReminder(hit.arg)
         "device" -> runDevice(hit.arg)
+        "lists" -> runLists(hit.arg)
         else -> "?"
     }
 

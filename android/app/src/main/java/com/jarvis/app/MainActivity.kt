@@ -217,6 +217,7 @@ fun JarvisScreen() {
             onNewChat = vm::newChat,
             onChats = { vm.showChats = true },
             onMemory = { vm.showMemory = true },
+            onList = { vm.showList = true },
             ttsOn = vm.ttsOn,
             onToggleTts = vm::toggleTts,
             wakeOn = vm.wakeOn,
@@ -262,6 +263,7 @@ fun JarvisScreen() {
     if (vm.showSettings) SettingsDialog(vm)
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
+    if (vm.showList) ListDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -282,7 +284,8 @@ fun TopBar(
     ttsOn: Boolean,
     onToggleTts: () -> Unit,
     wakeOn: Boolean,
-    onWake: () -> Unit
+    onWake: () -> Unit,
+    onList: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -325,6 +328,7 @@ fun TopBar(
             TextButton(onClick = onNewChat) { Text("＋ New", fontSize = 13.sp) }
             TextButton(onClick = onChats) { Text("💬 Chats", fontSize = 13.sp) }
             TextButton(onClick = onMemory) { Text("🧠 Memory", fontSize = 13.sp) }
+            TextButton(onClick = onList) { Text("📝 List", fontSize = 13.sp) }
             TextButton(onClick = onWake) {
                 Text(
                     if (wakeOn) "👂 Wake on" else "👂 Wake",
@@ -595,6 +599,90 @@ fun ChatsDialog(vm: JarvisViewModel) {
         },
         dismissButton = {
             TextButton(onClick = { vm.showChats = false }) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+fun ListDialog(vm: JarvisViewModel) {
+    var todoInput by remember { mutableStateOf("") }
+    var noteInput by remember { mutableStateOf("") }
+    val todos = remember(vm.listTick) { vm.todoItems() }
+    val notes = remember(vm.listTick) { vm.noteItems() }
+    AlertDialog(
+        onDismissRequest = { vm.showList = false },
+        title = { Text("📝 Lists") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Todos (or say “add … to my list”):", fontSize = 13.sp, color = Muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = todoInput,
+                        onValueChange = { todoInput = it },
+                        placeholder = { Text("Add a todo…") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = { vm.addTodo(todoInput); todoInput = "" }) { Text("Add") }
+                }
+                if (todos.isEmpty()) {
+                    Text("List is empty.", color = Muted, fontSize = 14.sp)
+                } else {
+                    todos.forEachIndexed { i, x ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = x.done, onCheckedChange = { vm.toggleTodo(i) })
+                            Text(
+                                x.text, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                                color = if (x.done) Muted else Color.Unspecified
+                            )
+                            IconButton(onClick = { vm.removeTodo(i) }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete",
+                                    tint = Muted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Text("Notes (or say “note …”):", fontSize = 13.sp, color = Muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = noteInput,
+                        onValueChange = { noteInput = it },
+                        placeholder = { Text("Add a note…") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = { vm.addNote(noteInput); noteInput = "" }) { Text("Add") }
+                }
+                if (notes.isEmpty()) {
+                    Text("No notes yet.", color = Muted, fontSize = 14.sp)
+                } else {
+                    notes.forEach { n ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("• $n", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { vm.removeNote(n) }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete",
+                                    tint = Muted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showList = false }) { Text("Close") }
         }
     )
 }
