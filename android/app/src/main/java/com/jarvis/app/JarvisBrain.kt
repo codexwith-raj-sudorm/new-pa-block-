@@ -829,7 +829,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- wake word ("Hey Jarvis", while the app is open) ----
 
-    fun setWakeOn(on: Boolean) {
+    fun setWakeEnabled(on: Boolean) {
         if (on == wakeOn) return
         wakeOn = on
         wakeRestarts = 0
@@ -854,7 +854,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             destroyWakeRecognizer()
             val ctx = getApplication<Application>()
             if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
-                setWakeOn(false)
+                setWakeEnabled(false)
                 toast("Voice input not available on this device")
                 return
             }
@@ -890,14 +890,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
                             // Real problem (not just silence) — give up after a few.
                             if (++wakeRestarts > 10) {
-                                setWakeOn(false)
+                                setWakeEnabled(false)
                                 toast("Wake word stopped (mic busy)")
                             } else {
                                 startWakeLoop()
                             }
                         }
                         else -> {
-                            setWakeOn(false)
+                            setWakeEnabled(false)
                             toast("Wake word stopped (error $error)")
                         }
                     }
@@ -922,7 +922,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
             destroyWakeRecognizer()
             if (wakeOn) {
-                setWakeOn(false)
+                setWakeEnabled(false)
                 toast("Couldn't start wake-word listening")
             }
         }

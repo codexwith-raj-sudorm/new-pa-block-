@@ -93,7 +93,7 @@ fun JarvisScreen() {
         if (granted) {
             if (wakeRequest) {
                 wakeRequest = false
-                vm.setWakeOn(true)
+                vm.setWakeEnabled(true)
             } else {
                 vm.startListening()
             }
@@ -116,11 +116,11 @@ fun JarvisScreen() {
     }
     fun onWakeTap() {
         if (vm.wakeOn) {
-            vm.setWakeOn(false)
+            vm.setWakeEnabled(false)
             return
         }
         if (hasMicPerm()) {
-            vm.setWakeOn(true)
+            vm.setWakeEnabled(true)
         } else {
             wakeRequest = true
             micPerm.launch(Manifest.permission.RECORD_AUDIO)
