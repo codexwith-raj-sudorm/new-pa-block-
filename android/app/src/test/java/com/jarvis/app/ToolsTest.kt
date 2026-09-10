@@ -121,4 +121,10 @@ class ToolsTest {
         assertTrue(parts.size >= 2)
         assertTrue(parts.all { it.length <= 1500 })
     }
+
+    @Test fun wakeWord() {
+        assertTrue(hearsWakeWord("hey jarvis, what time is it"))
+        assertTrue(hearsWakeWord("JARVIS"))
+        assertFalse(hearsWakeWord("hello there"))
+    }
 }

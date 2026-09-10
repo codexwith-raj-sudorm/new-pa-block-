@@ -84,24 +84,45 @@ fun JarvisScreen() {
         }
     })
 
-    // Mic permission → in-app listening (no Google popup).
+    // Mic permission → voice input or wake word (no Google popup).
     val voiceAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
+    var wakeRequest by remember { mutableStateOf(false) }
     val micPerm = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) vm.startListening()
-        else Toast.makeText(context, "Mic permission needed for voice input", Toast.LENGTH_SHORT).show()
+        if (granted) {
+            if (wakeRequest) {
+                wakeRequest = false
+                vm.setWakeOn(true)
+            } else {
+                vm.startListening()
+            }
+        } else {
+            wakeRequest = false
+            Toast.makeText(context, "Mic permission needed for voice input", Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun hasMicPerm(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
     }
     fun onMicTap() {
         if (vm.listening) {
             vm.stopListening()
             return
         }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            vm.startListening()
+        if (hasMicPerm()) vm.startListening()
+        else micPerm.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun onWakeTap() {
+        if (vm.wakeOn) {
+            vm.setWakeOn(false)
+            return
+        }
+        if (hasMicPerm()) {
+            vm.setWakeOn(true)
         } else {
+            wakeRequest = true
             micPerm.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -114,7 +135,9 @@ fun JarvisScreen() {
             onChats = { vm.showChats = true },
             onMemory = { vm.showMemory = true },
             ttsOn = vm.ttsOn,
-            onToggleTts = vm::toggleTts
+            onToggleTts = vm::toggleTts,
+            wakeOn = vm.wakeOn,
+            onWake = ::onWakeTap
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -166,7 +189,9 @@ fun TopBar(
     onChats: () -> Unit,
     onMemory: () -> Unit,
     ttsOn: Boolean,
-    onToggleTts: () -> Unit
+    onToggleTts: () -> Unit,
+    wakeOn: Boolean,
+    onWake: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().background(Panel)) {
         Row(
@@ -207,6 +232,13 @@ fun TopBar(
             TextButton(onClick = onNewChat) { Text("＋ New", fontSize = 13.sp) }
             TextButton(onClick = onChats) { Text("💬 Chats", fontSize = 13.sp) }
             TextButton(onClick = onMemory) { Text("🧠 Memory", fontSize = 13.sp) }
+            TextButton(onClick = onWake) {
+                Text(
+                    if (wakeOn) "👂 Wake on" else "👂 Wake",
+                    fontSize = 13.sp,
+                    color = if (wakeOn) JarvisRed else Color.Unspecified
+                )
+            }
         }
     }
 }
