@@ -2,7 +2,13 @@ package com.jarvis.app
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,11 +35,49 @@ data class ChatMessage(val role: String, val text: String) // role: user | bot
 
 data class ChatData(val id: String, var title: String, val msgs: MutableList<Pair<String, String>>)
 
+data class TtsVoice(val id: String, val label: String)
+
 /** Chat list title = first user message, truncated. Pure, tested. */
 fun chatTitle(msgs: List<Pair<String, String>>): String {
     val first = msgs.firstOrNull { it.first == "user" }?.second?.trim().orEmpty()
     if (first.isEmpty()) return "New chat"
     return if (first.length <= 32) first else first.take(32).trimEnd() + "…"
+}
+
+private val URL_RX = Regex("https?://\\S+|www\\.\\S+")
+private val EMOJI_RX =
+    Regex("[←-⇿⏀-⯿Ⰰ-⯿︀-️‍]+|[\\uD83C-\\uDBFF][\\uDC00-\\uDFFF]+")
+
+/** Strip things TTS reads aloud badly (emoji, markdown, URLs). Pure, tested. */
+fun cleanForSpeech(text: String): String {
+    var s = text
+    s = URL_RX.replace(s, " link ")
+    s = EMOJI_RX.replace(s, " ")
+    s = s.replace(Regex("[*_`#>~|]+"), " ")
+    s = s.replace("•", ", ").replace("→", ", ").replace("—", ", ").replace("–", ", ")
+    s = s.replace("&", " and ").replace("%", " percent ").replace("=", " equals ")
+    s = s.replace(Regex("\\s+"), " ").trim()
+    return s
+}
+
+/** Split into speakable chunks at sentence ends (incl. Bengali/Devanagari danda). Pure, tested. */
+fun splitSentences(text: String, maxLen: Int = 1500): List<String> {
+    val parts = text.split(Regex("(?<=[.!?।\\n])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+    val out = mutableListOf<String>()
+    for (p in parts) {
+        if (p.length <= maxLen) {
+            out.add(p)
+            continue
+        }
+        var rest = p
+        while (rest.length > maxLen) {
+            val cut = rest.lastIndexOf(' ', maxLen).takeIf { it > maxLen / 2 } ?: maxLen
+            out.add(rest.take(cut).trim())
+            rest = rest.drop(cut).trim()
+        }
+        if (rest.isNotEmpty()) out.add(rest)
+    }
+    return out.filter { it.isNotEmpty() }
 }
 
 object Models {
@@ -205,7 +249,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (key, model, facts, chats, model cache, voice) ----------
+// ---------- on-device storage ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -221,6 +265,10 @@ class Store(context: Context) {
     var ttsEnabled: Boolean
         get() = p.getBoolean("tts", true)
         set(v) = p.edit().putBoolean("tts", v).apply()
+
+    var ttsVoice: String
+        get() = p.getString("tts_voice", "") ?: ""
+        set(v) = p.edit().putString("tts_voice", v).apply()
 
     fun facts(): MutableList<String> =
         p.getStringSet("facts", emptySet())?.toMutableList() ?: mutableListOf()
@@ -473,6 +521,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
     val chats = mutableStateListOf<ChatData>()
+    val ttsVoices = mutableStateListOf<TtsVoice>()
     var busy by mutableStateOf(false)
         private set
     var showSettings by mutableStateOf(false)
@@ -490,8 +539,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
         private set
+    var voiceName by mutableStateOf(store.ttsVoice)
+        private set
+    var listening by mutableStateOf(false)
+        private set
 
     private var tts: TextToSpeech? = null
+    private var recognizer: SpeechRecognizer? = null
 
     // Owner key, baked at build time from the GEMINI_API_KEY repo secret
     // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
@@ -535,14 +589,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (messages.isEmpty()) {
             messages.add(ChatMessage("bot", greet()))
         }
-        tts = TextToSpeech(app) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                try {
-                    tts?.language = Locale.getDefault()
-                } catch (_: Exception) {
-                }
-            }
-        }
+        createTts("com.google.android.tts")
     }
 
     override fun onCleared() {
@@ -551,6 +598,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             tts?.shutdown()
         } catch (_: Exception) {
         }
+        destroyRecognizer()
         super.onCleared()
     }
 
@@ -558,17 +606,103 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (brainOk) "Hello. I am Jarvis. How can I help?"
         else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
 
-    // ---- voice output ----
+    // ---- voice output (Jarvis-style male voice, human prosody) ----
+
+    private fun createTts(engine: String?) {
+        try {
+            tts = TextToSpeech(getApplication(), { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    applyVoice()
+                    loadVoices()
+                } else if (engine != null) {
+                    // Preferred engine failed — fall back to the default engine.
+                    createTts(null)
+                }
+            }, engine)
+        } catch (_: Exception) {
+            if (engine != null) createTts(null)
+        }
+    }
+
+    private fun applyVoice() {
+        val t = tts ?: return
+        try {
+            val saved = store.ttsVoice
+            val match = t.voices?.firstOrNull { it.name == saved } ?: pickJarvisVoice(t)
+            if (match != null) {
+                t.voice = match
+                voiceName = match.name
+            } else {
+                t.language = Locale.getDefault()
+                voiceName = ""
+            }
+            t.setSpeechRate(0.95f)
+            t.setPitch(0.9f)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun pickJarvisVoice(t: TextToSpeech): android.speech.tts.Voice? {
+        val all = try {
+            t.voices
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        val lang = Locale.getDefault().language
+        fun isMale(v: android.speech.tts.Voice): Boolean =
+            v.name.contains("male", ignoreCase = true) &&
+                !v.name.contains("female", ignoreCase = true)
+        return all.firstOrNull { isMale(it) && it.locale?.language == lang }
+            ?: all.firstOrNull { isMale(it) }
+            ?: all.firstOrNull { it.locale?.language == lang }
+    }
+
+    private fun loadVoices() {
+        val t = tts ?: return
+        try {
+            val all = t.voices ?: return
+            val lang = Locale.getDefault().language
+            val scored = all.map { v ->
+                val male = v.name.contains("male", ignoreCase = true) &&
+                    !v.name.contains("female", ignoreCase = true)
+                val score = when {
+                    male && v.locale?.language == lang -> 0
+                    male -> 1
+                    v.locale?.language == lang -> 2
+                    else -> 3
+                }
+                v to score
+            }.sortedWith(compareBy({ it.second }, { it.first.name }))
+            ttsVoices.clear()
+            ttsVoices.addAll(scored.take(14).map { (v, male) ->
+                val isMale = v.name.contains("male", ignoreCase = true) &&
+                    !v.name.contains("female", ignoreCase = true)
+                TtsVoice(
+                    v.name,
+                    "${v.locale?.displayLanguage ?: "?"} • " +
+                        (if (isMale) "Male" else "Voice") +
+                        (if (v.isNetworkConnectionRequired) " • online" else "")
+                )
+            })
+        } catch (_: Exception) {
+        }
+    }
+
+    fun selectVoice(id: String) {
+        store.ttsVoice = id
+        voiceName = id
+        applyVoice()
+        previewVoice()
+    }
+
+    fun previewVoice() {
+        speak("Hello. I am Jarvis, at your service.", force = true)
+    }
 
     fun toggleTts() {
         ttsOn = !ttsOn
         store.ttsEnabled = ttsOn
-        if (!ttsOn) {
-            try {
-                tts?.stop()
-            } catch (_: Exception) {
-            }
-        }
+        if (!ttsOn) stopSpeaking()
     }
 
     private fun stopSpeaking() {
@@ -578,11 +712,98 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun speak(text: String) {
-        if (!ttsOn) return
+    private fun speak(text: String, force: Boolean = false) {
+        if (!ttsOn && !force) return
+        val t = tts ?: return
         try {
-            val clean = text.replace(Regex("[*_`#>\\-]"), "").trim().take(3900)
-            if (clean.isNotEmpty()) tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "jarvis")
+            val clean = cleanForSpeech(text)
+            if (clean.isEmpty()) return
+            val chunks = splitSentences(clean)
+            if (chunks.isEmpty()) return
+            t.speak(chunks[0], TextToSpeech.QUEUE_FLUSH, null, "jarvis")
+            for (c in chunks.drop(1)) t.speak(c, TextToSpeech.QUEUE_ADD, null, "jarvis")
+        } catch (_: Exception) {
+        }
+    }
+
+    // ---- voice input (in-app, no Google popup) ----
+
+    fun startListening() {
+        try {
+            destroyRecognizer()
+            val ctx = getApplication<Application>()
+            if (!SpeechRecognizer.isRecognitionAvailable(ctx)) {
+                toast("Voice input not available on this device")
+                return
+            }
+            val r = SpeechRecognizer.createSpeechRecognizer(ctx)
+            recognizer = r
+            r.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    listening = true
+                }
+
+                override fun onResults(results: Bundle?) {
+                    listening = false
+                    val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()?.trim().orEmpty()
+                    destroyRecognizer()
+                    if (heard.isNotEmpty()) send(heard)
+                }
+
+                override fun onError(error: Int) {
+                    listening = false
+                    destroyRecognizer()
+                    if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                        error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    ) {
+                        toast("Didn't catch that — try again")
+                    } else if (error != SpeechRecognizer.ERROR_CLIENT) {
+                        toast("Voice error ($error)")
+                    }
+                }
+
+                override fun onEndOfSpeech() {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                )
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+            r.startListening(intent)
+        } catch (_: Exception) {
+            listening = false
+            destroyRecognizer()
+        }
+    }
+
+    fun stopListening() {
+        try {
+            recognizer?.stopListening()
+        } catch (_: Exception) {
+        }
+        listening = false
+    }
+
+    private fun destroyRecognizer() {
+        try {
+            recognizer?.destroy()
+        } catch (_: Exception) {
+        }
+        recognizer = null
+    }
+
+    private fun toast(msg: String) {
+        try {
+            Toast.makeText(getApplication(), msg, Toast.LENGTH_SHORT).show()
         } catch (_: Exception) {
         }
     }
@@ -591,6 +812,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     fun newChat() {
         stopSpeaking()
+        stopListening()
         persist()
         val c = ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf())
         chats.add(0, c)
@@ -609,6 +831,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     fun switchChat(id: String) {
         stopSpeaking()
+        stopListening()
         if (id == activeChatId) {
             showChats = false
             return
@@ -669,6 +892,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun openSettings() {
         settingsMsg = ""
         showSettings = true
+        loadVoices()
     }
 
     fun saveSettings(key: String, model: String) {

@@ -101,4 +101,24 @@ class ToolsTest {
         assertEquals("New chat", chatTitle(emptyList()))
         assertEquals("New chat", chatTitle(listOf("model" to "hi")))
     }
+
+    @Test fun cleanSpeechStripsEmoji() {
+        assertEquals("Hello , world", cleanForSpeech("Hello 👋 • world"))
+    }
+
+    @Test fun cleanSpeechLinks() {
+        assertEquals("see link now", cleanForSpeech("see https://x.io/a now"))
+    }
+
+    @Test fun splitKeepsDanda() {
+        val parts = splitSentences("তুমি কেমন আছ। আমি ভালো।")
+        assertEquals(2, parts.size)
+    }
+
+    @Test fun splitLong() {
+        val s = "word ".repeat(500)
+        val parts = splitSentences(s)
+        assertTrue(parts.size >= 2)
+        assertTrue(parts.all { it.length <= 1500 })
+    }
 }

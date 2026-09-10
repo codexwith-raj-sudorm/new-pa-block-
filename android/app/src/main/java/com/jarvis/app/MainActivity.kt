@@ -1,10 +1,9 @@
 package com.jarvis.app
 
-import android.app.Activity
+import android.Manifest
 import android.app.Application
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
-import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -47,6 +46,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,6 +59,7 @@ val BotGray = Color(0xFF21262D)
 val Muted = Color(0xFF8B949E)
 val Good = Color(0xFF3FB950)
 val Warn = Color(0xFFD29922)
+val JarvisRed = Color(0xFFE5484D)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,27 +84,25 @@ fun JarvisScreen() {
         }
     })
 
-    // Voice input via the system recognizer (no mic permission needed in-app).
+    // Mic permission → in-app listening (no Google popup).
     val voiceAvailable = remember { SpeechRecognizer.isRecognitionAvailable(context) }
-    val voiceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val heard = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()?.trim().orEmpty()
-            if (heard.isNotEmpty()) vm.send(heard)
-        }
+    val micPerm = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) vm.startListening()
+        else Toast.makeText(context, "Mic permission needed for voice input", Toast.LENGTH_SHORT).show()
     }
-    fun startVoice() {
-        try {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Talk to Jarvis…")
-            }
-            voiceLauncher.launch(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, "Voice input not available", Toast.LENGTH_SHORT).show()
+    fun onMicTap() {
+        if (vm.listening) {
+            vm.stopListening()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            vm.startListening()
+        } else {
+            micPerm.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -146,7 +145,12 @@ fun JarvisScreen() {
                 }
             }
         }
-        InputRow(onSend = vm::send, onMic = ::startVoice, micVisible = voiceAvailable)
+        InputRow(
+            onSend = vm::send,
+            onMic = ::onMicTap,
+            micVisible = voiceAvailable,
+            listening = vm.listening
+        )
     }
 
     if (vm.showSettings) SettingsDialog(vm)
@@ -236,7 +240,7 @@ fun Bubble(m: ChatMessage) {
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean) {
+fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean) {
     var input by remember { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
     fun submit() {
@@ -245,36 +249,49 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean) {
         input = ""
         keyboard?.hide()
     }
-    Row(
-        Modifier.fillMaxWidth().background(Panel).padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (micVisible) {
-            IconButton(onClick = onMic) {
-                Icon(Icons.Filled.Mic, contentDescription = "Voice input", tint = Accent)
-            }
-        }
-        TextField(
-            value = input,
-            onValueChange = { input = it },
-            placeholder = { Text("Ask Jarvis anything…") },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { submit() }),
-            modifier = Modifier.weight(1f),
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
+    Column(Modifier.fillMaxWidth().background(Panel)) {
+        if (listening) {
+            Text(
+                "🎙 Listening… speak now (tap mic to stop)",
+                color = JarvisRed, fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, paddingTop = 6.dp)
             )
-        )
-        Spacer(Modifier.width(8.dp))
-        Button(
-            onClick = { submit() },
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+            if (micVisible) {
+                IconButton(onClick = onMic) {
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = if (listening) "Stop listening" else "Voice input",
+                        tint = if (listening) JarvisRed else Accent
+                    )
+                }
+            }
+            TextField(
+                value = input,
+                onValueChange = { input = it },
+                placeholder = { Text(if (listening) "Listening…" else "Ask Jarvis anything…") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardActions = KeyboardActions(onSend = { submit() }),
+                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = { submit() },
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+            }
         }
     }
 }
@@ -311,6 +328,40 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 if (vm.settingsMsg.isNotBlank()) {
                     Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
                 }
+                Text("🎙 Voice", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Current: " + (
+                            vm.ttsVoices.firstOrNull { it.id == vm.voiceName }?.label
+                                ?: "Auto"
+                            ),
+                        fontSize = 13.sp, color = Muted,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { vm.previewVoice() }) { Text("Preview") }
+                }
+                if (vm.ttsVoices.isNotEmpty()) {
+                    LazyColumn(Modifier.heightIn(max = 140.dp)) {
+                        items(vm.ttsVoices) { v ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .selectable(
+                                        selected = vm.voiceName == v.id,
+                                        onClick = { vm.selectVoice(v.id) }
+                                    )
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = vm.voiceName == v.id,
+                                    onClick = { vm.selectVoice(v.id) }
+                                )
+                                Text(v.label, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { vm.refreshModels() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -319,7 +370,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     }
                 }
                 Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
-                LazyColumn(Modifier.heightIn(max = 160.dp)) {
+                LazyColumn(Modifier.heightIn(max = 140.dp)) {
                     items(models) { m ->
                         Row(
                             Modifier.fillMaxWidth()

@@ -10,7 +10,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 💬 Chat with Gemini + auto model discovery, 20-message context, on-device history
 - 💬 Multi-chat: new / switch / delete chats with auto-titles
 - 🧠 Memory manager: view/add/delete memories (or “remember …” in chat)
-- 🎙️ Voice I/O: mic input + spoken replies with mute toggle (top bar)
+- 🎙️ Voice I/O: in-app mic (no Google popup) + Jarvis-style male voice, picker + preview, mute toggle
 - ⏰ Offline tools (no key needed): time, calculator, memory
 - ⚙️ Settings: optional own key, preferred model, refresh models
 
