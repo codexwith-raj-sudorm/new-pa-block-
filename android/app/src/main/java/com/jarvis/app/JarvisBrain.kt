@@ -922,15 +922,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun refreshModels() {
-        if (effectiveKey.isBlank()) {
+    fun refreshModels(keyOverride: String = "") {
+        val k = keyOverride.ifBlank { effectiveKey }
+        if (k.isBlank()) {
             settingsMsg = "Add an API key in Settings first."
             return
         }
         settingsMsg = "Checking available models…"
         viewModelScope.launch {
             try {
-                val available = GeminiApi.listModels(effectiveKey)
+                val available = GeminiApi.listModels(k)
                 store.saveModels(available)
                 availableModels.clear()
                 availableModels.addAll(available.ifEmpty { Models.FALLBACK })

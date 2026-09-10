@@ -362,25 +362,28 @@ fun SettingsDialog(vm: JarvisViewModel) {
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { vm.refreshModels() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Refresh models")
+                // Models stay hidden on the built-in key — only shown with your own key.
+                if (key.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { vm.refreshModels(key) }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Refresh models")
+                        }
                     }
-                }
-                Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
-                LazyColumn(Modifier.heightIn(max = 140.dp)) {
-                    items(models) { m ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .selectable(selected = model == m, onClick = { model = m })
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(selected = model == m, onClick = { model = m })
-                            Text(m, fontSize = 14.sp)
+                    Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
+                    LazyColumn(Modifier.heightIn(max = 140.dp)) {
+                        items(models) { m ->
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .selectable(selected = model == m, onClick = { model = m })
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = model == m, onClick = { model = m })
+                                Text(m, fontSize = 14.sp)
+                            }
                         }
                     }
                 }
