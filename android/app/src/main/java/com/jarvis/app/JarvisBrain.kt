@@ -1,6 +1,8 @@
 package com.jarvis.app
 
+import android.app.AlarmManager
 import android.app.Application
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioFocusRequest
@@ -28,6 +30,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -257,6 +260,11 @@ object Router {
         }
         if (low.startsWith("recall")) return Hit("recall", t.drop(6).trim())
         if ("what do you remember" in low || "my memor" in low) return Hit("recall", "")
+        Regex("""\b(cancel|delete|remove) reminder (\d+)""").find(low)?.let {
+            return Hit("reminder_cancel", it.groupValues[2])
+        }
+        if (low == "reminders" || "my reminder" in low || low.startsWith("list reminders")) return Hit("reminders", "")
+        if (low.startsWith("remind me")) return Hit("remind", t)
         return null
     }
 }
@@ -305,6 +313,36 @@ class Store(context: Context) {
         val all = facts()
         if (q.isBlank()) return all.take(10)
         return all.filter { it.contains(q, ignoreCase = true) }.take(10)
+    }
+
+    fun loadReminders(): MutableList<ReminderItem> {
+        val out = mutableListOf<ReminderItem>()
+        try {
+            val arr = JSONArray(p.getString("reminders_v1", "[]") ?: "[]")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(ReminderItem(o.optInt("id", i), o.optLong("at", 0), o.optString("text", "")))
+            }
+        } catch (_: Exception) { }
+        return out
+    }
+
+    fun saveReminders(list: List<ReminderItem>) {
+        try {
+            val arr = JSONArray()
+            for (r in list) arr.put(JSONObject().put("id", r.id).put("at", r.at).put("text", r.text))
+            p.edit().putString("reminders_v1", arr.toString()).apply()
+        } catch (_: Exception) { }
+    }
+
+    fun removeReminder(id: Int) {
+        saveReminders(loadReminders().filterNot { it.id == id })
+    }
+
+    fun nextReminderId(): Int {
+        val n = p.getInt("reminder_seq", 1)
+        p.edit().putInt("reminder_seq", n + 1).apply()
+        return n
     }
 
     /** Legacy single history (pre-chats). Read once for migration, then deleted. */
@@ -1081,7 +1119,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (!brainOk) {
-            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, and memory."
+            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, and reminders."
             messages.add(ChatMessage("bot", reply))
             speak(reply)
             persist()
@@ -1111,6 +1149,77 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun scheduleReminder(req: ReminderRequest?): String {
+        if (req == null) return "Tell me when — e.g. “remind me in 10 minutes to stretch” or “remind me at 5pm to gym”."
+        val at = when (val w = req.whenAt) {
+            is InMinutes -> System.currentTimeMillis() + w.minutes * 60_000L
+            is AtTime -> atToMillis(w.hour, w.minute, w.tomorrow)
+        }
+        val now = System.currentTimeMillis()
+        val items = store.loadReminders().filter { it.at > now }.toMutableList()
+        val id = store.nextReminderId()
+        items.add(ReminderItem(id, at, req.text))
+        store.saveReminders(items)
+        val ok = setReminderAlarm(id, at, req.text)
+        val whenText = dueText(at, now)
+        return if (ok) "I'll remind you $whenText: “${req.text}”."
+        else "Saved ($whenText), but I couldn't set the alarm — allow notifications, then try again."
+    }
+
+    private fun atToMillis(h: Int, m: Int, tomorrow: Boolean): Long {
+        val now = LocalDateTime.now()
+        var dt = now.withHour(h).withMinute(m).withSecond(0).withNano(0)
+        if (tomorrow || !dt.isAfter(now)) dt = dt.plusDays(1)
+        return dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    private fun setReminderAlarm(id: Int, at: Long, text: String): Boolean {
+        return try {
+            val ctx = getApplication<Application>()
+            val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val pi = PendingIntent.getBroadcast(
+                ctx, id,
+                Intent(ctx, ReminderReceiver::class.java).putExtra("rid", id).putExtra("text", text),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (android.os.Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            } else {
+                try { am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
+                catch (_: SecurityException) { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) }
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    private fun listReminders(): String {
+        val now = System.currentTimeMillis()
+        val items = store.loadReminders().filter { it.at > now }.sortedBy { it.at }
+        store.saveReminders(items)
+        if (items.isEmpty()) return "No reminders set. Try “remind me in 10 minutes to stretch”."
+        return "Reminders:\n" + items.mapIndexed { i, r -> "${i + 1}. ${dueText(r.at, now)} — ${r.text}" }
+            .joinToString("\n") + "\nSay “cancel reminder N” to drop one."
+    }
+
+    private fun cancelReminder(arg: String): String {
+        val n = arg.trim().toIntOrNull()
+            ?: return "Say “cancel reminder N” — see numbers in “my reminders”."
+        val items = store.loadReminders().filter { it.at > System.currentTimeMillis() }.sortedBy { it.at }
+        val hit = items.getOrNull(n - 1) ?: return "No reminder #$n. Say “my reminders” to see them."
+        try {
+            val ctx = getApplication<Application>()
+            val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val pi = PendingIntent.getBroadcast(
+                ctx, hit.id, Intent(ctx, ReminderReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            am.cancel(pi)
+            pi.cancel()
+        } catch (_: Exception) { }
+        store.removeReminder(hit.id)
+        return "Cancelled: “${hit.text}”."
+    }
+
     private fun runTool(hit: Router.Hit): String = when (hit.tool) {
         "time" -> {
             val now = LocalDateTime.now()
@@ -1135,6 +1244,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (found.isEmpty()) "I don't have any saved memories yet."
             else "Here's what I remember:\n" + found.joinToString("\n") { "• $it" }
         }
+        "remind" -> scheduleReminder(parseReminder(hit.arg))
+        "reminders" -> listReminders()
+        "reminder_cancel" -> cancelReminder(hit.arg)
         else -> "?"
     }
 
