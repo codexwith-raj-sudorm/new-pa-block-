@@ -194,7 +194,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (key, model, facts, history, model cache) ----------
+// ---------- on-device storage (keys, model, facts, history, model cache) ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -202,6 +202,11 @@ class Store(context: Context) {
     var apiKey: String
         get() = p.getString("key", "") ?: ""
         set(v) = p.edit().putString("key", v.trim()).apply()
+
+    /** Which key powers the brain: "builtin" (locked, default) or "user". */
+    var keySource: String
+        get() = p.getString("key_source", "builtin") ?: "builtin"
+        set(v) = p.edit().putString("key_source", v).apply()
 
     var model: String
         get() = p.getString("model", Models.FALLBACK[0]) ?: Models.FALLBACK[0]
@@ -424,10 +429,47 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var apiKey by mutableStateOf(store.apiKey)
         private set
+    var keySource by mutableStateOf(store.keySource)
+        private set
     var model by mutableStateOf(store.model)
         private set
 
-    val brainOk: Boolean get() = apiKey.isNotBlank()
+    // Built-in owner key, baked at build time from the GEMINI_API_KEY repo secret
+    // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
+    // It is LOCKED: the UI can never view, change, remove or override it.
+    // NOTE: this is obfuscation, not encryption — anyone decompiling the APK can
+    // recover it. Real protection = restrict the key in Google Cloud + keep APK private.
+    private val builtinKey: String = try {
+        val obf = BuildConfig.DEFAULT_GEMINI_KEY
+        if (obf.isBlank()) "" else String(
+            android.util.Base64.decode(obf, android.util.Base64.DEFAULT)
+        ).reversed()
+    } catch (_: Exception) {
+        ""
+    }
+
+    /**
+     * The key actually powering the brain: the user's selected source,
+     * auto-falling-back to whichever key exists so the brain never bricks.
+     */
+    private val effectiveKey: String get() = when {
+        keySource == "user" && apiKey.isNotBlank() -> apiKey
+        builtinKey.isNotBlank() -> builtinKey
+        apiKey.isNotBlank() -> apiKey
+        else -> ""
+    }
+
+    val hasBuiltin: Boolean get() = builtinKey.isNotBlank()
+
+    /** "builtin" | "mine" | "none" — shown in Settings so the user knows what's active. */
+    val activeSource: String get() = when {
+        keySource == "user" && apiKey.isNotBlank() -> "mine"
+        builtinKey.isNotBlank() -> "builtin"
+        apiKey.isNotBlank() -> "mine"
+        else -> "none"
+    }
+
+    val brainOk: Boolean get() = effectiveKey.isNotBlank()
 
     init {
         val cached = store.cachedModels()
@@ -440,21 +482,36 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 ChatMessage(
                     "bot",
                     if (brainOk) "Hello. I am Jarvis. How can I help?"
-                    else "Hello. I am Jarvis.\n\n🔑 Add your free Gemini key in Settings (⚙️, top right) to wake my brain. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
+                    else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
                 )
             )
         }
     }
 
-    fun saveSettings(key: String, model: String) {
-        val keyChanged = key.trim() != store.apiKey
+    fun openSettings() {
+        settingsMsg = ""
+        showSettings = true
+    }
+
+    fun saveSettings(key: String, model: String, source: String) {
+        if (source == "user" && key.trim().isBlank()) {
+            settingsMsg = "Paste your own key first — or choose the built-in key."
+            return
+        }
+        if (source == "builtin" && builtinKey.isBlank()) {
+            settingsMsg = "This install has no built-in key — paste your own key instead."
+            return
+        }
+        val oldEff = effectiveKey
         store.apiKey = key
         store.model = model
+        store.keySource = source
         apiKey = store.apiKey
         this.model = store.model
+        keySource = store.keySource
         showSettings = false
         settingsMsg = ""
-        if (keyChanged) {
+        if (oldEff != effectiveKey) {
             // Different key → different model access. Re-discover.
             store.saveModels(emptyList())
             availableModels.clear()
@@ -468,14 +525,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshModels() {
-        if (apiKey.isBlank()) {
-            settingsMsg = "Enter an API key first."
+        if (effectiveKey.isBlank()) {
+            settingsMsg = "No active key — pick one in Settings first."
             return
         }
         settingsMsg = "Checking available models…"
         viewModelScope.launch {
             try {
-                val available = GeminiApi.listModels(apiKey)
+                val available = GeminiApi.listModels(effectiveKey)
                 store.saveModels(available)
                 availableModels.clear()
                 availableModels.addAll(available.ifEmpty { Models.FALLBACK })
@@ -497,7 +554,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (cached.isNotEmpty() && fresh) return GeminiApi.pickModels(model, cached)
         }
         return try {
-            val available = GeminiApi.listModels(apiKey)
+            val available = GeminiApi.listModels(effectiveKey)
             store.saveModels(available)
             availableModels.clear()
             availableModels.addAll(available.ifEmpty { Models.FALLBACK })
@@ -522,7 +579,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             messages.add(
                 ChatMessage(
                     "bot",
-                    "🔑 I need a Gemini API key for that (free from aistudio.google.com — paste it in Settings ⚙️). Offline I can still do time, calculations, and memory."
+                    "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, and memory."
                 )
             )
             persist()
@@ -535,11 +592,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 val hist = messages.dropLast(1)
                     .map { (if (it.role == "user") "user" else "model") to it.text }
                 val (reply, _) = try {
-                    GeminiApi.chat(apiKey, resolveModels(false), system, hist, text)
+                    GeminiApi.chat(effectiveKey, resolveModels(false), system, hist, text)
                 } catch (e: GeminiApi.JarvisError) {
                     if (!e.message.orEmpty().contains("404")) throw e
                     // Model list went stale — rediscover once and retry.
-                    GeminiApi.chat(apiKey, resolveModels(true), system, hist, text)
+                    GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
                 }
                 messages.add(ChatMessage("bot", reply))
             } catch (e: Exception) {

@@ -18,10 +18,22 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 1. Open this repo on GitHub → **Actions** tab → latest green `android` run
 2. Download **jarvis-apk** under Artifacts (it's a `.zip` — unzip it)
 3. Open the `.apk` → **Install** (allow "install unknown apps" if asked)
-4. Open **Jarvis** → tap ⚙️ → paste your free Gemini key from `aistudio.google.com` → Save
-5. Chat! 🎉
+4. Open **Jarvis** and chat! 🎉 (A built-in default key is baked in — or tap ⚙️ to use your own key instead.)
 
 Every push to this branch rebuilds the APK automatically.
+
+## Built-in default key (owner setup)
+
+The APK bakes in a locked default key from the `GEMINI_API_KEY` repo secret (never in git).
+In ⚙️ Settings the built-in key can't be viewed, changed, removed or overridden —
+but users can paste their own key in a separate section and switch to it.
+
+1. Create a key at `aistudio.google.com` → **restrict it to the Generative Language API**
+2. Repo → **Settings → Secrets and variables → Actions** → New repository secret `GEMINI_API_KEY`
+3. Re-run the latest `android` workflow (⋯ → Re-run jobs) → the new APK has the key baked in
+
+⚠️ Obfuscation ≠ encryption: anyone decompiling the APK can recover the key.
+Mitigations: API-restrict the key, keep the APK private, rotate the key if it leaks.
 
 ## Project layout
 

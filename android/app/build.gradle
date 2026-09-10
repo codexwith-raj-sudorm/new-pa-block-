@@ -14,6 +14,11 @@ android {
         targetSdk 34
         versionCode 1
         versionName '1.0'
+        // Built-in default key from CI secret (empty when the secret is unset).
+        // Lightly obfuscated (reversed Base64) so the plain key isn't greppable in the APK.
+        def _rawKey = System.getenv('GEMINI_API_KEY') ?: ''
+        def _obfKey = _rawKey ? java.util.Base64.getEncoder().encodeToString(_rawKey.reverse().bytes) : ''
+        buildConfigField 'String', 'DEFAULT_GEMINI_KEY', "\"${_obfKey}\""
     }
 
     buildTypes {
@@ -30,6 +35,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
 }
 

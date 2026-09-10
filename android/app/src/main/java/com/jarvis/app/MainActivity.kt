@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Refresh
@@ -70,7 +72,7 @@ fun JarvisScreen() {
     })
 
     Column(Modifier.fillMaxSize().background(Bg)) {
-        TopBar(online = vm.brainOk, onSettings = { vm.showSettings = true })
+        TopBar(online = vm.brainOk, onSettings = vm::openSettings)
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
@@ -204,6 +206,7 @@ fun InputRow(onSend: (String) -> Unit) {
 @Composable
 fun SettingsDialog(vm: JarvisViewModel) {
     var key by remember { mutableStateOf(vm.apiKey) }
+    var source by remember { mutableStateOf(vm.keySource) }
     val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
     var model by remember { mutableStateOf(vm.model) }
     LaunchedEffect(models.joinToString()) {
@@ -213,16 +216,83 @@ fun SettingsDialog(vm: JarvisViewModel) {
         onDismissRequest = { vm.showSettings = false },
         title = { Text("Jarvis Settings") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Gemini API key (free from aistudio.google.com):", fontSize = 13.sp, color = Muted)
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // ---- Section 1: locked built-in key (view status only) ----
+                Text("🔒 Built-in key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                if (vm.hasBuiltin) {
+                    Text(
+                        "●●●●●●●● active and locked — can't be viewed, changed, removed or overridden.",
+                        fontSize = 13.sp, color = Muted
+                    )
+                } else {
+                    Text(
+                        "Not included in this install — use your own key below.",
+                        fontSize = 13.sp, color = Warn
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .selectable(
+                            selected = source == "builtin",
+                            enabled = vm.hasBuiltin,
+                            onClick = { source = "builtin" }
+                        )
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = source == "builtin",
+                        onClick = { source = "builtin" },
+                        enabled = vm.hasBuiltin
+                    )
+                    Text(
+                        "Use built-in key",
+                        fontSize = 14.sp,
+                        color = if (vm.hasBuiltin) Color.Unspecified else Muted
+                    )
+                }
+                // ---- Section 2: user's own key ----
+                Text("🔑 My own key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .selectable(selected = source == "user", onClick = { source = "user" })
+                        .padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(selected = source == "user", onClick = { source = "user" })
+                    Text("Use my own key", fontSize = 14.sp)
+                }
                 TextField(
                     value = key,
                     onValueChange = { key = it.trim() },
-                    placeholder = { Text("AIza…") },
+                    placeholder = { Text("Paste your key (AIza…)") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
+                Text(
+                    "Active: " + when (vm.activeSource) {
+                        "builtin" -> "built-in key 🔒"
+                        "mine" -> "your key 🔑"
+                        else -> "none — brain asleep"
+                    },
+                    fontSize = 13.sp, color = Accent
+                )
+                if (key.isNotBlank() && source == "builtin" && vm.hasBuiltin) {
+                    Text(
+                        "Your pasted key is saved, but the built-in key is selected.",
+                        fontSize = 12.sp, color = Muted
+                    )
+                }
+                if (vm.settingsMsg.isNotBlank()) {
+                    Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
+                }
+                // ---- Models ----
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { vm.refreshModels() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -230,11 +300,8 @@ fun SettingsDialog(vm: JarvisViewModel) {
                         Text("Refresh models")
                     }
                 }
-                if (vm.settingsMsg.isNotBlank()) {
-                    Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
-                }
                 Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
-                LazyColumn(Modifier.heightIn(max = 200.dp)) {
+                LazyColumn(Modifier.heightIn(max = 160.dp)) {
                     items(models) { m ->
                         Row(
                             Modifier.fillMaxWidth()
@@ -251,7 +318,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.saveSettings(key, model) }) { Text("Save") }
+            TextButton(onClick = { vm.saveSettings(key, model, source) }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
