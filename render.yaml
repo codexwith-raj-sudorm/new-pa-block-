@@ -6,7 +6,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    startCommand: chainlit run app.py --host 0.0.0.0 --port $PORT --headless
     envVars:
       - key: LLM_PROVIDER
         value: gemini

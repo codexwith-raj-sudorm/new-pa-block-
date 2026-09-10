@@ -1,4 +1,4 @@
-# JARVIS MVP — Technical Plan (Rev 2)
+# JARVIS MVP — Technical Plan (Rev 3: Chainlit base)
 
 > **Vision:** A personal AI assistant like Jarvis.
 > **MVP:** A chat-first assistant with a mobile-friendly web UI that runs in the cloud:
@@ -255,3 +255,13 @@ Each phase is 1–3 focused sessions. We demo each phase live in your phone brow
 1. ✅ Phases 0–1 code done + pushed (`arena/01a08a6b-new-pa-block`).
 2. **You deploy on Render from your phone** (steps in chat) → real Jarvis at a permanent URL.
 3. You confirm real chat works there → we build Phase 2 (tool loop + offline tools here, web tools verified on deploy).
+
+---
+## Rev 3 addendum (2026-09-10): adopted Chainlit base
+
+Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
+- `app.py` is now the entrypoint (was `server.py` + `web/`); old scaffold kept for reference.
+- LiteLLM = LLM router (Gemini on deploy, `demo` provider in sandbox via `LLM_PROVIDER`).
+- Chainlit gives chat UI, streaming, sessions, starters, welcome screen for free.
+- Customization roadmap (tools, memory, personality) now builds as Chainlit/LiteLLM features.
+- Deploy unchanged: `render.yaml` Blueprint, startCommand runs Chainlit headless.
