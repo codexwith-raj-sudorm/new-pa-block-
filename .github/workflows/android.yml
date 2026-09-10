@@ -19,7 +19,13 @@ jobs:
       - uses: gradle/gradle-build-action@v3
         with:
           gradle-version: '8.7'
-      - run: gradle :app:testDebugUnitTest
+      - run: gradle :app:testDebugUnitTest --console=plain > ../build-output.log 2>&1
+      - name: Diagnose failures
+        if: failure()
+        run: |
+          grep -E "^e: " ../build-output.log | head -20 | while IFS= read -r line; do echo "::error ::COMPILE::$line"; done || true
+          grep -A4 " FAILED$" ../build-output.log | head -40 | while IFS= read -r line; do echo "::error ::TEST::$line"; done || true
+          for f in app/build/test-results/testDebugUnitTest/*.xml; do [ -e "$f" ] || continue; grep -o 'message="[^"]*"' "$f" | head -5 | while IFS= read -r m; do echo "::error ::XML::$m"; done; done || true
       - run: gradle :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
