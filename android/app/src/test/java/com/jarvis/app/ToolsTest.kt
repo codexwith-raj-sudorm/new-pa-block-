@@ -103,9 +103,13 @@ class ToolsTest {
     }
 
     @Test fun cleanSpeechStripsEmoji() {
-        val actual = cleanForSpeech("Hello 👋 • world")
-        val codes = actual.map { it.code.toString(16) }.joinToString(",")
-        assertTrue("ACTUAL_IS[$actual] CODES[$codes]", actual == "Hello , world")
+        val wave = "Hello 👋 • world"
+        println("DIAG wave codes=" + wave.map { it.code.toString(16) }.joinToString(","))
+        println("DIAG r1=" + Regex("[\\uD83C-\\uDBFF]").containsMatchIn(wave))
+        println("DIAG r2=" + Regex("[\\uD83C-\\uDBFF][\\uDC00-\\uDFFF]+").containsMatchIn(wave))
+        val actual = cleanForSpeech(wave)
+        println("DIAG actual=[$actual] codes=" + actual.map { it.code.toString(16) }.joinToString(","))
+        assertTrue("see DIAG lines", actual == "Hello , world")
     }
 
     @Test fun cleanSpeechLinks() {
