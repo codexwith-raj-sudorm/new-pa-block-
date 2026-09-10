@@ -63,4 +63,21 @@ class ToolsTest {
     }
 
     @Test fun parseModelsBadJson() = assertTrue(GeminiApi.parseModelNames("nope").isEmpty())
+
+    @Test fun parseModelsExcludesTtsAndEmbeddings() {
+        val json = """{"models":[
+            {"name":"models/gemini-2.5-flash-preview-tts","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/text-embedding-004","supportedGenerationMethods":["generateContent","embedContent"]},
+            {"name":"models/gemini-2.0-flash","supportedGenerationMethods":["generateContent"]}
+        ]}"""
+        assertEquals(listOf("gemini-2.0-flash"), GeminiApi.parseModelNames(json))
+    }
+
+    @Test fun pickModelsSkipsTts() {
+        val picked = GeminiApi.pickModels(
+            "unknown",
+            listOf("gemini-2.5-flash-preview-tts", "gemini-2.0-flash", "text-embedding-004")
+        )
+        assertEquals(listOf("gemini-2.0-flash"), picked)
+    }
 }

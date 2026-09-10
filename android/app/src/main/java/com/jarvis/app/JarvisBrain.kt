@@ -286,7 +286,15 @@ object GeminiApi {
                 for (j in 0 until methods.length()) {
                     if (methods.optString(j) == "generateContent") { ok = true; break }
                 }
-                if (ok) out.add(o.optString("name").removePrefix("models/"))
+                if (ok) {
+                    val name = o.optString("name").removePrefix("models/")
+                    // TTS/embedding models also list generateContent but can't chat — exclude.
+                    if (!name.contains("tts", ignoreCase = true) &&
+                        !name.contains("embed", ignoreCase = true)
+                    ) {
+                        out.add(name)
+                    }
+                }
             }
         } catch (_: Exception) {
         }
@@ -295,8 +303,12 @@ object GeminiApi {
 
     /** Preferred-first, then flash-lite, flash, others. Pure, tested. */
     fun pickModels(preferred: String, available: List<String>): List<String> {
-        if (available.isEmpty()) return listOf(preferred).filter { it.isNotBlank() }
-        val rest = available.filter { it != preferred }.sortedWith(
+        // Drop TTS/embedding models (also heals caches saved before parse filtering).
+        val pool = available.filterNot {
+            it.contains("tts", ignoreCase = true) || it.contains("embed", ignoreCase = true)
+        }.ifEmpty { available }
+        if (pool.isEmpty()) return listOf(preferred).filter { it.isNotBlank() }
+        val rest = pool.filter { it != preferred }.sortedWith(
             compareBy(
                 { n: String ->
                     when {
@@ -308,8 +320,8 @@ object GeminiApi {
                 { it }
             )
         )
-        val head = if (preferred.isNotBlank() && preferred in available) listOf(preferred) else emptyList()
-        return (head + rest).ifEmpty { available }
+        val head = if (preferred.isNotBlank() && preferred in pool) listOf(preferred) else emptyList()
+        return (head + rest).ifEmpty { pool }
     }
 
     suspend fun listModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
