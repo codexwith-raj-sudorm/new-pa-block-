@@ -194,7 +194,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (keys, model, facts, history, model cache) ----------
+// ---------- on-device storage (key, model, facts, history, model cache) ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -202,11 +202,6 @@ class Store(context: Context) {
     var apiKey: String
         get() = p.getString("key", "") ?: ""
         set(v) = p.edit().putString("key", v.trim()).apply()
-
-    /** Which key powers the brain: "builtin" (locked, default) or "user". */
-    var keySource: String
-        get() = p.getString("key_source", "builtin") ?: "builtin"
-        set(v) = p.edit().putString("key_source", v).apply()
 
     var model: String
         get() = p.getString("model", Models.FALLBACK[0]) ?: Models.FALLBACK[0]
@@ -338,7 +333,7 @@ object GeminiApi {
             val txt = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 if (resp.code in 400..403 && ("API key" in txt || "API_KEY" in txt)) {
-                    throw JarvisError("API key rejected. Open Settings (⚙️) and check your key.")
+                    throw JarvisError("API key rejected. Open Settings (⚙️) and check the key.")
                 }
                 throw JarvisError("Couldn't list models (HTTP ${resp.code}).")
             }
@@ -398,7 +393,7 @@ object GeminiApi {
             val txt = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 if (resp.code == 400 && ("API key" in txt || "API_KEY" in txt)) {
-                    return Triple(false, "", "KEY:API key rejected. Open Settings (⚙️) and check your key.")
+                    return Triple(false, "", "KEY:API key rejected. Open Settings (⚙️) and check the key.")
                 }
                 return Triple(false, "", "HTTP ${resp.code}: ${txt.take(160)}")
             }
@@ -429,16 +424,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var apiKey by mutableStateOf(store.apiKey)
         private set
-    var keySource by mutableStateOf(store.keySource)
-        private set
     var model by mutableStateOf(store.model)
         private set
 
-    // Built-in owner key, baked at build time from the GEMINI_API_KEY repo secret
+    // Owner key, baked at build time from the GEMINI_API_KEY repo secret
     // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
-    // It is LOCKED: the UI can never view, change, remove or override it.
-    // NOTE: this is obfuscation, not encryption — anyone decompiling the APK can
-    // recover it. Real protection = restrict the key in Google Cloud + keep APK private.
+    // It is completely invisible in the UI: no screen mentions it.
+    // NOTE: obfuscation, not encryption — anyone decompiling the APK can recover it.
+    // Real protection = restrict the key in Google Cloud + keep the APK private.
     private val builtinKey: String = try {
         val obf = BuildConfig.DEFAULT_GEMINI_KEY
         if (obf.isBlank()) "" else String(
@@ -448,26 +441,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         ""
     }
 
-    /**
-     * The key actually powering the brain: the user's selected source,
-     * auto-falling-back to whichever key exists so the brain never bricks.
-     */
-    private val effectiveKey: String get() = when {
-        keySource == "user" && apiKey.isNotBlank() -> apiKey
-        builtinKey.isNotBlank() -> builtinKey
-        apiKey.isNotBlank() -> apiKey
-        else -> ""
-    }
-
-    val hasBuiltin: Boolean get() = builtinKey.isNotBlank()
-
-    /** "builtin" | "mine" | "none" — shown in Settings so the user knows what's active. */
-    val activeSource: String get() = when {
-        keySource == "user" && apiKey.isNotBlank() -> "mine"
-        builtinKey.isNotBlank() -> "builtin"
-        apiKey.isNotBlank() -> "mine"
-        else -> "none"
-    }
+    /** User's own key if pasted, else the invisible built-in key. */
+    private val effectiveKey: String get() = apiKey.ifBlank { builtinKey }
 
     val brainOk: Boolean get() = effectiveKey.isNotBlank()
 
@@ -493,22 +468,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         showSettings = true
     }
 
-    fun saveSettings(key: String, model: String, source: String) {
-        if (source == "user" && key.trim().isBlank()) {
-            settingsMsg = "Paste your own key first — or choose the built-in key."
-            return
-        }
-        if (source == "builtin" && builtinKey.isBlank()) {
-            settingsMsg = "This install has no built-in key — paste your own key instead."
-            return
-        }
+    fun saveSettings(key: String, model: String) {
         val oldEff = effectiveKey
         store.apiKey = key
         store.model = model
-        store.keySource = source
         apiKey = store.apiKey
         this.model = store.model
-        keySource = store.keySource
         showSettings = false
         settingsMsg = ""
         if (oldEff != effectiveKey) {
@@ -526,7 +491,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshModels() {
         if (effectiveKey.isBlank()) {
-            settingsMsg = "No active key — pick one in Settings first."
+            settingsMsg = "Add an API key in Settings first."
             return
         }
         settingsMsg = "Checking available models…"

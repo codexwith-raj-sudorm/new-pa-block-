@@ -206,7 +206,6 @@ fun InputRow(onSend: (String) -> Unit) {
 @Composable
 fun SettingsDialog(vm: JarvisViewModel) {
     var key by remember { mutableStateOf(vm.apiKey) }
-    var source by remember { mutableStateOf(vm.keySource) }
     val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
     var model by remember { mutableStateOf(vm.model) }
     LaunchedEffect(models.joinToString()) {
@@ -220,53 +219,11 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // ---- Section 1: locked built-in key (view status only) ----
-                Text("🔒 Built-in key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                if (vm.hasBuiltin) {
-                    Text(
-                        "●●●●●●●● active and locked — can't be viewed, changed, removed or overridden.",
-                        fontSize = 13.sp, color = Muted
-                    )
-                } else {
-                    Text(
-                        "Not included in this install — use your own key below.",
-                        fontSize = 13.sp, color = Warn
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .selectable(
-                            selected = source == "builtin",
-                            enabled = vm.hasBuiltin,
-                            onClick = { source = "builtin" }
-                        )
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = source == "builtin",
-                        onClick = { source = "builtin" },
-                        enabled = vm.hasBuiltin
-                    )
-                    Text(
-                        "Use built-in key",
-                        fontSize = 14.sp,
-                        color = if (vm.hasBuiltin) Color.Unspecified else Muted
-                    )
-                }
-                // ---- Section 2: user's own key ----
-                Text("🔑 My own key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .selectable(selected = source == "user", onClick = { source = "user" })
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(selected = source == "user", onClick = { source = "user" })
-                    Text("Use my own key", fontSize = 14.sp)
-                }
+                Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    "Only needed if you want to use your own key.",
+                    fontSize = 13.sp, color = Muted
+                )
                 TextField(
                     value = key,
                     onValueChange = { key = it.trim() },
@@ -275,24 +232,9 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text(
-                    "Active: " + when (vm.activeSource) {
-                        "builtin" -> "built-in key 🔒"
-                        "mine" -> "your key 🔑"
-                        else -> "none — brain asleep"
-                    },
-                    fontSize = 13.sp, color = Accent
-                )
-                if (key.isNotBlank() && source == "builtin" && vm.hasBuiltin) {
-                    Text(
-                        "Your pasted key is saved, but the built-in key is selected.",
-                        fontSize = 12.sp, color = Muted
-                    )
-                }
                 if (vm.settingsMsg.isNotBlank()) {
                     Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
                 }
-                // ---- Models ----
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { vm.refreshModels() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -318,7 +260,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.saveSettings(key, model, source) }) { Text("Save") }
+            TextButton(onClick = { vm.saveSettings(key, model) }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
