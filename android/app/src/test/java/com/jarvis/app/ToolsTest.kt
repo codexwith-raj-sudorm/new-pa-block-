@@ -33,4 +33,34 @@ class ToolsTest {
     @Test fun routerRemember() = assertEquals("remember", Router.detect("remember I like tea")?.tool)
 
     @Test fun routerChatIgnored() = assertNull(Router.detect("hello there"))
+
+    @Test fun pickPreferredFirst() {
+        val picked = GeminiApi.pickModels(
+            "gemini-2.0-flash",
+            listOf("gemini-1.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-lite")
+        )
+        assertEquals("gemini-2.0-flash", picked[0])
+    }
+
+    @Test fun pickSortsFlashLiteFirst() {
+        val picked = GeminiApi.pickModels(
+            "unknown-model",
+            listOf("gemini-2.0-pro", "gemini-2.0-flash", "gemini-2.0-flash-lite")
+        )
+        assertEquals(
+            listOf("gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.0-pro"),
+            picked
+        )
+    }
+
+    @Test fun parseModels() {
+        val json = """{"models":[
+            {"name":"models/gemini-2.0-flash","supportedGenerationMethods":["generateContent"]},
+            {"name":"models/embedding-001","supportedGenerationMethods":["embedContent"]},
+            {"name":"models/gemini-x","supportedGenerationMethods":["generateContent"]}
+        ]}"""
+        assertEquals(listOf("gemini-2.0-flash", "gemini-x"), GeminiApi.parseModelNames(json))
+    }
+
+    @Test fun parseModelsBadJson() = assertTrue(GeminiApi.parseModelNames("nope").isEmpty())
 }

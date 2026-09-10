@@ -26,7 +26,15 @@ import java.util.concurrent.TimeUnit
 data class ChatMessage(val role: String, val text: String) // role: user | bot
 
 object Models {
-    val FALLBACK = listOf("gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3-flash")
+    // Hardcoded fallback only — Jarvis auto-discovers working models per key (ListModels).
+    val FALLBACK = listOf(
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-3-flash"
+    )
 }
 
 // ---------- calculator (pure Kotlin, unit-tested) ----------
@@ -186,7 +194,7 @@ object Router {
     }
 }
 
-// ---------- on-device storage (key, model, facts, history) ----------
+// ---------- on-device storage (key, model, facts, history, model cache) ----------
 
 class Store(context: Context) {
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
@@ -238,6 +246,24 @@ class Store(context: Context) {
         } catch (_: Exception) {
         }
     }
+
+    fun cachedModels(): List<String> {
+        return try {
+            val arr = JSONArray(p.getString("models_cache", "[]") ?: "[]")
+            List(arr.length()) { arr.getString(it) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun modelsCachedAt(): Long = p.getLong("models_cached_at", 0)
+
+    fun saveModels(models: List<String>) {
+        val arr = JSONArray()
+        models.forEach { arr.put(it) }
+        p.edit().putString("models_cache", arr.toString())
+            .putLong("models_cached_at", System.currentTimeMillis()).apply()
+    }
 }
 
 // ---------- Gemini REST API (direct, no SDK) ----------
@@ -248,7 +274,62 @@ object GeminiApi {
     private val client = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
-    /** Tries each model in order. Returns (reply, modelUsed). */
+    /** Names (no "models/" prefix) of models supporting generateContent. Pure, tested. */
+    fun parseModelNames(json: String): List<String> {
+        val out = mutableListOf<String>()
+        try {
+            val arr = JSONObject(json).optJSONArray("models") ?: return out
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val methods = o.optJSONArray("supportedGenerationMethods") ?: continue
+                var ok = false
+                for (j in 0 until methods.length()) {
+                    if (methods.optString(j) == "generateContent") { ok = true; break }
+                }
+                if (ok) out.add(o.optString("name").removePrefix("models/"))
+            }
+        } catch (_: Exception) {
+        }
+        return out.filter { it.isNotBlank() }
+    }
+
+    /** Preferred-first, then flash-lite, flash, others. Pure, tested. */
+    fun pickModels(preferred: String, available: List<String>): List<String> {
+        if (available.isEmpty()) return listOf(preferred).filter { it.isNotBlank() }
+        val rest = available.filter { it != preferred }.sortedWith(
+            compareBy(
+                { n: String ->
+                    when {
+                        "flash-lite" in n -> 0
+                        "flash" in n -> 1
+                        else -> 2
+                    }
+                },
+                { it }
+            )
+        )
+        val head = if (preferred.isNotBlank() && preferred in available) listOf(preferred) else emptyList()
+        return (head + rest).ifEmpty { available }
+    }
+
+    suspend fun listModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
+            .get()
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val txt = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) {
+                if (resp.code in 400..403 && ("API key" in txt || "API_KEY" in txt)) {
+                    throw JarvisError("API key rejected. Open Settings (⚙️) and check your key.")
+                }
+                throw JarvisError("Couldn't list models (HTTP ${resp.code}).")
+            }
+            parseModelNames(txt)
+        }
+    }
+
+    /** Tries each model in order. Returns (reply, modelUsed). Errors aggregated. */
     suspend fun chat(
         apiKey: String,
         models: List<String>,
@@ -277,18 +358,18 @@ object GeminiApi {
             .put("generationConfig", JSONObject().put("maxOutputTokens", 1024))
             .toString()
 
-        var lastErr = "unknown error"
+        val errs = mutableListOf<String>()
         for (m in models) {
             val res = try {
                 callOnce(m, apiKey, body)
             } catch (e: Exception) {
-                Triple(false, "", "Network error: ${e.message}")
+                Triple(false, "", "Network error: ${e.message?.take(100)}")
             }
             if (res.first) return@withContext res.second to m
-            lastErr = res.third
-            if (lastErr.startsWith("KEY:")) throw JarvisError(lastErr.removePrefix("KEY:"))
+            if (res.third.startsWith("KEY:")) throw JarvisError(res.third.removePrefix("KEY:"))
+            errs.add("$m → ${res.third.take(150)}")
         }
-        throw JarvisError("All models failed. Last error: $lastErr")
+        throw JarvisError("All ${models.size} models failed:\n" + errs.joinToString("\n") { "• $it" })
     }
 
     private fun callOnce(model: String, apiKey: String, body: String): Triple<Boolean, String, String> {
@@ -323,9 +404,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
 
     val messages = mutableStateListOf<ChatMessage>()
+    val availableModels = mutableStateListOf<String>()
     var busy by mutableStateOf(false)
         private set
     var showSettings by mutableStateOf(false)
+    var settingsMsg by mutableStateOf("")
+        private set
     var apiKey by mutableStateOf(store.apiKey)
         private set
     var model by mutableStateOf(store.model)
@@ -334,6 +418,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val brainOk: Boolean get() = apiKey.isNotBlank()
 
     init {
+        val cached = store.cachedModels()
+        availableModels.addAll(cached.ifEmpty { Models.FALLBACK })
         for ((r, t) in store.loadHistory()) {
             messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
         }
@@ -349,18 +435,66 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveSettings(key: String, model: String) {
+        val keyChanged = key.trim() != store.apiKey
         store.apiKey = key
         store.model = model
         apiKey = store.apiKey
         this.model = store.model
         showSettings = false
+        settingsMsg = ""
+        if (keyChanged) {
+            // Different key → different model access. Re-discover.
+            store.saveModels(emptyList())
+            availableModels.clear()
+            availableModels.addAll(Models.FALLBACK)
+            if (brainOk) refreshModels()
+        }
         if (brainOk && messages.size == 1) {
             messages.add(ChatMessage("bot", "Brain connected. 🟢 What shall we do first?"))
             persist()
         }
     }
 
-    fun orderedModels(): List<String> = listOf(model) + Models.FALLBACK.filter { it != model }
+    fun refreshModels() {
+        if (apiKey.isBlank()) {
+            settingsMsg = "Enter an API key first."
+            return
+        }
+        settingsMsg = "Checking available models…"
+        viewModelScope.launch {
+            try {
+                val available = GeminiApi.listModels(apiKey)
+                store.saveModels(available)
+                availableModels.clear()
+                availableModels.addAll(available.ifEmpty { Models.FALLBACK })
+                settingsMsg = if (available.isEmpty()) {
+                    "Key works, but no chat models found for it."
+                } else {
+                    "${available.size} models available — lowest-cost first."
+                }
+            } catch (e: Exception) {
+                settingsMsg = "Failed: ${e.message?.take(140)}"
+            }
+        }
+    }
+
+    private suspend fun resolveModels(force: Boolean): List<String> {
+        val fresh = System.currentTimeMillis() - store.modelsCachedAt() < 24 * 3600 * 1000L
+        if (!force) {
+            val cached = store.cachedModels()
+            if (cached.isNotEmpty() && fresh) return GeminiApi.pickModels(model, cached)
+        }
+        return try {
+            val available = GeminiApi.listModels(apiKey)
+            store.saveModels(available)
+            availableModels.clear()
+            availableModels.addAll(available.ifEmpty { Models.FALLBACK })
+            GeminiApi.pickModels(model, available.ifEmpty { Models.FALLBACK })
+        } catch (_: Exception) {
+            val cached = store.cachedModels()
+            GeminiApi.pickModels(model, cached.ifEmpty { Models.FALLBACK })
+        }
+    }
 
     fun send(raw: String) {
         val text = raw.trim()
@@ -385,11 +519,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         busy = true
         viewModelScope.launch {
             try {
-                val facts = store.facts()
-                val system = buildSystem(facts)
+                val system = buildSystem(store.facts())
                 val hist = messages.dropLast(1)
                     .map { (if (it.role == "user") "user" else "model") to it.text }
-                val (reply, _) = GeminiApi.chat(apiKey, orderedModels(), system, hist, text)
+                val (reply, _) = try {
+                    GeminiApi.chat(apiKey, resolveModels(false), system, hist, text)
+                } catch (e: GeminiApi.JarvisError) {
+                    if (!e.message.orEmpty().contains("404")) throw e
+                    // Model list went stale — rediscover once and retry.
+                    GeminiApi.chat(apiKey, resolveModels(true), system, hist, text)
+                }
                 messages.add(ChatMessage("bot", reply))
             } catch (e: Exception) {
                 messages.add(ChatMessage("bot", "⚠️ ${e.message}"))

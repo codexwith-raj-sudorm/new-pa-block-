@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -203,7 +204,11 @@ fun InputRow(onSend: (String) -> Unit) {
 @Composable
 fun SettingsDialog(vm: JarvisViewModel) {
     var key by remember { mutableStateOf(vm.apiKey) }
+    val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
     var model by remember { mutableStateOf(vm.model) }
+    LaunchedEffect(models.joinToString()) {
+        if (model !in models && models.isNotEmpty()) model = models[0]
+    }
     AlertDialog(
         onDismissRequest = { vm.showSettings = false },
         title = { Text("Jarvis Settings") },
@@ -218,18 +223,29 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { vm.refreshModels() }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Refresh models")
+                    }
+                }
+                if (vm.settingsMsg.isNotBlank()) {
+                    Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
+                }
                 Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
-                Models.FALLBACK.forEach { m ->
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .selectable(selected = model == m, onClick = { model = m })
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = model == m, onClick = { model = m })
-                        Text(m, fontSize = 14.sp)
+                LazyColumn(Modifier.heightIn(max = 200.dp)) {
+                    items(models) { m ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .selectable(selected = model == m, onClick = { model = m })
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = model == m, onClick = { model = m })
+                            Text(m, fontSize = 14.sp)
+                        }
                     }
                 }
             }
