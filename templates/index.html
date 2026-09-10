@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🤖 Jarvis – Your Personal AI Assistant</title>
+
+  <!-- Fonts: Inter for a modern look -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #0d1117;
+      /* Dark GitHub-like background */
+      --chat-bg: #161b22;
+      --primary-color: #58a6ff;
+      --user-msg-bg: #1f6feb;
+      --bot-msg-bg: #21262d;
+      --text-color: #c9d1d9;
+      --border-color: #30363d;
+      --glow-color: rgba(88, 166, 255, 0.4);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', 'Poppins', sans-serif;
+      background-color: var(--bg-color);
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(31, 111, 235, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(139, 148, 158, 0.05) 0%, transparent 40%);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* Jarvis orb (pure CSS — no image assets) */
+    .logo-container {
+      margin-bottom: 25px;
+      animation: fadeInDown 0.8s ease-out;
+    }
+
+    .jarvis-orb {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      font-weight: 700;
+      color: #f0f6fc;
+      background: radial-gradient(circle at 35% 35%, #1f6feb, #0d1117 70%);
+      border: 3px solid var(--border-color);
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), 0 0 40px var(--glow-color);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+    }
+
+    .jarvis-orb:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px var(--glow-color);
+      border-color: var(--primary-color);
+    }
+
+    /* Title */
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #f0f6fc;
+      text-align: center;
+      letter-spacing: -0.5px;
+      animation: fadeInDown 1s ease-out 0.2s both;
+    }
+
+    h1 span {
+      background: linear-gradient(120deg, #58a6ff, #bc8cff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Credit line */
+    .credit {
+      margin-bottom: 30px;
+      font-size: 0.8rem;
+      color: #6e7681;
+      animation: fadeInUp 1s ease-out 0.4s both;
+    }
+
+    .credit a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    /* Chat Container */
+    #chat_container {
+      width: 100%;
+      max-width: 800px;
+      height: 60vh;
+      min-height: 400px;
+      background: rgba(22, 27, 34, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      animation: zoomIn 0.6s ease-out 0.3s both;
+      position: relative;
+    }
+
+    /* Scrollbar styling */
+    #chat_container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat_container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #chat_container::-webkit-scrollbar-thumb {
+      background-color: var(--border-color);
+      border-radius: 10px;
+    }
+
+    /* Messages */
+    .chat-bubble {
+      padding: 12px 18px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 80%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      position: relative;
+      animation: messagePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .user {
+      align-self: flex-end;
+      background: var(--user-msg-bg);
+      color: #ffffff;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 12px rgba(31, 111, 235, 0.2);
+    }
+
+    .bot {
+      align-self: flex-start;
+      background: var(--bot-msg-bg);
+      color: var(--text-color);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
+    /* Input Area */
+    #input_container {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      position: relative;
+      animation: fadeInUp 0.8s ease-out 0.6s both;
+    }
+
+    #user_input {
+      flex: 1;
+      padding: 16px 20px;
+      border-radius: 16px;
+      background: var(--chat-bg);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      outline: none;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      min-width: 0;
+    }
+
+    #user_input:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    }
+
+    #user_input::placeholder {
+      color: #6e7681;
+    }
+
+    #send_btn {
+      padding: 0 30px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+    }
+
+    #send_btn:hover {
+      background: #4a9eff;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(88, 166, 255, 0.4);
+    }
+
+    #send_btn:active {
+      transform: translateY(0);
+    }
+
+    /* Animations */
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes zoomIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes messagePop {
+      from {
+        opacity: 0;
+        transform: scale(0.9) translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2rem;
+      }
+
+      #chat_container {
+        height: 65vh;
+        padding: 15px;
+      }
+
+      .chat-bubble {
+        max-width: 90%;
+      }
+
+      #send_btn {
+        padding: 0 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="logo-container">
+    <div class="jarvis-orb">J</div>
+  </div>
+
+  <h1>🤖 Jarvis – <span>Your AI Assistant</span></h1>
+
+  <div class="credit">Flask + Gemini · base by <a href="https://github.com/abinasharma001/flask-gemini-chatbot" target="_blank">abinasharma001</a> (MIT)</div>
+
+  <div id="chat_container">
+    <div class="bot chat-bubble">Hello! I am Jarvis, your AI assistant. Ask me anything!</div>
+  </div>
+
+  <div id="input_container">
+    <input id="user_input" type="text" placeholder="Type your question..." autocomplete="off" enterkeyhint="send">
+    <button id="send_btn" onclick="sendMessage()">Send</button>
+  </div>
+
+  <script>
+    async function sendMessage() {
+      const userInput = document.getElementById("user_input").value.trim();
+      if (!userInput) return;
+
+      const chatContainer = document.getElementById("chat_container");
+      const userBubble = document.createElement("div");
+      userBubble.className = "user chat-bubble";
+      userBubble.textContent = userInput;
+      chatContainer.appendChild(userBubble);
+
+      // Keep scrolling to the new message
+      chatContainer.scrollTo({
+        top: chatContainer.scrollHeight,
+        behavior: "smooth"
+      });
+
+      document.getElementById("user_input").value = "";
+
+      try {
+        const response = await fetch("/chatbot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: userInput })
+        });
+
+        const data = await response.json();
+
+        const botBubble = document.createElement("div");
+        botBubble.className = "bot chat-bubble";
+        botBubble.textContent = data.response;
+        chatContainer.appendChild(botBubble);
+
+        chatContainer.scrollTo({
+          top: chatContainer.scrollHeight,
+          behavior: "smooth"
+        });
+
+      } catch (error) {
+        console.error("Error:", error);
+        const errorBubble = document.createElement("div");
+        errorBubble.className = "bot chat-bubble";
+        errorBubble.style.color = "#ff7b72";
+        errorBubble.textContent = "Oops! Something went wrong. Check your connection.";
+        chatContainer.appendChild(errorBubble);
+      }
+    }
+
+    document.getElementById("user_input").addEventListener("keypress", function (e) {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+
+</body>
+
+</html>
