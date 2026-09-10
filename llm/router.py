@@ -120,7 +120,9 @@ def get_provider():
     name = os.getenv("LLM_PROVIDER", "gemini").lower()
     if name == "gemini":
         return GeminiProvider()
-    raise LLMError(f"LLM provider '{name}' isn't wired yet. Set LLM_PROVIDER=gemini (Phase 1).")
+    if name == "demo":
+        return DemoProvider()
+    raise LLMError(f"LLM provider '{name}' isn't wired yet. Use LLM_PROVIDER=gemini or demo.")
 
 
 def is_configured():
