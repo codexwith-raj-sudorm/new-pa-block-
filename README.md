@@ -11,7 +11,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 💬 Multi-chat: new / switch / delete chats with auto-titles
 - 🧠 Memory manager: view/add/delete memories (or “remember …” in chat)
 - 🎙️ Voice I/O: in-app mic (no Google popup/beeps — all streams muted around every listen) + "Hey Jarvis" wake word with Gemini-style reactive bubble over any app (pulses with real mic level, still in silence) + 7 named voices (Jarvis + 3 male + 3 female, each with its own personality) with preview + mute toggle
-- ⏰ Offline tools (no key needed): time, calculator, memory, reminders
+- ⏰ Offline tools (no key needed): time, calculator, memory, reminders, device control
 - 🔋 Wake word + reminders survive reboot (auto re-arm) + battery-optimization prompt
 - ⚙️ Settings: optional own key, preferred model, refresh models
 

@@ -1,9 +1,14 @@
 package com.jarvis.app
 
+import android.Manifest
 import android.app.AlarmManager
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.provider.ContactsContract
 import android.content.Intent
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -17,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -265,6 +271,7 @@ object Router {
         }
         if (low == "reminders" || "my reminder" in low || low.startsWith("list reminders")) return Hit("reminders", "")
         if (low.startsWith("remind me")) return Hit("remind", t)
+        parseDeviceCommand(t)?.let { return Hit("device", t) }
         return null
     }
 }
@@ -601,6 +608,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
     var listening by mutableStateOf(false)
+    var permRequest by mutableStateOf<String?>(null)
         private set
     var wakeOn by mutableStateOf(WakeService.isRunning)
         private set
@@ -1154,7 +1162,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (!brainOk) {
-            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, and reminders."
+            val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, and device control."
             messages.add(ChatMessage("bot", reply))
             speak(reply)
             persist()
@@ -1182,6 +1190,113 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 persist()
             }
         }
+    }
+
+    private fun runDevice(arg: String): String {
+        val cmd = parseDeviceCommand(arg)
+            ?: return "I can open apps, flip the torch, dial contacts, or open settings — e.g. “open YouTube”."
+        return when (cmd) {
+            is OpenApp -> openAppByName(cmd.name)
+            is Torch -> setTorch(cmd.on)
+            is CallContact -> callContact(cmd.query)
+            is WifiPanel -> openWifiPanel()
+            is SysSettings -> openSysSettings()
+        }
+    }
+
+    private fun openAppByName(name: String): String {
+        return try {
+            val ctx = getApplication<Application>()
+            val pm = ctx.packageManager
+            val apps = pm.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
+            )
+            val q = name.lowercase().replace(" ", "")
+            val hit = apps.firstOrNull {
+                val l = it.loadLabel(pm)?.toString().orEmpty().lowercase().replace(" ", "")
+                l == q || l.startsWith(q) || (l.isNotEmpty() && q.startsWith(l)) ||
+                    it.activityInfo.packageName.lowercase().contains(q)
+            } ?: apps.firstOrNull {
+                it.loadLabel(pm)?.toString().orEmpty().lowercase().contains(name.lowercase())
+            }
+            if (hit == null) return "I couldn't find an app called “$name”."
+            val launch = pm.getLaunchIntentForPackage(hit.activityInfo.packageName)
+                ?: return "Found it but couldn't launch it."
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(launch)
+            "Opening ${hit.loadLabel(pm)}."
+        } catch (_: Exception) { "Couldn't open “$name”." }
+    }
+
+    private fun setTorch(on: Boolean): String {
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.CAMERA
+            return "I need camera permission for the torch — allow it, then ask again."
+        }
+        return try {
+            val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            val id = cm.cameraIdList.firstOrNull {
+                cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            } ?: return "This device has no flashlight."
+            cm.setTorchMode(id, on)
+            if (on) "Torch on." else "Torch off."
+        } catch (_: Exception) { "Couldn't reach the torch." }
+    }
+
+    private fun callContact(query: String): String {
+        val ctx = getApplication<Application>()
+        val digits = query.filter { it.isDigit() || it == '+' }
+        if (digits.length >= 7 && digits.length >= query.trim().length - 2) {
+            dialNumber(ctx, digits)
+            return "Dialling $digits."
+        }
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.READ_CONTACTS
+            return "I need contacts permission to find “$query” — allow it, then ask again."
+        }
+        val number = findContactNumber(ctx, query) ?: return "Couldn't find “$query” in contacts."
+        dialNumber(ctx, number)
+        return "Dialling $query."
+    }
+
+    private fun dialNumber(ctx: Context, number: String) {
+        val i = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(number)))
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        ctx.startActivity(i)
+    }
+
+    private fun findContactNumber(ctx: Context, query: String): String? {
+        return try {
+            val uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+            ctx.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?",
+                arrayOf("%$query%"), null
+            )?.use { if (it.moveToFirst()) it.getString(0) else null }
+        } catch (_: Exception) { null }
+    }
+
+    private fun openWifiPanel(): String {
+        return try {
+            val ctx = getApplication<Application>()
+            val i = if (android.os.Build.VERSION.SDK_INT >= 29) Intent(android.provider.Settings.Panel.ACTION_WIFI)
+            else Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            "Opening Wi-Fi settings — Android doesn't let apps flip the switch directly."
+        } catch (_: Exception) { "Couldn't open Wi-Fi settings." }
+    }
+
+    private fun openSysSettings(): String {
+        return try {
+            val ctx = getApplication<Application>()
+            ctx.startActivity(
+                Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            "Opening Settings."
+        } catch (_: Exception) { "Couldn't open Settings." }
     }
 
     private fun scheduleReminder(req: ReminderRequest?): String {
@@ -1270,6 +1385,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "remind" -> scheduleReminder(parseReminder(hit.arg))
         "reminders" -> listReminders()
         "reminder_cancel" -> cancelReminder(hit.arg)
+        "device" -> runDevice(hit.arg)
         else -> "?"
     }
 

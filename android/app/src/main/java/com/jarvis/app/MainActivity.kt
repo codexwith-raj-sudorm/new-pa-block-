@@ -145,6 +145,14 @@ fun JarvisScreen() {
         if (granted) notifTick++
         else Toast.makeText(context, "Allow notifications for the listening indicator", Toast.LENGTH_LONG).show()
     }
+    val devicePerm = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) Toast.makeText(context, "Permission denied — Jarvis can't do that one.", Toast.LENGTH_SHORT).show()
+    }
+    LaunchedEffect(vm.permRequest) {
+        vm.permRequest?.let { devicePerm.launch(it); vm.permRequest = null }
+    }
     fun hasMicPerm(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
