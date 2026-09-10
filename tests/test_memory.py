@@ -88,5 +88,16 @@ check("reminders list", detect_demo_tool("reminders") == ("reminders_due", {}))
 print("registry:")
 check("13 tools", len(__import__("tools.registry", fromlist=["TOOL_SCHEMAS"]).TOOL_SCHEMAS) == 13)
 
+print("tool audit + prompt builder:")
+execute_tool("calculate", {"expression": "1+1"})
+calls = store.recent_tool_calls()
+check("audit logged", len(calls) >= 1 and calls[0]["tool"] == "calculate", str(calls[:1]))
+from agent.prompts import build_system_prompt
+
+prompt = build_system_prompt()
+check("prompt has persona", "Jarvis" in prompt)
+check("prompt injects facts", "filter coffee" in prompt)
+check("prompt has time", "2026" in prompt)
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

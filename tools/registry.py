@@ -1,7 +1,8 @@
-"""Tool registry: schemas for the LLM + safe execution (13 tools)."""
+"""Tool registry: schemas for the LLM + safe execution + audit log (13 tools)."""
 
 import json
 
+from memory import store
 from tools.general import CALCULATE_SCHEMA, GET_TIME_SCHEMA, calculate, get_time
 from tools.memory_tools import (
     NOTE_ADD_SCHEMA,
@@ -70,7 +71,9 @@ def execute_tool(name: str, arguments) -> str:
             return f"Error: invalid arguments JSON for {name}."
     try:
         clean = {k: v for k, v in (arguments or {}).items() if v is not None}
-        return str(fn(**clean))
+        result = str(fn(**clean))
+        store.log_tool(name, clean, result)
+        return result
     except TypeError as e:
         return f"Error calling {name}: bad arguments ({e})."
     except Exception as e:  # never let a tool crash the loop

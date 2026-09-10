@@ -16,6 +16,7 @@ import litellm
 from dotenv import load_dotenv
 
 from agent.limits import RateLimiter, budget_ok
+from agent.prompts import build_system_prompt
 from agent.runner import run_with_tools
 from memory import store
 from tools.demo_router import detect_demo_tool
@@ -29,18 +30,6 @@ TEMPERATURE = 0.7
 MAX_TOKENS = 1024
 DAILY_CAP_USD = os.getenv("DAILY_SPEND_CAP_USD", "2.0")
 RATE_LIMITER = RateLimiter(max_calls=20, window_sec=60)
-
-SYSTEM_PROMPT = (
-    "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. "
-    "Be warm, a little witty, and genuinely helpful. Keep answers short enough to read "
-    "comfortably on a phone screen unless asked for detail. "
-    "Use short paragraphs and occasional bullets. "
-    "You have tools: get_time, calculate, web_search, fetch_page, remember, recall, "
-    "note_add, note_list, todo_add, todo_list, todo_done, reminder_add, reminders_due. "
-    "Use them when relevant: time/date, math, current/external info, saving or looking up "
-    "memories/notes/todos/reminders. When the user says 'remember ...', call remember. "
-    "When you use web_search, cite sources briefly."
-)
 
 DEMO_TEMPLATE = (
     "📻 *Demo mode* — this sandbox blocks AI APIs, so I'm on a script.\n\n"
@@ -76,7 +65,7 @@ async def _stream_text(reply: cl.Message, text: str):
 
 @cl.on_chat_start
 async def on_chat_start():
-    cl.user_session.set("history", [{"role": "system", "content": SYSTEM_PROMPT}])
+    cl.user_session.set("history", [{"role": "system", "content": build_system_prompt()}])
     conv_id = store.new_conversation()
     cl.user_session.set("conv_id", conv_id)
     if _brain_available():

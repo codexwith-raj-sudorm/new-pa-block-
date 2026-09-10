@@ -1,4 +1,4 @@
-"""SQLite memory: facts, notes, todos, reminders, conversation log + LLM spend.
+"""SQLite memory: facts, notes, todos, reminders, conversation log, spend, tool audit.
 
 DB lives at data/jarvis.db (JARVIS_DB env overrides — tests use a temp file).
 Dependency-free, and every function degrades gracefully.
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS reminders(id INTEGER PRIMARY KEY AUTOINCREMENT, text 
 CREATE TABLE IF NOT EXISTS conversations(id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS spend(id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, usd REAL NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tool_audit(id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, tool TEXT NOT NULL, args_json TEXT, result_summary TEXT);
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_spend_day ON spend(day);
 """
@@ -218,3 +219,32 @@ def day_spend(day=None):
         return float(row["total"])
     except Exception:
         return 0.0
+
+
+# ---- tool audit ("what did Jarvis just do?") ----
+
+
+def log_tool(name, args, result):
+    try:
+        import json
+
+        conn = _connect()
+        conn.execute(
+            "INSERT INTO tool_audit(created_at, tool, args_json, result_summary) VALUES (?, ?, ?, ?)",
+            (_now(), name, json.dumps(args)[:1000], (result or "")[:500]),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def recent_tool_calls(limit=10):
+    try:
+        conn = _connect()
+        cur = conn.execute("SELECT * FROM tool_audit ORDER BY id DESC LIMIT ?", (limit,))
+        out = _rows(cur)
+        conn.close()
+        return out
+    except Exception:
+        return []

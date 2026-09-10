@@ -292,3 +292,8 @@ Pivot from from-scratch server to **Chainlit + LiteLLM** (open-source base):
 - TIMEZONE env everywhere (was hardcoded Asia/Kolkata).
 - .env.example documents all 9 vars; new DEPLOY.md (Koyeb/Render/Docker guide).
 - Tests: 65/65 pass (tools 24 + memory 30 + safety 11).
+
+## Autopilot loop 4 (2026-09-10): living memory + audit
+- Prompt builder auto-injects saved facts + timestamp into every session (memory works without asking).
+- Tool audit table: every tool call logged (what/args/result) — "what did Jarvis do?" is answerable.
+- Tests: 69/69 pass (tools 24 + memory 34 + safety 11).
