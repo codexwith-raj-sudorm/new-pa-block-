@@ -17,6 +17,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -748,6 +749,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             store.ttsVoice = key // persona key now (legacy engine names auto-heal to jarvis)
             t.setSpeechRate(persona.rate)
             t.setPitch(persona.pitch)
+            t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(id: String?) { SpeechState.speaking = true }
+                override fun onDone(id: String?) { SpeechState.speaking = false }
+                override fun onError(id: String?) { SpeechState.speaking = false }
+            })
         } catch (_: Exception) {
         }
     }
@@ -790,10 +796,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun stopSpeaking() {
+        SpeechState.speaking = false
         try {
             tts?.stop()
         } catch (_: Exception) {
         }
+    }
+
+    fun interruptSpeech() {
+        stopSpeaking()
+        SpeechState.speaking = false
     }
 
     private fun speak(text: String, force: Boolean = false) {

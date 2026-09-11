@@ -110,6 +110,45 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
             }
         }
+        if (intent?.action == ACTION_WIDGET_TAP) {
+            intent.action = null // consume
+            setIntent(intent)
+            try {
+                val vm = ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
+                when (widgetTapAction(SpeechState.speaking, vm.wakeOn)) {
+                    TapAction.INTERRUPT -> {
+                        vm.interruptSpeech()
+                        if (WakeService.isRunning) {
+                            startService(
+                                Intent(this, WakeService::class.java).setAction(WakeService.ACTION_HUSH)
+                            )
+                        }
+                        Toast.makeText(this, "Interrupted.", Toast.LENGTH_SHORT).show()
+                    }
+                    TapAction.WAKE_ON -> {
+                        val micOk = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                            PackageManager.PERMISSION_GRANTED
+                        val overlayOk = Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this)
+                        if (micOk && overlayOk && SpeechRecognizer.isRecognitionAvailable(this)) {
+                            vm.setWakeEnabled(true)
+                            Toast.makeText(this, "Wake word on — say “Hey Jarvis”.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "Allow mic + display-over-apps first (tap Wake in the app).",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    TapAction.WAKE_OFF -> {
+                        vm.setWakeEnabled(false)
+                        Toast.makeText(this, "Wake word off.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                refreshReactorWidgets(this)
+            } catch (_: Exception) {
+            }
+        }
     }
 }
 

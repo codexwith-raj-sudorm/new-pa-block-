@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_desc">Mini arc reactor: tap to toggle Hey Jarvis wake mode, tap while talking to interrupt.</string>
+</resources>

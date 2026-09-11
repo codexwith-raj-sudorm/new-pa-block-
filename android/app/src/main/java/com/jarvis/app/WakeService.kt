@@ -18,6 +18,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Toast
@@ -59,6 +60,7 @@ class WakeService : Service() {
         const val ACTION_WAKE_COMMAND = "com.jarvis.app.WAKE_COMMAND"
         const val ACTION_BUBBLE_RED = "com.jarvis.app.BUBBLE_RED"
         const val ACTION_BUBBLE_BLUE = "com.jarvis.app.BUBBLE_BLUE"
+        const val ACTION_HUSH = "com.jarvis.app.HUSH"
         private const val NOTIF_ID = 41
         private const val CHANNEL_ID = "jarvis_wake"
 
@@ -91,6 +93,11 @@ class WakeService : Service() {
                 } catch (_: Exception) {
                 }
                 applySavedVoice()
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) { SpeechState.speaking = true }
+                    override fun onDone(id: String?) { SpeechState.speaking = false }
+                    override fun onError(id: String?) { SpeechState.speaking = false }
+                })
             }
         }
         makeChannel()
@@ -104,6 +111,7 @@ class WakeService : Service() {
             ACTION_RESUME -> if (started) startWakeLoop()
             ACTION_BUBBLE_RED -> tintBubble(0xFFE5484D.toInt())
             ACTION_BUBBLE_BLUE -> tintBubble(0xFF22D3EE.toInt())
+            ACTION_HUSH -> hushSpeech()
         }
         return START_STICKY
     }
@@ -136,6 +144,7 @@ class WakeService : Service() {
         }
         addBubble()
         muteBlip(800) // cover any start beep on arming
+        refreshReactorWidgets(this)
         toast("Wake word on — say \"Hey Jarvis\"")
         startWakeLoop()
     }
@@ -157,6 +166,7 @@ class WakeService : Service() {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } catch (_: Exception) {
         }
+        refreshReactorWidgets(this)
         stopSelf()
     }
 
@@ -292,6 +302,11 @@ class WakeService : Service() {
             tts?.speak("Yes?", TextToSpeech.QUEUE_FLUSH, null, "wake")
         } catch (_: Exception) {
         }
+    }
+
+    private fun hushSpeech() {
+        SpeechState.speaking = false
+        runCatching { tts?.stop() }
     }
 
     private fun applySavedVoice() {
