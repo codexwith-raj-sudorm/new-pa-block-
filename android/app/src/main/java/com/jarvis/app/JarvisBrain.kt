@@ -445,7 +445,7 @@ fun parseWeatherCity(raw: String): String {
         c = trailT.replace(c, "").trim()
         var prev: String
         do { prev = c; c = leadQ.replace(c, "").trim() } while (c != prev)
-        if (c.equals("the", true) || c.equals("a", true) || c.equals("an", true)) c = 
+        if (c.equals("the", true) || c.equals("a", true) || c.equals("an", true)) c = ""
         c = Regex("""(?i)^(in|at|for)\s+""").replace(c, "").trim()
         if (c.isNotEmpty() && c.length <= 60 && !c.contains("\n")) return c
     }
