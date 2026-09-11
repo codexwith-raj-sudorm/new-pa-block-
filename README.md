@@ -5,7 +5,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 
 ![android](https://github.com/codexwith-raj-sudorm/new-pa-block-/actions/workflows/android.yml/badge.svg?branch=arena/01a08a6b-new-pa-block)
 
-## Features (v3)
+## Features (v4)
 
 - 💬 Chat with Gemini + auto model discovery, 20-message context, on-device history
 - 💬 Multi-chat: new / switch / delete chats with auto-titles
@@ -26,6 +26,10 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 🗄️ Memory Vault: facts in Room DB with 30-day auto-expiry + seamless migration
 - 📊 Briefing card: battery, memory, storage, network + chat search + starter chips
 - ↻ One-tap retry on failed replies + 📤 export any chat as text
+- 🛠️ Everyday tools: alarms, timers, navigation, web search, play from YouTube
+- 🔄 Unit + live currency converter, dice, coin, jokes, good-morning routine
+- 🌦️ Keyless weather, 🔌 smart-home webhooks, 🕒 timestamped bubbles
+- 🔔 Notification reader, ☀ 8 AM briefing, QS tile, shortcuts, Hindi mic, Voice Studio
 
 ## Install (phone, no PC needed)
 

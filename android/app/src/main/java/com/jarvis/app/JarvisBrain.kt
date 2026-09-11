@@ -155,6 +155,7 @@ object Models {
 object Calculator {
     fun humanize(expr: String): String {
         var e = expr.trim().trimEnd('?').trim()
+        e = e.replace(Regex("""(?i)\bpercent\b"""), "%")
         e = Regex("""(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)""").replace(e, "($1/100*$2)")
         e = e.replace("^", "**")
         return e
@@ -427,6 +428,43 @@ fun convertUnits(raw: String): String? {
     return "${trimNum(v)} $from = ${trimNum(res)} $to"
 }
 
+private val CUR_ALIAS = mapOf(
+    "dollar" to "USD", "dollars" to "USD", "usd" to "USD",
+    "buck" to "USD", "bucks" to "USD",
+    "rupee" to "INR", "rupees" to "INR", "inr" to "INR", "rs" to "INR",
+    "euro" to "EUR", "euros" to "EUR", "eur" to "EUR",
+    "pound" to "GBP", "pounds" to "GBP", "gbp" to "GBP",
+    "yen" to "JPY", "jpy" to "JPY",
+    "yuan" to "CNY", "cny" to "CNY",
+    "dirham" to "AED", "dirhams" to "AED", "aed" to "AED"
+)
+
+/** "100 dollars in rupees" -> (100, USD, INR). Pure, tested. */
+fun parseCurrency(raw: String): Triple<Double, String, String>? {
+    val m = Regex("""(?i)(-?\d+(?:\.\d+)?)\s*([a-z]+)\s+(?:to|in)\s+([a-z]+)""")
+        .find(raw.trim()) ?: return null
+    val v = m.groupValues[1].toDoubleOrNull() ?: return null
+    val from = CUR_ALIAS[m.groupValues[2].lowercase()] ?: return null
+    val to = CUR_ALIAS[m.groupValues[3].lowercase()] ?: return null
+    if (from == to) return null
+    return Triple(v, from, to)
+}
+
+/** Extract rates.{CCY} from frankfurter.app JSON. Pure, tested. */
+fun parseFxRate(json: String, to: String): Double? {
+    return try {
+        val r = JSONObject(json).getJSONObject("rates").getDouble(to)
+        if (r.isNaN() || r <= 0) null else r
+    } catch (_: Exception) { null }
+}
+
+/** "100 USD = 8,320.50 INR". Pure, tested. */
+fun formatFx(v: Double, from: String, rate: Double, to: String): String {
+    val out = v * rate
+    val disp = if (out >= 1000) "%,.2f".format(out) else trimNum(out)
+    return "${trimNum(v)} $from = $disp $to"
+}
+
 /** 90 -> "1 min 30 sec". Pure. */
 fun fmtDur(totalSec: Int): String {
     val h = totalSec / 3600
@@ -545,6 +583,7 @@ object Router {
         if ("flip a coin" in low || "coin flip" in low || low == "flip coin") return Hit("coin", "")
         if (low.startsWith("roll ")) return Hit("dice", t)
         convertUnits(t)?.let { return Hit("convert", t) }
+        parseCurrency(t)?.let { return Hit("fx", t) }
         if ("joke" in low && t.length < 60) return Hit("joke", "")
         if (low.contains("weather") || low.contains("forecast") ||
             Regex("""\brain\b""").containsMatchIn(low)
@@ -1792,16 +1831,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         persist()
         HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
-            if (hit.tool == "weather") {
+            if (hit.tool == "weather" || hit.tool == "fx") {
                 busy = true
                 HudStateBus.update(thinking = true)
                 viewModelScope.launch {
                     try {
-                        val reply = fetchWeather(hit.arg)
+                        val reply = if (hit.tool == "fx") fetchFx(hit.arg) else fetchWeather(hit.arg)
                         messages.add(ChatMessage("bot", reply))
                         speak(reply)
                     } catch (e: Exception) {
-                        messages.add(ChatMessage("bot", "⚠️ Couldn't reach the weather service."))
+                        messages.add(ChatMessage("bot", "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service."))
                     } finally {
                         busy = false
                         HudStateBus.update(thinking = false)
@@ -1888,6 +1927,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 else "Sound restored."
             }
         } catch (_: Exception) { "Couldn't change silent mode." }
+    }
+
+    private suspend fun fetchFx(arg: String): String = withContext(Dispatchers.IO) {
+        val (v, from, to) = parseCurrency(arg) ?: throw IllegalStateException("bad fx request")
+        val req = Request.Builder()
+            .url("https://api.frankfurter.app/latest?from=$from&to=$to").build()
+        http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("fx HTTP " + resp.code)
+            val rate = parseFxRate(resp.body?.string().orEmpty(), to)
+                ?: throw IllegalStateException("bad fx data")
+            formatFx(v, from, rate, to)
+        }
     }
 
     private suspend fun fetchWeather(arg: String): String = withContext(Dispatchers.IO) {

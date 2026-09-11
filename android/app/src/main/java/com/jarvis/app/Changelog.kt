@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        31, "4.0", listOf(
+            "Live currency converter: “100 dollars in rupees”",
+            "Calculator understands “percent” + README refresh"
+        )
+    ),
+    ChangelogEntry(
         30, "3.9", listOf(
             "Morning briefing: daily 8 AM notification with battery + weather"
         )
