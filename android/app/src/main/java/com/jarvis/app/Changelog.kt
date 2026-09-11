@@ -9,6 +9,11 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        30, "3.9", listOf(
+            "Morning briefing: daily 8 AM notification with battery + weather"
+        )
+    ),
+    ChangelogEntry(
         29, "3.8", listOf(
             "Voice Studio: speech rate + pitch sliders in Settings"
         )

@@ -303,7 +303,9 @@ fun JarvisScreen() {
             onShareChat = vm::exportChat,
             onHooks = { vm.showHooks = true },
             hindiListen = vm.hindiListen,
-            onToggleHindi = vm::toggleHindiListen
+            onToggleHindi = vm::toggleHindiListen,
+            dailyBriefing = vm.dailyBriefing,
+            onToggleDaily = vm::toggleDailyBriefing
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -390,7 +392,9 @@ fun TopBar(
     onShareChat: () -> Unit,
     onHooks: () -> Unit,
     hindiListen: Boolean,
-    onToggleHindi: () -> Unit
+    onToggleHindi: () -> Unit,
+    dailyBriefing: Boolean,
+    onToggleDaily: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -440,6 +444,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text(if (hindiListen) "🎙 Mic: Hindi" else "🎙 Mic: Auto") },
                         onClick = { menuOpen = false; onToggleHindi() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (dailyBriefing) "☀ Briefing 8AM on" else "☀ Briefing 8AM off") },
+                        onClick = { menuOpen = false; onToggleDaily() }
                     )
                 }
             }

@@ -595,6 +595,10 @@ class Store(context: Context) {
         get() = p.getFloat("tts_pitch", 1f)
         set(v) = p.edit().putFloat("tts_pitch", v).apply()
 
+    var dailyBriefing: Boolean
+        get() = p.getBoolean("brief_daily", false)
+        set(v) = p.edit().putBoolean("brief_daily", v).apply()
+
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
         set(v) = p.edit().putBoolean("continuous", v).apply()
@@ -999,6 +1003,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var hindiListen by mutableStateOf(store.hindiListen)
     var ttsRate by mutableStateOf(store.ttsRate)
     var ttsPitch by mutableStateOf(store.ttsPitch)
+    var dailyBriefing by mutableStateOf(store.dailyBriefing)
         private set
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
@@ -1171,6 +1176,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         ttsPitch = clampSpeech(v)
         store.ttsPitch = ttsPitch
         applyVoice()
+    }
+
+    fun toggleDailyBriefing() {
+        dailyBriefing = !dailyBriefing
+        store.dailyBriefing = dailyBriefing
+        try {
+            armDailyBriefing(getApplication(), dailyBriefing)
+        } catch (_: Exception) {
+        }
     }
 
     fun incomingShare(t: String) {

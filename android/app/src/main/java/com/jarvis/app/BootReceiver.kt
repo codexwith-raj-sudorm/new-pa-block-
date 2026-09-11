@@ -21,5 +21,6 @@ class BootReceiver : BroadcastReceiver() {
         val pending = store.loadReminders().filter { it.at > now }
         store.saveReminders(pending)
         for (r in pending) runCatching { armReminderAlarm(context, r.id, r.at, r.text) }
+        if (store.dailyBriefing) runCatching { armDailyBriefing(context, true) }
     }
 }

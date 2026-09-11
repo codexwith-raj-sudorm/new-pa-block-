@@ -20,4 +20,15 @@ class BriefingTest {
         val rows = formatBriefing(Briefing(10, false, 1, 2, 1.0, 8.0, "mobile data")).toMap()
         assertEquals("10%", rows["Battery"])
     }
+
+    @Test fun briefingTextFull() {
+        assertEquals(
+            "Good morning! Battery 87%. Outside: Sunny +31C.",
+            briefingText("Good morning", 87, "Sunny +31C")
+        )
+    }
+
+    @Test fun briefingTextSparse() {
+        assertEquals("Good evening!", briefingText("Good evening", -1, ""))
+    }
 }
