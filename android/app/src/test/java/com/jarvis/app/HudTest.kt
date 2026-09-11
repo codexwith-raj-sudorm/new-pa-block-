@@ -9,7 +9,7 @@ import kotlin.math.abs
 class HudTest {
     @Test fun accentStates() {
         assertEquals(0xFF22D3EE, hudAccentArgb(false, false, false, true))
-        assertEquals(0xFF39FF6A, hudAccentArgb(true, false, false, true))
+        assertEquals(0xFFF8FAFC, hudAccentArgb(true, false, false, true))
         assertEquals(0xFFF59E0B, hudAccentArgb(false, true, false, true))
         assertEquals(0xFFF8FAFC, hudAccentArgb(false, false, true, true))
         assertEquals(0xFF64748B, hudAccentArgb(false, false, false, false))
@@ -17,7 +17,7 @@ class HudTest {
 
     @Test fun accentPriority() {
         assertEquals(0xFFF59E0B, hudAccentArgb(true, true, true, true))
-        assertEquals(0xFF39FF6A, hudAccentArgb(true, false, true, false))
+        assertEquals(0xFFF8FAFC, hudAccentArgb(true, false, true, false))
         assertEquals(0xFFF8FAFC, hudAccentArgb(false, false, true, false))
     }
 

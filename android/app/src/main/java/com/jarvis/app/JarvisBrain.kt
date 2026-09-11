@@ -68,8 +68,9 @@ private fun isSpeechNoise(c: Char): Boolean {
 
 /** Strip things TTS reads aloud badly (emoji, markdown, URLs). Pure, tested. */
 fun cleanForSpeech(text: String): String {
-    val sb = StringBuilder(text.length)
-    for (c in text) sb.append(if (isSpeechNoise(c)) ' ' else c)
+    val src = CODE_FENCE_RX.replace(text, " code snippet ")
+    val sb = StringBuilder(src.length)
+    for (c in src) sb.append(if (isSpeechNoise(c)) ' ' else c)
     var s = sb.toString()
     s = URL_RX.replace(s, " link ")
     s = s.replace(Regex("[*_`#>~|]+"), " ")
@@ -97,6 +98,27 @@ fun splitSentences(text: String, maxLen: Int = 1500): List<String> {
         if (rest.isNotEmpty()) out.add(rest)
     }
     return out.filter { it.isNotEmpty() }
+}
+
+/** One segment of a chat message: plain prose or a fenced code block. Pure. */
+data class CodeSeg(val isCode: Boolean, val lang: String, val text: String)
+
+private val CODE_FENCE_RX = Regex("```(\\w*)\\n?([\\s\\S]*?)```")
+
+/** Split ```fenced``` code blocks out of chat text (Protocol Gamma). Pure, tested. */
+fun splitCodeBlocks(text: String): List<CodeSeg> {
+    val out = mutableListOf<CodeSeg>()
+    var last = 0
+    for (m in CODE_FENCE_RX.findAll(text)) {
+        if (m.range.first > last) {
+            val prose = text.substring(last, m.range.first)
+            if (prose.isNotEmpty()) out.add(CodeSeg(false, "", prose))
+        }
+        out.add(CodeSeg(true, m.groupValues[1].ifBlank { "code" }, m.groupValues[2].trimEnd()))
+        last = m.range.last + 1
+    }
+    if (last < text.length) out.add(CodeSeg(false, "", text.substring(last)))
+    return out.filter { it.text.isNotEmpty() }
 }
 
 /** True if a transcript contains the wake word. Pure, tested. */

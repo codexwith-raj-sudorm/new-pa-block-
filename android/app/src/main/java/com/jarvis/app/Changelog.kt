@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        17, "2.6", listOf(
+            "Stark cinematic theme: obsidian + gold + cyan",
+            "Code Terminal: fenced code renders with Copy button",
+            "HUD listening state goes white-hot per spec"
+        )
+    ),
+    ChangelogEntry(
         16, "2.5", listOf(
             "Voice gender mismatches fixed (male names get male voices)",
             "Hamburger menu: home screen keeps Wake, Chats, Settings only",

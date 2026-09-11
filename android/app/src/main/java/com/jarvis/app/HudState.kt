@@ -43,7 +43,7 @@ object HudStateBus {
  */
 fun hudAccentArgb(listening: Boolean, thinking: Boolean, speaking: Boolean, online: Boolean): Long = when {
     thinking -> 0xFFF59E0B // amber / gold — cloud thinking
-    listening -> 0xFF39FF6A // neon green — speech recognition live
+    listening -> 0xFFF8FAFC // white-hot — speech active
     speaking -> 0xFFF8FAFC // white-hot — voice output
     !online -> 0xFF64748B // muted slate — local fallback
     else -> 0xFF22D3EE // electric cyan — standby

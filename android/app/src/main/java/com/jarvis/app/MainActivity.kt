@@ -45,7 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -58,11 +61,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-val Bg = Color(0xFF0D1117)
-val Panel = Color(0xFF161B22)
-val Accent = Color(0xFF58A6FF)
+val Bg = Color(0xFF0B1220)
+val Panel = Color(0xFF121B2E)
+val Accent = Color(0xFFF59E0B)
+val Cyan = Color(0xFF22D3EE)
 val UserBlue = Color(0xFF1F6FEB)
-val BotGray = Color(0xFF21262D)
+val BotGray = Color(0xFF182238)
 val Muted = Color(0xFF8B949E)
 val Good = Color(0xFF3FB950)
 val Warn = Color(0xFFD29922)
@@ -362,9 +366,9 @@ fun TopBar(
                 }
             }
             Box(
-                Modifier.size(38.dp).clip(CircleShape).background(UserBlue),
+                Modifier.size(38.dp).clip(CircleShape).background(Accent),
                 contentAlignment = Alignment.Center
-            ) { Text("J", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+            ) { Text("J", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("JARVIS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 2.sp)
@@ -401,27 +405,66 @@ fun TopBar(
 @Composable
 fun Bubble(m: ChatMessage) {
     val isUser = m.role == "user"
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val segs = remember(m.text) { splitCodeBlocks(m.text) }
     Box(Modifier.fillMaxWidth()) {
-        SelectionContainer(
+        Column(
             Modifier.align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
+                .widthIn(max = 300.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                m.text,
-                color = if (isUser) Color.White else Color(0xFFC9D1D9),
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
-                modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 14.dp, topEnd = 14.dp,
-                            bottomStart = if (isUser) 14.dp else 4.dp,
-                            bottomEnd = if (isUser) 4.dp else 14.dp
+            segs.forEach { s ->
+                if (!s.isCode) {
+                    SelectionContainer {
+                        Text(
+                            s.text,
+                            color = if (isUser) Color.White else Color(0xFFC9D1D9),
+                            fontSize = 15.sp,
+                            lineHeight = 21.sp,
+                            modifier = Modifier
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 14.dp, topEnd = 14.dp,
+                                        bottomStart = if (isUser) 14.dp else 4.dp,
+                                        bottomEnd = if (isUser) 4.dp else 14.dp
+                                    )
+                                )
+                                .background(if (isUser) UserBlue else BotGray)
+                                .padding(12.dp)
                         )
-                    )
-                    .background(if (isUser) UserBlue else BotGray)
-                    .padding(12.dp)
-                    .widthIn(max = 300.dp)
-            )
+                    }
+                } else {
+                    Column(
+                        Modifier.clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0B1220))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 10.dp, end = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "TERMINAL // " + s.lang, color = Cyan, fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = {
+                                clipboard.setText(AnnotatedString(s.text))
+                                Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()
+                            }) { Text("Copy", fontSize = 12.sp) }
+                        }
+                        SelectionContainer {
+                            Text(
+                                s.text,
+                                color = Color(0xFFE6EDF3),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
