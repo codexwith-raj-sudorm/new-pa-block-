@@ -44,7 +44,7 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
     )
     v.setOnClickPendingIntent(R.id.bw_root, open)
     val refresh = PendingIntent.getBroadcast(
-        ctx, 8002, Intent(ctx, BriefingWidget::class.java).setAction(ACTION_REFRESH),
+        ctx, 8002, Intent(ctx, BriefingWidget::class.java).setAction(BriefingWidget.ACTION_REFRESH),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     v.setOnClickPendingIntent(R.id.bw_batt, refresh)

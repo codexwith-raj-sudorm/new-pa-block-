@@ -1080,11 +1080,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                     )
                                 }
                                 IconButton(onClick = { renameTarget = c; renameText = c.title }) {
-                                    Icon(
-                                        Icons.Filled.Edit,
-                                        contentDescription = "Rename chat",
-                                        tint = Muted
-                                    )
+                                    Text("✎", fontSize = 18.sp, color = Muted)
                                 }
                                 IconButton(onClick = {
                                     if (armDelete == c.id) { vm.deleteChat(c.id); armDelete = null }
