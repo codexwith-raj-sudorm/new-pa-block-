@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        40, "4.9", listOf(
+            "Widget shows your master name: Sat, 12 Sep · Master Raj",
+            "Clear all chats with tap-again confirm"
+        )
+    ),
+    ChangelogEntry(
         39, "4.8", listOf(
             "Rename any chat: tap the pencil in the chats list"
         )

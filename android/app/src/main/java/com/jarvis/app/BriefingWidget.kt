@@ -33,7 +33,7 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
     val v = RemoteViews(ctx.packageName, R.layout.widget_briefing)
     val now = java.time.LocalDateTime.now()
     v.setTextViewText(R.id.bw_time, now.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")))
-    v.setTextViewText(R.id.bw_date, now.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM")))
+    v.setTextViewText(R.id.bw_date, now.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM")) + widgetMasterLine(ctx))
     v.setTextViewText(R.id.bw_batt, "Battery " + battPct(ctx) + "%  ↻")
     val at = System.currentTimeMillis()
     val next = Store(ctx).loadReminders().filter { it.at > at }.minByOrNull { it.at }
@@ -49,6 +49,16 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
     )
     v.setOnClickPendingIntent(R.id.bw_batt, refresh)
     runCatching { mgr.updateAppWidget(id, v) }
+}
+
+/** " · Master <first>" suffix for the widget when a master key is installed. */
+private fun widgetMasterLine(ctx: Context): String {
+    return try {
+        val s = Store(ctx)
+        if (s.masterKey.isNotBlank() && s.masterName.isNotBlank()) " · Master " + firstName(s.masterName) else ""
+    } catch (_: Exception) {
+        ""
+    }
 }
 
 private fun battPct(ctx: Context): Int {

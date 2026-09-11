@@ -1833,6 +1833,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         persist()
     }
 
+    fun clearChats() {
+        stopSpeaking()
+        chats.clear()
+        chats.add(ChatData("c" + System.currentTimeMillis(), "New chat", mutableListOf()))
+        activeChatId = chats[0].id
+        messages.clear()
+        store.saveChats(chats)
+    }
+
     fun renameChat(id: String, title: String) {
         val i = chats.indexOfFirst { it.id == id }
         if (i < 0) return

@@ -1021,6 +1021,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
     var q by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<ChatData?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var confirmClear by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = { vm.showChats = false },
         title = { Text("💬 Chats") },
@@ -1090,7 +1091,13 @@ fun ChatsDialog(vm: JarvisViewModel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.newChat() }) { Text("＋ New chat") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    if (confirmClear) { vm.clearChats(); confirmClear = false }
+                    else confirmClear = true
+                }) { Text(if (confirmClear) "Tap again to clear all" else "🗑 Clear all") }
+                TextButton(onClick = { vm.newChat() }) { Text("＋ New chat") }
+            }
         },
         dismissButton = {
             TextButton(onClick = { vm.showChats = false }) { Text("Close") }
