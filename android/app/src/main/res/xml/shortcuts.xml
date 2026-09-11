@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_chat"
+        android:enabled="true"
+        android:icon="@drawable/widget_reactor"
+        android:shortcutShortLabel="New chat"
+        android:shortcutLongLabel="Start a new chat">
+        <intent
+            android:action="com.jarvis.app.NEW_CHAT"
+            android:targetPackage="com.jarvis.app"
+            android:targetClass="com.jarvis.app.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="briefing"
+        android:enabled="true"
+        android:icon="@drawable/ic_stat_jarvis"
+        android:shortcutShortLabel="Briefing"
+        android:shortcutLongLabel="Open device briefing">
+        <intent
+            android:action="com.jarvis.app.BRIEFING"
+            android:targetPackage="com.jarvis.app"
+            android:targetClass="com.jarvis.app.MainActivity" />
+    </shortcut>
+</shortcuts>

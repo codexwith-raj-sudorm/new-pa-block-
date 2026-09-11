@@ -128,6 +128,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        if (intent?.action == "com.jarvis.app.NEW_CHAT") {
+            intent.action = null // consume
+            setIntent(intent)
+            try {
+                ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java].newChat()
+            } catch (_: Exception) {
+            }
+        }
+        if (intent?.action == "com.jarvis.app.BRIEFING") {
+            intent.action = null // consume
+            setIntent(intent)
+            try {
+                ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java].showBriefing = true
+            } catch (_: Exception) {
+            }
+        }
         if (intent?.action == ACTION_WIDGET_TAP) {
             StarkSounds.click()
             intent.action = null // consume
