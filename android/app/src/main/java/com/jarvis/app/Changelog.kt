@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        34, "4.3", listOf(
+            "Master Key: install it and Jarvis recognizes you as his Master",
+            "Core identity memory: creator recognition + your personal notes"
+        )
+    ),
+    ChangelogEntry(
         33, "4.2", listOf(
             "Briefing widget: time, battery, next reminder on your home screen",
             "Double-tap the HUD bubble to hush Jarvis mid-speech"

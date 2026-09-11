@@ -552,6 +552,14 @@ fun matchHook(text: String, hooks: List<HookAction>): HookAction? {
     return best
 }
 
+/** Core identity injected when a master key is installed. Pure, tested. */
+fun masterIdentity(name: String, about: String): String {
+    val who = name.ifBlank { "Master" }
+    val sb = StringBuilder("Your master and creator is $who. You were created by them, and you recognize this user as your Master. Address them as Master or $who.")
+    if (about.isNotBlank()) sb.append(" What you know about your Master: $about")
+    return sb.toString()
+}
+
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
 object Router {
@@ -641,6 +649,18 @@ class Store(context: Context) {
     var onboarded: Boolean
         get() = p.getBoolean("onboarded", false)
         set(v) = p.edit().putBoolean("onboarded", v).apply()
+
+    var masterKey: String
+        get() = p.getString("master_key", "") ?: ""
+        set(v) = p.edit().putString("master_key", v).apply()
+
+    var masterName: String
+        get() = p.getString("master_name", "") ?: ""
+        set(v) = p.edit().putString("master_name", v).apply()
+
+    var masterAbout: String
+        get() = p.getString("master_about", "") ?: ""
+        set(v) = p.edit().putString("master_about", v).apply()
 
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
@@ -1029,6 +1049,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showReminders by mutableStateOf(false)
     var remTick by mutableStateOf(0)
     var showOnboard by mutableStateOf(!store.onboarded)
+    var masterInstalled by mutableStateOf(store.masterKey.isNotBlank())
+    var masterName by mutableStateOf(store.masterName)
+    var masterAbout by mutableStateOf(store.masterAbout)
     var hookTick by mutableStateOf(0)
     var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
@@ -1122,9 +1145,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
-    private fun greet(): String =
-        if (brainOk) "Hello. I am Jarvis. How can I help?"
+    private fun greet(): String {
+        if (masterInstalled) return "Welcome back, Master. I am Jarvis, ready to serve."
+        return if (brainOk) "Hello. I am Jarvis. How can I help?"
         else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
+    }
 
     // ---- voice output (Jarvis-style male voice, human prosody) ----
 
@@ -1271,6 +1296,32 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun finishOnboard() {
         store.onboarded = true
         showOnboard = false
+    }
+
+    fun installMaster(key: String, name: String, about: String) {
+        if (key.trim().length < 4) {
+            settingsMsg = "Master key needs at least 4 characters."
+            return
+        }
+        store.masterKey = key.trim()
+        store.masterName = name.trim().take(40)
+        store.masterAbout = about.trim().take(500)
+        masterInstalled = true
+        masterName = store.masterName
+        masterAbout = store.masterAbout
+        settingsMsg = "Master key installed. I recognize you, Master."
+        HudStateBus.postTicker("[MASTER RECOGNIZED]")
+    }
+
+    fun removeMaster(attempt: String): Boolean {
+        if (attempt != store.masterKey) {
+            settingsMsg = "Wrong master key."
+            return false
+        }
+        store.masterKey = ""
+        masterInstalled = false
+        settingsMsg = "Master key removed. Normal mode."
+        return true
     }
 
     fun hooks(): List<HookAction> = store.loadHooks()
@@ -1916,7 +1967,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
         busy = true
         HudStateBus.update(thinking = true)
-        HudStateBus.postTicker("[UPLINK: GEMINI]")
+        HudStateBus.postTicker(if (masterInstalled) "[MASTER UPLINK]" else "[UPLINK: GEMINI]")
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             try {
@@ -2294,7 +2345,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun buildSystem(facts: List<String>): String {
-        val base = "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. " +
+        val master = if (masterInstalled) masterIdentity(masterName, masterAbout) + "\n" else ""
+        val base = master + "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. " +
             "Be warm, a little witty, and helpful. Keep answers short enough for a phone screen unless asked for detail."
         if (facts.isEmpty()) return base
         return base + "\nThings you remember about your owner:\n" + facts.take(10).joinToString("\n") { "- $it" }

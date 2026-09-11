@@ -693,6 +693,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                         }
                     }
                 }
+                MasterKeySection(vm)
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Only needed if you want to use your own key.",
@@ -935,6 +936,63 @@ fun ShareDialog(vm: JarvisViewModel) {
 @Composable
 private fun ShareActionRow(label: String, onClick: () -> Unit) {
     Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
+}
+
+@Composable
+fun MasterKeySection(vm: JarvisViewModel) {
+    var mkey by remember { mutableStateOf("") }
+    var mname by remember { mutableStateOf(vm.masterName) }
+    var mabout by remember { mutableStateOf(vm.masterAbout) }
+    var confirm by remember { mutableStateOf("") }
+    Text("🔑 Master Key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    if (!vm.masterInstalled) {
+        Text(
+            "Install to be recognized as Jarvis's Master and creator.",
+            fontSize = 13.sp, color = Muted
+        )
+        TextField(
+            value = mkey,
+            onValueChange = { mkey = it.trim() },
+            placeholder = { Text("Choose a master key (4+ chars)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        TextField(
+            value = mname,
+            onValueChange = { mname = it },
+            placeholder = { Text("Your name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        TextField(
+            value = mabout,
+            onValueChange = { mabout = it },
+            placeholder = { Text("About you: city, likes, work…") },
+            singleLine = false,
+            maxLines = 3,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = { vm.installMaster(mkey, mname, mabout); mkey = "" }) {
+            Text("Install master key")
+        }
+    } else {
+        Text(
+            "Master mode active — recognized as " + vm.masterName.ifBlank { "Master" } + ".",
+            fontSize = 13.sp, color = Accent
+        )
+        TextField(
+            value = confirm,
+            onValueChange = { confirm = it.trim() },
+            placeholder = { Text("Current key to remove") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = { if (vm.removeMaster(confirm)) confirm = "" }) {
+            Text("Remove master key")
+        }
+    }
 }
 
 @Composable
