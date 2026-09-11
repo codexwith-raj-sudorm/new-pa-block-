@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        28, "3.7", listOf(
+            "Proper arc-reactor launcher icon (no more default robot)",
+            "Hindi mic toggle: voice input in Hindi"
+        )
+    ),
+    ChangelogEntry(
         27, "3.6", listOf(
             "“Read my notifications” — Jarvis summarizes your latest alerts"
         )

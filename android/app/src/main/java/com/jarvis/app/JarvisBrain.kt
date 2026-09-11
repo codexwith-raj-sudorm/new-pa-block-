@@ -351,6 +351,10 @@ private val JOKES = listOf(
 /** Joke by index (wraps around). Pure. */
 fun jokeAt(i: Int): String = JOKES[Math.floorMod(i, JOKES.size)]
 
+/** Locale for the recognizer: Hindi when toggled, else system default. */
+fun localeForListen(hindiListen: Boolean): Locale =
+    if (hindiListen) Locale.forLanguageTag("hi-IN") else Locale.getDefault()
+
 /** Day-part greeting for an hour (0-23). Pure. */
 fun daypart(hour: Int): String = when (hour) {
     in 5..11 -> "Good morning"
@@ -572,6 +576,10 @@ class Store(context: Context) {
     var wakeEnabled: Boolean
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
+
+    var hindiListen: Boolean
+        get() = p.getBoolean("listen_hi", false)
+        set(v) = p.edit().putBoolean("listen_hi", v).apply()
 
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
@@ -974,6 +982,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
     var continuous by mutableStateOf(store.continuous)
+    var hindiListen by mutableStateOf(store.hindiListen)
         private set
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
@@ -1129,6 +1138,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleContinuous() {
         continuous = !continuous
         store.continuous = continuous
+    }
+
+    fun toggleHindiListen() {
+        hindiListen = !hindiListen
+        store.hindiListen = hindiListen
     }
 
     fun incomingShare(t: String) {
@@ -1299,7 +1313,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                 )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, localeForListen(hindiListen))
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             }
             r.startListening(intent)

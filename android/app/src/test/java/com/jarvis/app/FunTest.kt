@@ -68,4 +68,9 @@ class FunTest {
         assertEquals("", fmtTime(-5))
         assertTrue(fmtTime(1_700_000_000_000L).contains(":"))
     }
+
+    @Test fun listenLocale() {
+        assertEquals("hi-IN", localeForListen(true).toLanguageTag())
+        assertEquals(java.util.Locale.getDefault(), localeForListen(false))
+    }
 }
