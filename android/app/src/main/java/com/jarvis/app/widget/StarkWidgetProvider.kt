@@ -10,6 +10,9 @@ import android.widget.RemoteViews
 import com.jarvis.app.MainActivity
 import com.jarvis.app.R
 
+/** Widget status label for the Stark toggle (pure, tested). */
+fun starkWidgetLabel(awake: Boolean): String = if (awake) "JARVIS: ACTIVE" else "STANDBY"
+
 class StarkWidgetProvider : AppWidgetProvider() {
 
     companion object {
@@ -35,11 +38,7 @@ class StarkWidgetProvider : AppWidgetProvider() {
     private fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         val views = RemoteViews(context.packageName, R.layout.stark_widget_layout)
 
-        if (isAwake(context)) {
-            views.setTextViewText(R.id.widget_status_text, "JARVIS: ACTIVE")
-        } else {
-            views.setTextViewText(R.id.widget_status_text, "STANDBY")
-        }
+        views.setTextViewText(R.id.widget_status_text, starkWidgetLabel(isAwake(context)))
 
         val intent = Intent(context, StarkWidgetProvider::class.java).apply {
             action = ACTION_TOGGLE_WAKE

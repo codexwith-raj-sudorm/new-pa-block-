@@ -25,6 +25,8 @@ jobs:
         run: |
           grep -E "^e: " ../build-output.log | head -20 | while IFS= read -r line; do echo "::error ::COMPILE::$line"; done || true
           grep -A4 " FAILED$" ../build-output.log | head -40 | while IFS= read -r line; do echo "::error ::TEST::$line"; done || true
+          grep -i "error:" ../build-output.log | grep -v "0 errors" | head -20 | while IFS= read -r line; do echo "::error ::KAPT::$line"; done || true
+          grep -B2 -A8 "FAILED$" ../build-output.log | head -60 | while IFS= read -r line; do echo "::error ::CTX::$line"; done || true
           for f in app/build/test-results/testDebugUnitTest/*.xml; do [ -e "$f" ] || continue; grep -o 'message="[^"]*"' "$f" | head -5 | while IFS= read -r m; do echo "::error ::XML::$m"; done; done || true
           grep -o "ACTUAL_IS\[[^]]*\]" ../build-output.log | head -3 | while IFS= read -r line; do echo "::error ::REVEAL::$line"; done || true
           grep -o "CODES\[[^]]*\]" ../build-output.log | head -3 | while IFS= read -r line; do echo "::error ::REVEAL::$line"; done || true

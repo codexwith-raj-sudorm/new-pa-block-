@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jarvis.app.MainActivity
 
+/** Shared-text preview for the Stark Hub (blank/null -> fallback). Pure, tested. */
+fun starkSharedPreview(text: String?): String =
+    text?.take(4000).orEmpty().ifBlank { "No text payload detected." }
+
 class StarkShareActivity : ComponentActivity() {
     companion object {
         const val EXTRA_AUTO_SEND = "com.jarvis.app.AUTO_SEND"
@@ -35,8 +39,7 @@ class StarkShareActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-            ?.take(4000).orEmpty().ifBlank { "No text payload detected." }
+        val sharedText = starkSharedPreview(intent.getStringExtra(Intent.EXTRA_TEXT))
 
         setContent {
             Surface(

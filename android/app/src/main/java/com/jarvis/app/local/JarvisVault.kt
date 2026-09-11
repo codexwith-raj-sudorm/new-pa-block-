@@ -18,14 +18,17 @@ data class VaultMemory(
 @Dao
 interface VaultDao {
     @Query("SELECT * FROM stark_vault ORDER BY timestamp DESC")
-    suspend fun getAllMemories(): List<VaultMemory>
+    fun getAllMemories(): List<VaultMemory>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMemory(memory: VaultMemory)
+    fun insertMemory(memory: VaultMemory)
 
     @Query("DELETE FROM stark_vault WHERE timestamp < :expiryThreshold")
-    suspend fun purgeExpiredMemories(expiryThreshold: Long)
+    fun purgeExpiredMemories(expiryThreshold: Long)
 }
 
 /** 90-day TTL cutoff for the Stark privacy vault. Pure, tested. */
 fun starkVaultCutoff(nowMs: Long, keepDays: Int = 90): Long = nowMs - keepDays * 24 * 3600 * 1000L
+
+/** Sanitize content before it enters the privacy vault (pure, tested). */
+fun vaultContent(content: String): String = content.trim().take(2000)

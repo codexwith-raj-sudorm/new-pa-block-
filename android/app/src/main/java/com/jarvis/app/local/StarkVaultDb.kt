@@ -28,7 +28,7 @@ abstract class StarkVaultDb : RoomDatabase() {
 
         /** Mirror a memory into the privacy vault (fire-and-forget). */
         fun remember(ctx: Context, category: String, content: String) {
-            val c = content.trim().take(2000)
+            val c = vaultContent(content)
             if (c.isEmpty()) return
             try {
                 val db = get(ctx)
