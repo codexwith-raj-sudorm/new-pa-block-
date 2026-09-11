@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -394,7 +395,7 @@ private fun normUnit(u: String): String? {
 }
 
 private fun trimNum(v: Double): String {
-    val r = kotlin.math.roundToInt(v * 100) / 100.0
+    val r = (v * 100).roundToInt() / 100.0
     return if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString()
 }
 
