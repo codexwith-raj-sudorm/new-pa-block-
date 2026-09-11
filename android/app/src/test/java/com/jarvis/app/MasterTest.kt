@@ -19,4 +19,15 @@ class MasterTest {
     @Test fun blankAboutOmits() {
         assertFalse(masterIdentity("Raj", "").contains("know about"))
     }
+
+    @Test fun cardRoundTrip() {
+        val json = masterCardJson("s3cret", "Raj", "Mumbai")
+        assertEquals(Triple("s3cret", "Raj", "Mumbai"), parseMasterCardJson(json))
+    }
+
+    @Test fun cardRejects() {
+        assertNull(parseMasterCardJson("junk"))
+        assertNull(parseMasterCardJson("""{"k":"ab","n":"x"}"""))
+        assertNull(parseMasterCardJson("""{"n":"x"}"""))
+    }
 }

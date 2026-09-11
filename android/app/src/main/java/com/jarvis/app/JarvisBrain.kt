@@ -14,6 +14,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.provider.ContactsContract
 import android.provider.Settings
+import android.util.Base64
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
@@ -550,6 +551,20 @@ fun matchHook(text: String, hooks: List<HookAction>): HookAction? {
         }
     }
     return best
+}
+
+/** Build the master-card JSON shared between a master's devices. Pure, tested. */
+fun masterCardJson(key: String, name: String, about: String): String =
+    JSONObject().put("k", key).put("n", name).put("a", about).toString()
+
+/** Parse master-card JSON into key/name/about (null when invalid). Pure, tested. */
+fun parseMasterCardJson(json: String): Triple<String, String, String>? {
+    return try {
+        val o = JSONObject(json.trim())
+        val k = o.optString("k", "")
+        if (k.length < 4) return null
+        Triple(k, o.optString("n", ""), o.optString("a", ""))
+    } catch (_: Exception) { null }
 }
 
 /** Core identity injected when a master key is installed. Pure, tested. */
@@ -1109,6 +1124,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val brainOk: Boolean get() = effectiveKey.isNotBlank()
 
     init {
+        installBakedMaster()
         val cached = store.cachedModels()
         availableModels.addAll(cached.ifEmpty { Models.FALLBACK })
         val loaded = store.loadChats()
@@ -1322,6 +1338,54 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         masterInstalled = false
         settingsMsg = "Master key removed. Normal mode."
         return true
+    }
+
+    fun shareMasterCard() {
+        try {
+            val json = masterCardJson(store.masterKey, store.masterName, store.masterAbout)
+            val card = "JARVIS-MASTER:" + Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, card)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(Intent.createChooser(i, "Share master card"))
+        } catch (_: Exception) {
+            settingsMsg = "Couldn't build the master card."
+        }
+    }
+
+    fun importMasterCard(text: String) {
+        try {
+            val b64 = text.trim().removePrefix("JARVIS-MASTER:")
+            if (b64.isBlank()) {
+                settingsMsg = "Paste a master card first."
+                return
+            }
+            val json = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8)
+            val card = parseMasterCardJson(json)
+            if (card == null) {
+                settingsMsg = "That card didn't scan. Check and retry."
+                return
+            }
+            installMaster(card.first, card.second, card.third)
+        } catch (_: Exception) {
+            settingsMsg = "That card didn't scan. Check and retry."
+        }
+    }
+
+    private fun installBakedMaster() {
+        if (store.masterKey.isNotBlank()) return
+        val b64 = BuildConfig.DEFAULT_MASTER
+        if (b64.isBlank()) return
+        try {
+            val json = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8)
+            val card = parseMasterCardJson(json) ?: return
+            store.masterKey = card.first
+            store.masterName = card.second.take(40)
+            store.masterAbout = card.third.take(500)
+            masterInstalled = true
+            masterName = store.masterName
+            masterAbout = store.masterAbout
+        } catch (_: Exception) {
+        }
     }
 
     fun hooks(): List<HookAction> = store.loadHooks()

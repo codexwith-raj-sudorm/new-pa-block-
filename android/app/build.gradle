@@ -13,13 +13,16 @@ android {
         applicationId 'com.jarvis.app'
         minSdk 26
         targetSdk 34
-        versionCode 34
-        versionName '4.3'
+        versionCode 35
+        versionName '4.4'
         // Built-in default key from CI secret (empty when the secret is unset).
         // Lightly obfuscated (reversed Base64) so the plain key isn't greppable in the APK.
         def _rawKey = System.getenv('GEMINI_API_KEY') ?: ''
         def _obfKey = _rawKey ? java.util.Base64.getEncoder().encodeToString(_rawKey.reverse().bytes) : ''
         buildConfigField 'String', 'DEFAULT_GEMINI_KEY', "\"${_obfKey}\""
+        def _rawMaster = System.getenv('MASTER_IDENTITY') ?: ''
+        def _b64Master = _rawMaster ? java.util.Base64.getEncoder().encodeToString(_rawMaster.bytes) : ''
+        buildConfigField 'String', 'DEFAULT_MASTER', "\"${_b64Master}\""
     }
 
     buildTypes {

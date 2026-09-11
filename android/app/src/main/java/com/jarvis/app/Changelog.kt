@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        35, "4.4", listOf(
+            "Master Card: share your identity to other devices, import by paste",
+            "Baked-in master: APKs built with MASTER_IDENTITY recognize you instantly"
+        )
+    ),
+    ChangelogEntry(
         34, "4.3", listOf(
             "Master Key: install it and Jarvis recognizes you as his Master",
             "Core identity memory: creator recognition + your personal notes"

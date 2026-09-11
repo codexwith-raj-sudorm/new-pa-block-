@@ -53,6 +53,13 @@ but users can paste their own key in a separate section and switch to it.
 ⚠️ Obfuscation ≠ encryption: anyone decompiling the APK can recover the key.
 Mitigations: API-restrict the key, keep the APK private, rotate the key if it leaks.
 
+## Master identity on every device (no retyping)
+
+Two ways — pick either:
+- **Master Card (easiest):** on your main phone go to ⚙️ → Master Key → **Share master card** → send it to your other device → on the other device paste it into **Import**. Done — Master recognized, zero typing.
+- **Baked-in (zero-touch):** set a repo secret `MASTER_IDENTITY` to `{"k":"your-key","n":"Your Name","a":"about you"}` → rebuild → every install from that APK recognizes you automatically.
+- Same warning as the Gemini key: anyone holding the card or APK can read it — keep both private.
+
 ## Project layout
 
 ```

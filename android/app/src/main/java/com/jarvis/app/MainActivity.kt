@@ -944,6 +944,7 @@ fun MasterKeySection(vm: JarvisViewModel) {
     var mname by remember { mutableStateOf(vm.masterName) }
     var mabout by remember { mutableStateOf(vm.masterAbout) }
     var confirm by remember { mutableStateOf("") }
+    var imp by remember { mutableStateOf("") }
     Text("🔑 Master Key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     if (!vm.masterInstalled) {
         Text(
@@ -976,6 +977,17 @@ fun MasterKeySection(vm: JarvisViewModel) {
         Button(onClick = { vm.installMaster(mkey, mname, mabout); mkey = "" }) {
             Text("Install master key")
         }
+        TextField(
+            value = imp,
+            onValueChange = { imp = it.trim() },
+            placeholder = { Text("...or paste a master card to import") },
+            singleLine = false,
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(onClick = { vm.importMasterCard(imp); imp = "" }) {
+            Text("Import master card")
+        }
     } else {
         Text(
             "Master mode active — recognized as " + vm.masterName.ifBlank { "Master" } + ".",
@@ -991,6 +1003,9 @@ fun MasterKeySection(vm: JarvisViewModel) {
         )
         Button(onClick = { if (vm.removeMaster(confirm)) confirm = "" }) {
             Text("Remove master key")
+        }
+        Button(onClick = { vm.shareMasterCard() }) {
+            Text("Share master card")
         }
     }
 }
