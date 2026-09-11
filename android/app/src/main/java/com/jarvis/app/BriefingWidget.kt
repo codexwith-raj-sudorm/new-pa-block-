@@ -11,8 +11,21 @@ import android.widget.RemoteViews
 
 /** Home-screen briefing widget: time, battery, next reminder. Tap opens Jarvis. */
 class BriefingWidget : AppWidgetProvider() {
+    companion object {
+        const val ACTION_REFRESH = "com.jarvis.app.BRIEFING_REFRESH"
+    }
+
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
         for (id in ids) updateOne(context, mgr, id)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == ACTION_REFRESH) {
+            val mgr = AppWidgetManager.getInstance(context)
+            val comp = android.content.ComponentName(context, BriefingWidget::class.java)
+            for (id in mgr.getAppWidgetIds(comp)) updateOne(context, mgr, id)
+        }
     }
 }
 
@@ -21,7 +34,7 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
     val now = java.time.LocalDateTime.now()
     v.setTextViewText(R.id.bw_time, now.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a")))
     v.setTextViewText(R.id.bw_date, now.format(java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM")))
-    v.setTextViewText(R.id.bw_batt, "Battery " + battPct(ctx) + "%")
+    v.setTextViewText(R.id.bw_batt, "Battery " + battPct(ctx) + "%  ↻")
     val at = System.currentTimeMillis()
     val next = Store(ctx).loadReminders().filter { it.at > at }.minByOrNull { it.at }
     v.setTextViewText(R.id.bw_next, widgetReminderLine(next, at))
@@ -30,6 +43,11 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     v.setOnClickPendingIntent(R.id.bw_root, open)
+    val refresh = PendingIntent.getBroadcast(
+        ctx, 8002, Intent(ctx, BriefingWidget::class.java).setAction(ACTION_REFRESH),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    v.setOnClickPendingIntent(R.id.bw_batt, refresh)
     runCatching { mgr.updateAppWidget(id, v) }
 }
 

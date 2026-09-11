@@ -306,7 +306,8 @@ fun JarvisScreen() {
             onToggleHindi = vm::toggleHindiListen,
             dailyBriefing = vm.dailyBriefing,
             onToggleDaily = vm::toggleDailyBriefing,
-            onReminders = { vm.showReminders = true }
+            onReminders = { vm.showReminders = true },
+            onBackup = vm::exportBackup
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -398,7 +399,8 @@ fun TopBar(
     onToggleHindi: () -> Unit,
     dailyBriefing: Boolean,
     onToggleDaily: () -> Unit,
-    onReminders: () -> Unit
+    onReminders: () -> Unit,
+    onBackup: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -456,6 +458,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text("⏰ Reminders") },
                         onClick = { menuOpen = false; onReminders() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("💾 Backup") },
+                        onClick = { menuOpen = false; onBackup() }
                     )
                 }
             }

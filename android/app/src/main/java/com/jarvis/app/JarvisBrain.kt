@@ -567,6 +567,44 @@ fun parseMasterCardJson(json: String): Triple<String, String, String>? {
     } catch (_: Exception) { null }
 }
 
+/** Build a full JSON backup of user data (pure, tested). */
+fun buildBackup(
+    chats: List<ChatData>,
+    facts: List<String>,
+    todos: List<TodoItem>,
+    notes: List<String>,
+    hooks: List<HookAction>,
+    reminders: List<ReminderItem>
+): String {
+    val o = JSONObject()
+    o.put("app", "jarvis")
+    o.put("v", 1)
+    o.put("at", System.currentTimeMillis())
+    val carr = JSONArray()
+    for (c in chats) {
+        val co = JSONObject().put("title", c.title)
+        val marr = JSONArray()
+        for ((r, t, ts) in c.msgs) {
+            marr.put(JSONArray().put(r).put(t).put(ts))
+        }
+        co.put("msgs", marr)
+        carr.put(co)
+    }
+    o.put("chats", carr)
+    o.put("facts", JSONArray(facts))
+    val tarr = JSONArray()
+    for (t in todos) tarr.put(JSONObject().put("text", t.text).put("done", t.done))
+    o.put("todos", tarr)
+    o.put("notes", JSONArray(notes))
+    val harr = JSONArray()
+    for (h in hooks) harr.put(JSONObject().put("n", h.name).put("u", h.url).put("m", h.method))
+    o.put("hooks", harr)
+    val rarr = JSONArray()
+    for (r in reminders) rarr.put(JSONObject().put("at", r.at).put("text", r.text))
+    o.put("reminders", rarr)
+    return o.toString()
+}
+
 /** Core identity injected when a master key is installed. Pure, tested. */
 fun masterIdentity(name: String, about: String): String {
     val who = name.ifBlank { "Master" }
@@ -1424,6 +1462,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         http.newCall(b.build()).execute().use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("HTTP " + resp.code)
             "Done — " + h.name + " triggered."
+        }
+    }
+
+    fun exportBackup() {
+        try {
+            val json = buildBackup(
+                store.loadChats(), store.facts(), store.loadTodos(),
+                store.loadNotes(), store.loadHooks(), store.loadReminders()
+            )
+            val i = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, json)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(Intent.createChooser(i, "Backup Jarvis data"))
+        } catch (_: Exception) {
         }
     }
 
