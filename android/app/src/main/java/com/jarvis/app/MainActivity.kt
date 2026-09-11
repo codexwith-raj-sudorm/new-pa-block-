@@ -449,7 +449,6 @@ fun TopBar(
     }
 }
 
-@Composable
 /** "h:mm a" stamp for chat bubbles (blank when unknown). Pure. */
 fun fmtTime(ts: Long): String {
     if (ts <= 0) return ""
@@ -461,6 +460,7 @@ fun fmtTime(ts: Long): String {
     }
 }
 
+@Composable
 fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
