@@ -99,7 +99,8 @@ fun resolvePersonaVoices(
 ): Map<String, EngineVoiceInfo?> {
     fun ranked(pool: List<EngineVoiceInfo>, persona: VoicePersona, strict: Boolean) =
         pool.map { it to scoreVoice(it, persona, deviceLang, deviceCountry) }
-            .filter { !strict || it.second > -40 }
+            // Strict cutoff: cross-gender scores top out at -39, unknowns bottom out at -1.
+            .filter { !strict || it.second > -20 }
             .sortedWith(compareByDescending<Pair<EngineVoiceInfo, Int>> { it.second }.thenBy { it.first.name })
     val remaining = infos.toMutableList()
     val out = mutableMapOf<String, EngineVoiceInfo?>()
