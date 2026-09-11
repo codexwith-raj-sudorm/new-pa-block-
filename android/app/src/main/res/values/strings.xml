@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_desc">Mini arc reactor: tap to toggle Hey Jarvis wake mode, tap while talking to interrupt.</string>
+    <string name="shortcut_new_chat">New chat</string>
+    <string name="shortcut_new_chat_long">Start a new chat</string>
+    <string name="shortcut_briefing">Briefing</string>
+    <string name="shortcut_briefing_long">Open device briefing</string>
 </resources>
