@@ -677,6 +677,10 @@ class Store(context: Context) {
         get() = p.getString("master_about", "") ?: ""
         set(v) = p.edit().putString("master_about", v).apply()
 
+    var lastWakeGreet: String
+        get() = p.getString("wake_greet", "") ?: ""
+        set(v) = p.edit().putString("wake_greet", v).apply()
+
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
         set(v) = p.edit().putBoolean("continuous", v).apply()
@@ -1315,17 +1319,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun installMaster(key: String, name: String, about: String) {
-        if (key.trim().length < 4) {
+        val k = key.trim()
+        if (k.length < 4) {
             settingsMsg = "Master key needs at least 4 characters."
             return
         }
-        store.masterKey = key.trim()
-        store.masterName = name.trim().take(40)
-        store.masterAbout = about.trim().take(500)
+        val baked = k == BAKED_MASTER_KEY
+        store.masterKey = k
+        store.masterName = (if (baked) BAKED_MASTER_NAME else name.trim()).take(40)
+        store.masterAbout = (if (baked) BAKED_MASTER_ABOUT else about.trim()).take(500)
         masterInstalled = true
         masterName = store.masterName
         masterAbout = store.masterAbout
-        settingsMsg = "Master key installed. I recognize you, Master."
+        settingsMsg = if (baked) "Master key accepted. Welcome, Master Raj."
+        else "Master key installed. I recognize you, Master."
         HudStateBus.postTicker("[MASTER RECOGNIZED]")
     }
 

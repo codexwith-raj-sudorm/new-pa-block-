@@ -279,7 +279,7 @@ class WakeService : Service() {
         HudStateBus.postTicker("[VOICE: MATCH]")
         StarkSounds.chime()
         flashBubble()
-        speakYes()
+        speakWakeGreeting()
         openAppForCommand()
     }
 
@@ -312,10 +312,20 @@ class WakeService : Service() {
         }
     }
 
-    private fun speakYes() {
+    private fun speakWakeGreeting() {
         if (!store.ttsEnabled) return
         try {
-            tts?.speak("Yes?", TextToSpeech.QUEUE_FLUSH, null, "wake")
+            val now = java.time.LocalDateTime.now()
+            val stamp = wakeGreetStamp(now.toLocalDate().toString(), wakeBucket(now.hour))
+            if (store.masterKey.isNotBlank() && store.lastWakeGreet != stamp) {
+                store.lastWakeGreet = stamp
+                tts?.speak(
+                    wakeGreet(now.hour, store.masterName),
+                    TextToSpeech.QUEUE_FLUSH, null, "wake"
+                )
+            } else {
+                tts?.speak("Yes?", TextToSpeech.QUEUE_FLUSH, null, "wake")
+            }
         } catch (_: Exception) {
         }
     }

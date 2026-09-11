@@ -948,7 +948,7 @@ fun MasterKeySection(vm: JarvisViewModel) {
     Text("🔑 Master Key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
     if (!vm.masterInstalled) {
         Text(
-            "Install to be recognized as Jarvis's Master and creator.",
+            "Enter your master key — identity loads automatically.",
             fontSize = 13.sp, color = Muted
         )
         TextField(

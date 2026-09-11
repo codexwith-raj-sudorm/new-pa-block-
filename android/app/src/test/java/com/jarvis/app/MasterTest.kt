@@ -30,4 +30,26 @@ class MasterTest {
         assertNull(parseMasterCardJson("""{"k":"ab","n":"x"}"""))
         assertNull(parseMasterCardJson("""{"n":"x"}"""))
     }
+
+    @Test fun wakeGreetsMasterRaj() {
+        assertEquals("Good morning, Master Raj.", wakeGreet(7, "Raj Thakur"))
+        assertEquals("Good afternoon, Master Raj.", wakeGreet(13, "Raj Thakur"))
+        assertEquals("Good evening, Master Raj.", wakeGreet(20, "Raj Thakur"))
+        assertEquals("Good evening, Master Raj.", wakeGreet(2, "Raj Thakur"))
+    }
+
+    @Test fun wakeGreetBlankName() {
+        assertEquals("Good morning, Master.", wakeGreet(9, ""))
+    }
+
+    @Test fun bucketsAndStamp() {
+        assertEquals("morning", wakeBucket(5))
+        assertEquals("morning", wakeBucket(11))
+        assertEquals("afternoon", wakeBucket(12))
+        assertEquals("afternoon", wakeBucket(16))
+        assertEquals("evening", wakeBucket(17))
+        assertEquals("evening", wakeBucket(4))
+        assertEquals("2026-09-12-morning", wakeGreetStamp("2026-09-12", "morning"))
+        assertEquals("Raj", firstName("  Raj  Thakur "))
+    }
 }
