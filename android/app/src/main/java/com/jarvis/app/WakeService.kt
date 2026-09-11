@@ -338,7 +338,7 @@ class WakeService : Service() {
     private fun applySavedVoice() {
         val t = tts ?: return
         try {
-            val key = personaKeyOrDefault(store.ttsVoice)
+            val key = "priya" // fixed voice
             val persona = personaForKey(key)
             val all = try { t.voices } catch (_: Exception) { null }.orEmpty()
             val loc = Locale.getDefault()
@@ -349,8 +349,8 @@ class WakeService : Service() {
             val match = all.firstOrNull { it.name == want?.name }
             if (match != null) t.voice = match
             else t.language = loc
-            t.setSpeechRate(persona.rate)
-            t.setPitch(persona.pitch)
+            t.setSpeechRate(0.93f) // fixed
+            t.setPitch(0.68f) // fixed
         } catch (_: Exception) {
         }
     }

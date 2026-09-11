@@ -42,4 +42,9 @@ class ReminderTest {
         assertEquals("in 2 h 30 min", dueText(now + 150 * 60_000, now))
         assertTrue(dueText(now + 3 * 24 * 3_600_000, now).startsWith("on "))
     }
+
+    @Test fun reminderInputAddsPrefix() {
+        assertEquals("remind me in 10 minutes to x", reminderInput("in 10 minutes to x"))
+        assertEquals("remind me at 5pm gym", reminderInput("  remind me at 5pm gym  "))
+    }
 }

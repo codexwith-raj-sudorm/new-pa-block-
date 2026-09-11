@@ -1,6 +1,7 @@
 package com.jarvis.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,8 @@ import androidx.compose.ui.unit.sp
 fun StarkBriefingDashboard(
     temperature: String,
     batteryLevel: Int,
-    systemPing: String
+    systemPing: String,
+    onRefresh: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -29,18 +31,19 @@ fun StarkBriefingDashboard(
             .padding(12.dp)
             .background(Color(0xFF0F172A).copy(alpha = 0.9f), shape = RoundedCornerShape(6.dp))
             .border(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .clickable { onRefresh() }
             .padding(16.dp)
     ) {
         Column {
             Text(
-                text = "PROTOCOL DELTA // MORNING BRIEFING",
+                text = "⟳ PROTOCOL DELTA // MORNING BRIEFING",
                 color = Color(0xFFFBBF24),
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = "• Weather Telemetry: $temperature", color = Color(0xFFE2E8F0), fontSize = 13.sp)
-            Text(text = "• System Battery: $batteryLevel%", color = Color(0xFFE2E8F0), fontSize = 13.sp)
+            Text(text = "• System Battery: " + (if (batteryLevel < 0) "—" else "$batteryLevel%"), color = Color(0xFFE2E8F0), fontSize = 13.sp)
             Text(text = "• Network Latency: $systemPing", color = Color(0xFFE2E8F0), fontSize = 13.sp)
             Spacer(modifier = Modifier.height(8.dp))
             Text(

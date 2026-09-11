@@ -13,8 +13,8 @@ android {
         applicationId 'com.jarvis.app'
         minSdk 26
         targetSdk 34
-        versionCode 42
-        versionName '5.1'
+        versionCode 43
+        versionName '5.2'
         // Built-in default key from CI secret (empty when the secret is unset).
         // Lightly obfuscated (reversed Base64) so the plain key isn't greppable in the APK.
         def _rawKey = System.getenv('GEMINI_API_KEY') ?: ''
@@ -55,6 +55,7 @@ dependencies {
     implementation 'androidx.savedstate:savedstate:1.2.1'
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material'
     implementation 'androidx.compose.material:material-icons-extended'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'androidx.room:room-runtime:2.6.1'

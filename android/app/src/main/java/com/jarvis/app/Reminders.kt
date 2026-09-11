@@ -21,6 +21,12 @@ private val IN_RX = Regex("""\bin\s+(\d+)\s*(minutes?|mins?|hours?|hrs?|h)\b""",
 private val AT_RX = Regex("""\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b""", RegexOption.IGNORE_CASE)
 private val LEAD_FILLER_RX = Regex("""^(to|about|that)\s+""", RegexOption.IGNORE_CASE)
 
+/** Normalize quick-add input so it parses ("in 10 min.." -> "remind me in 10 min.."). Pure, tested. */
+fun reminderInput(raw: String): String {
+    val t = raw.trim()
+    return if (t.startsWith("remind me", ignoreCase = true)) t else "remind me " + t
+}
+
 fun parseReminder(raw: String): ReminderRequest? {
     val t0 = raw.trim()
     if (!t0.startsWith("remind me", ignoreCase = true)) return null

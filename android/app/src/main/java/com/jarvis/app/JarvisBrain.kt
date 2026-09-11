@@ -41,6 +41,7 @@ import androidx.room.Room
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jarvis.app.local.StarkVaultDb
+import com.jarvis.app.hardware.StarkDeviceController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1096,6 +1097,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val chats = mutableStateListOf<ChatData>()
     var dashTemp by mutableStateOf("\u2014")
     var dashPing by mutableStateOf("\u2014")
+    var dashBatt by mutableStateOf(-1)
     val ttsVoices = mutableStateListOf<TtsVoice>()
     var busy by mutableStateOf(false)
         private set
@@ -1348,6 +1350,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         remTick++
     }
 
+    /** Add a reminder from dialog text (quick-add). Returns the confirmation line. */
+    fun addReminderText(text: String): String {
+        val msg = scheduleReminder(parseReminder(reminderInput(text)))
+        remTick++
+        return msg
+    }
+
     fun finishOnboard() {
         store.onboarded = true
         showOnboard = false
@@ -1510,6 +1519,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun interruptSpeech() {
         stopSpeaking()
         SpeechState.speaking = false
+        HudStateBus.update(speaking = false)
+        if (continuous && ttsOn) {
+            try {
+                startListening()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun speak(text: String, force: Boolean = false) {
@@ -1846,6 +1862,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Refresh Stark dashboard telemetry (temp + ping, best-effort). */
     fun refreshDashboard() {
+        dashBatt = try {
+            StarkDeviceController(getApplication<Application>()).getBatteryLevel()
+        } catch (_: Exception) {
+            -1
+        }
         viewModelScope.launch {
             dashTemp = fetchDashTemp()
             dashPing = measurePing()

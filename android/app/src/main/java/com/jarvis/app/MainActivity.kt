@@ -7,6 +7,7 @@ import com.jarvis.app.ui.StarkShareActivity
 import com.jarvis.app.hardware.StarkDeviceController
 import com.jarvis.app.ui.StarkLockActivity
 import com.jarvis.app.ui.components.GoldenBrainCoreView
+import com.jarvis.app.ui.components.HeaderMiniReactor
 import com.jarvis.app.ui.components.StarkBriefingDashboard
 import com.jarvis.app.ui.components.StarkHeader
 import com.jarvis.app.ui.components.StarkMessageCard
@@ -333,7 +334,8 @@ fun JarvisScreen() {
             onToggleDaily = vm::toggleDailyBriefing,
             onReminders = { vm.showReminders = true },
             onBackup = vm::exportBackup,
-            onLock = { context.startActivity(Intent(context, StarkLockActivity::class.java)) }
+            onLock = { context.startActivity(Intent(context, StarkLockActivity::class.java)) },
+            onInterrupt = vm::interruptSpeech
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -364,15 +366,14 @@ fun JarvisScreen() {
                 }
             }
         }
-        val dashCtx = LocalContext.current
-        val dashBatt = remember { StarkDeviceController(dashCtx).getBatteryLevel() }
         if (vm.messages.size <= 1 && !vm.busy) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                GoldenBrainCoreView()
+                GoldenBrainCoreView(onClick = vm::interruptSpeech)
             }
             StarkBriefingDashboard(
+                onRefresh = vm::refreshDashboard,
                 temperature = vm.dashTemp,
-                batteryLevel = dashBatt,
+                batteryLevel = vm.dashBatt,
                 systemPing = vm.dashPing
             )
             Row(
@@ -436,10 +437,12 @@ fun TopBar(
     onToggleDaily: () -> Unit,
     onReminders: () -> Unit,
     onBackup: () -> Unit,
-    onLock: () -> Unit
+    onLock: () -> Unit,
+    onInterrupt: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
+    val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(Panel)) {
         Box {
@@ -480,6 +483,7 @@ fun TopBar(
                     modifier = Modifier.graphicsLayer { val s = 1f + 0.18f * wakePulse; scaleX = s; scaleY = s }
                 )
             }
+            HeaderMiniReactor(isSpeaking = hud.speaking, onInterrupt = onInterrupt)
         }
     }
 }
@@ -1094,12 +1098,29 @@ private fun OnboardRow(done: Boolean, label: String, btn: String, onBtn: () -> U
 fun RemindersDialog(vm: JarvisViewModel) {
     val items = remember(vm.remTick) { vm.reminderItems() }
     val now = remember { System.currentTimeMillis() }
+    var newRem by remember { mutableStateOf("") }
+    var remMsg by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { vm.showReminders = false },
         title = { Text("⏰ Reminders") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Or say: remind me in 10 minutes to stretch.", fontSize = 13.sp, color = Muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = newRem,
+                        onValueChange = { newRem = it },
+                        placeholder = { Text("in 10 minutes to stretch") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = {
+                        remMsg = vm.addReminderText(newRem)
+                        if (remMsg.startsWith("I\'ll remind")) newRem = ""
+                    }) { Text("Add") }
+                }
+                if (remMsg.isNotBlank()) Text(remMsg, fontSize = 12.sp, color = Accent)
                 if (items.isEmpty()) {
                     Text("No reminders set.", color = Muted, fontSize = 14.sp)
                 } else {
