@@ -73,7 +73,7 @@ fun GoldenBrainCoreView(modifier: Modifier = Modifier) {
                 center = center,
                 style = Stroke(
                     width = 1.5.dp.toPx(),
-                    pathEffect = PathEffect.dashArrayEffect(floatArrayOf(10f, 6f), 0f)
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 6f), 0f)
                 )
             )
 

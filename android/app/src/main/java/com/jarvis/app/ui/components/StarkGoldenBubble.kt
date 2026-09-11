@@ -111,7 +111,7 @@ fun StarkGoldenBubble(
                 center = center,
                 style = Stroke(
                     width = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashArrayEffect(floatArrayOf(12f, 8f), 0f)
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
                 )
             )
 

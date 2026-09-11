@@ -333,7 +333,7 @@ fun JarvisScreen() {
             onToggleDaily = vm::toggleDailyBriefing,
             onReminders = { vm.showReminders = true },
             onBackup = vm::exportBackup,
-            onLock = { startActivity(Intent(this, StarkLockActivity::class.java)) }
+            onLock = { context.startActivity(Intent(context, StarkLockActivity::class.java)) }
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
