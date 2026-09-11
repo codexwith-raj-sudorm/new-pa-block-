@@ -540,6 +540,7 @@ object Router {
             Regex("""\brain\b""").containsMatchIn(low)
         ) return Hit("weather", t)
         daypartHit(low, t)?.let { return it }
+        if (low.contains("notification") && ("read" in low || "check" in low || "my" in low || "any" in low || low == "notifications")) return Hit("notifs", "")
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1846,6 +1847,21 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun readNotifs(): String {
+        val ctx = getApplication<Application>()
+        return try {
+            val enabled = Settings.Secure.getString(ctx.contentResolver, "enabled_notification_listeners").orEmpty()
+            if (!enabled.contains(ctx.packageName)) {
+                val i = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+                "One tap — enable Jarvis in notification access, then ask again."
+            } else {
+                formatNotifs(NotifReader.snapshot())
+            }
+        } catch (_: Exception) { "Couldn't read notifications." }
+    }
+
     private fun morningRoutine(): String {
         val now = java.time.LocalTime.now()
         val time = now.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
@@ -2131,6 +2147,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "joke" -> jokeAt(kotlin.random.Random.nextInt(1000))
         "routine" -> morningRoutine()
         "device" -> runDevice(hit.arg)
+        "notifs" -> readNotifs()
         "lists" -> runLists(hit.arg)
         else -> "?"
     }

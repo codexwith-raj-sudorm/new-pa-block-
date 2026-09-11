@@ -9,6 +9,11 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        27, "3.6", listOf(
+            "“Read my notifications” — Jarvis summarizes your latest alerts"
+        )
+    ),
+    ChangelogEntry(
         26, "3.5", listOf(
             "Quick Settings tile: toggle wake word from the notification shade",
             "Launcher shortcuts: long-press the icon for New chat / Briefing"
