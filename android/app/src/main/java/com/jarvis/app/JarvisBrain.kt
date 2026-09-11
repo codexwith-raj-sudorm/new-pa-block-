@@ -638,6 +638,10 @@ class Store(context: Context) {
         get() = p.getBoolean("brief_daily", false)
         set(v) = p.edit().putBoolean("brief_daily", v).apply()
 
+    var onboarded: Boolean
+        get() = p.getBoolean("onboarded", false)
+        set(v) = p.edit().putBoolean("onboarded", v).apply()
+
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
         set(v) = p.edit().putBoolean("continuous", v).apply()
@@ -1022,6 +1026,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showShare by mutableStateOf(false)
     var showBriefing by mutableStateOf(false)
     var showHooks by mutableStateOf(false)
+    var showReminders by mutableStateOf(false)
+    var remTick by mutableStateOf(0)
+    var showOnboard by mutableStateOf(!store.onboarded)
     var hookTick by mutableStateOf(0)
     var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
@@ -1237,6 +1244,33 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         shareText = ""
         if (t.isBlank()) return
         send(sharePrompt(kind, t))
+    }
+
+    fun reminderItems(): List<ReminderItem> {
+        val now = System.currentTimeMillis()
+        val items = store.loadReminders().filter { it.at > now }.sortedBy { it.at }
+        store.saveReminders(items)
+        return items
+    }
+
+    fun deleteReminder(id: Int) {
+        try {
+            val ctx = getApplication<Application>()
+            val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val pi = PendingIntent.getBroadcast(
+                ctx, id, Intent(ctx, ReminderReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            am.cancel(pi)
+            pi.cancel()
+        } catch (_: Exception) { }
+        store.removeReminder(id)
+        remTick++
+    }
+
+    fun finishOnboard() {
+        store.onboarded = true
+        showOnboard = false
     }
 
     fun hooks(): List<HookAction> = store.loadHooks()

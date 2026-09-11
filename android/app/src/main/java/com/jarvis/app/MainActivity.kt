@@ -305,7 +305,8 @@ fun JarvisScreen() {
             hindiListen = vm.hindiListen,
             onToggleHindi = vm::toggleHindiListen,
             dailyBriefing = vm.dailyBriefing,
-            onToggleDaily = vm::toggleDailyBriefing
+            onToggleDaily = vm::toggleDailyBriefing,
+            onReminders = { vm.showReminders = true }
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -360,10 +361,12 @@ fun JarvisScreen() {
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
-    if (vm.showWhatsNew) WhatsNewDialog(vm)
+    if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, ::onWakeTap)
+    else if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showShare) ShareDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)
     if (vm.showHooks) HooksDialog(vm)
+    if (vm.showReminders) RemindersDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -394,7 +397,8 @@ fun TopBar(
     hindiListen: Boolean,
     onToggleHindi: () -> Unit,
     dailyBriefing: Boolean,
-    onToggleDaily: () -> Unit
+    onToggleDaily: () -> Unit,
+    onReminders: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -448,6 +452,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text(if (dailyBriefing) "☀ Briefing 8AM on" else "☀ Briefing 8AM off") },
                         onClick = { menuOpen = false; onToggleDaily() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("⏰ Reminders") },
+                        onClick = { menuOpen = false; onReminders() }
                     )
                 }
             }
@@ -998,6 +1006,91 @@ fun ChatsDialog(vm: JarvisViewModel) {
         },
         dismissButton = {
             TextButton(onClick = { vm.showChats = false }) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
+    val context = LocalContext.current
+    fun hasMic(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+    AlertDialog(
+        onDismissRequest = { vm.finishOnboard() },
+        title = { Text("👋 Welcome to Jarvis") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Three quick steps to wake me up:", fontSize = 14.sp)
+                OnboardRow(done = hasMic(), label = "Microphone for voice input", btn = "Allow", onBtn = onMic)
+                OnboardRow(done = vm.wakeOn, label = "Hey Jarvis wake word + HUD bubble", btn = "Enable", onBtn = onWake)
+                OnboardRow(
+                    done = vm.batteryUnrestricted(),
+                    label = "Unrestricted battery (survive reboot)",
+                    btn = "Fix",
+                    onBtn = vm::requestBatteryUnrestricted
+                )
+                Text("Then just talk to me. Try a starter chip below.", fontSize = 13.sp, color = Muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.finishOnboard() }) { Text("Start") } }
+    )
+}
+
+@Composable
+private fun OnboardRow(done: Boolean, label: String, btn: String, onBtn: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (done) "✓" else "○",
+            color = if (done) Good else Muted,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        if (!done) Button(onClick = onBtn) { Text(btn, fontSize = 12.sp) }
+    }
+}
+
+@Composable
+fun RemindersDialog(vm: JarvisViewModel) {
+    val items = remember(vm.remTick) { vm.reminderItems() }
+    val now = remember { System.currentTimeMillis() }
+    AlertDialog(
+        onDismissRequest = { vm.showReminders = false },
+        title = { Text("⏰ Reminders") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Or say: remind me in 10 minutes to stretch.", fontSize = 13.sp, color = Muted)
+                if (items.isEmpty()) {
+                    Text("No reminders set.", color = Muted, fontSize = 14.sp)
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                        items(items) { r ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(r.text, fontSize = 14.sp)
+                                    Text(dueText(r.at, now), fontSize = 12.sp, color = Accent)
+                                }
+                                IconButton(onClick = { vm.deleteReminder(r.id) }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Cancel",
+                                        tint = Muted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showReminders = false }) { Text("Close") }
         }
     )
 }
