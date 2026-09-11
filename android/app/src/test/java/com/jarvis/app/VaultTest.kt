@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import com.jarvis.app.local.starkVaultCutoff
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -18,5 +19,13 @@ class VaultTest {
     @Test fun migrationTruncates() {
         val rows = migrateLegacyFacts(setOf("x".repeat(900)), 1L)
         assertEquals(500, rows[0].text.length)
+    }
+
+    @Test fun starkCutoff90() {
+        assertEquals(0L, starkVaultCutoff(90L * 24 * 3600 * 1000, 90))
+    }
+
+    @Test fun starkCutoffCustom() {
+        assertEquals(1000L, starkVaultCutoff(1000L + 24 * 3600 * 1000L, 1))
     }
 }

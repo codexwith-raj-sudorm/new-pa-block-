@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import androidx.room.Room
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.jarvis.app.local.StarkVaultDb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -291,17 +292,6 @@ fun chatTranscript(title: String, msgs: List<ChatMessage>): String {
         sb.append(m.text.trim()).append("\n\n")
     }
     return sb.toString().trimEnd() + "\n"
-}
-
-/** Build the prompt for a Share Hub quick action (pure, tested). */
-fun sharePrompt(kind: String, text: String): String {
-    val t = text.trim().take(4000)
-    return when (kind) {
-        "sum" -> "Summarize this in 3 short bullets:\n$t"
-        "eli5" -> "Explain this like I'm 5 years old:\n$t"
-        "bugs" -> "Review this code for bugs, then show the fixed code in a fenced block:\n$t"
-        else -> "Translate this to Hindi (give Roman + Devanagari):\n$t"
-    }
 }
 
 /** Device telemetry snapshot for the Briefing card. */
@@ -702,6 +692,10 @@ class Store(context: Context) {
         get() = p.getFloat("tts_pitch", 1f)
         set(v) = p.edit().putFloat("tts_pitch", v).apply()
 
+    var masterUnlocked: Boolean
+        get() = p.getBoolean("master_unlocked", false)
+        set(v) = p.edit().putBoolean("master_unlocked", v).apply()
+
     var dailyBriefing: Boolean
         get() = p.getBoolean("brief_daily", false)
         set(v) = p.edit().putBoolean("brief_daily", v).apply()
@@ -764,6 +758,7 @@ class Store(context: Context) {
         try {
             vault.insert(VaultFact(text = t, ts = System.currentTimeMillis()))
             vault.trimTo(200)
+            StarkVaultDb.remember(appCtx, "memory", t)
         } catch (_: Exception) {
         }
     }
@@ -1099,6 +1094,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
     val chats = mutableStateListOf<ChatData>()
+    var dashTemp by mutableStateOf("\u2014")
+    var dashPing by mutableStateOf("\u2014")
     val ttsVoices = mutableStateListOf<TtsVoice>()
     var busy by mutableStateOf(false)
         private set
@@ -1107,7 +1104,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showMemory by mutableStateOf(false)
     var showList by mutableStateOf(false)
     var showWhatsNew by mutableStateOf(false)
-    var showShare by mutableStateOf(false)
     var showBriefing by mutableStateOf(false)
     var showHooks by mutableStateOf(false)
     var showReminders by mutableStateOf(false)
@@ -1117,7 +1113,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var masterName by mutableStateOf(store.masterName)
     var masterAbout by mutableStateOf(store.masterAbout)
     var hookTick by mutableStateOf(0)
-    var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
     var whatsNewItems by mutableStateOf<List<ChangelogEntry>>(emptyList())
     var settingsMsg by mutableStateOf("")
@@ -1139,6 +1134,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var dailyBriefing by mutableStateOf(store.dailyBriefing)
         private set
     var voiceName by mutableStateOf(store.ttsVoice)
+    var masterUnlocked by mutableStateOf(store.masterUnlocked)
         private set
     var listening by mutableStateOf(false)
         private set
@@ -1174,6 +1170,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         installBakedMaster()
+        StarkVaultDb.purgeExpired(getApplication<Application>().applicationContext)
+        refreshDashboard()
         val cached = store.cachedModels()
         availableModels.addAll(cached.ifEmpty { Models.FALLBACK })
         val loaded = store.loadChats()
@@ -1237,15 +1235,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun applyVoice() {
         val t = tts ?: return
         try {
-            val key = personaKeyOrDefault(store.ttsVoice)
+            val key = "priya" // fixed voice
             val persona = personaForKey(key)
             val match = resolveEngineVoice(t, key)
             if (match != null) t.voice = match
             else t.language = Locale.getDefault()
             voiceName = key
             store.ttsVoice = key // persona key now (legacy engine names auto-heal to jarvis)
-            t.setSpeechRate(effSpeech(persona.rate, store.ttsRate))
-            t.setPitch(effSpeech(persona.pitch, store.ttsPitch))
+            t.setSpeechRate(0.93f) // fixed
+            t.setPitch(0.68f) // fixed
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
                 override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } }
@@ -1272,6 +1270,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             ttsVoices.addAll(VOICE_PERSONAS.map { p -> TtsVoice(p.key, "${p.name} — ${p.tagline}") })
         } catch (_: Exception) {
         }
+    }
+
+    fun setMasterUnlocked() {
+        store.masterUnlocked = true
+        masterUnlocked = true
     }
 
     fun selectVoice(id: String) {
@@ -1321,19 +1324,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             armDailyBriefing(getApplication(), dailyBriefing)
         } catch (_: Exception) {
         }
-    }
-
-    fun incomingShare(t: String) {
-        shareText = t.trim().take(4000)
-        showShare = shareText.isNotBlank()
-    }
-
-    fun shareAction(kind: String) {
-        val t = shareText
-        showShare = false
-        shareText = ""
-        if (t.isBlank()) return
-        send(sharePrompt(kind, t))
     }
 
     fun reminderItems(): List<ReminderItem> {
@@ -1852,6 +1842,38 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val c = chats[i]
         chats[i] = ChatData(c.id, cleanTitle(title), c.msgs)
         store.saveChats(chats)
+    }
+
+    /** Refresh Stark dashboard telemetry (temp + ping, best-effort). */
+    fun refreshDashboard() {
+        viewModelScope.launch {
+            dashTemp = fetchDashTemp()
+            dashPing = measurePing()
+        }
+    }
+
+    private suspend fun fetchDashTemp(): String = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url("https://wttr.in/?format=%25t").get().build()
+            http.newCall(req).execute().use { r ->
+                if (!r.isSuccessful) return@withContext "\u2014"
+                r.body?.string().orEmpty().trim().ifEmpty { "\u2014" }
+            }
+        } catch (_: Exception) {
+            "\u2014"
+        }
+    }
+
+    private suspend fun measurePing(): String = withContext(Dispatchers.IO) {
+        try {
+            val t0 = System.nanoTime()
+            java.net.Socket().use { s ->
+                s.connect(java.net.InetSocketAddress("8.8.8.8", 53), 3000)
+            }
+            ((System.nanoTime() - t0) / 1000000).toString() + "ms"
+        } catch (_: Exception) {
+            "\u2014"
+        }
     }
 
     fun deleteChat(id: String) {

@@ -9,6 +9,15 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        42, "5.1", listOf(
+            "Stark HUD retheme: golden header, neural cards, brain core, live dashboard",
+            "Stark Hub share intercept with auto-inject to Jarvis",
+            "Stark wake widget + biometric Stark ID lock",
+            "Privacy vault with 90-day auto-purge",
+            "Fixed Priya voice, hidden master section, slim 4-item menu"
+        )
+    ),
+    ChangelogEntry(
         41, "5.0", listOf(
             "Share button on code blocks: send snippets anywhere",
             "Delete needs a second tap — no more accidental chat loss"

@@ -6,4 +6,5 @@
     <string name="shortcut_briefing">Briefing</string>
     <string name="shortcut_briefing_long">Open device briefing</string>
     <string name="briefing_widget_desc">Jarvis briefing: time, battery and your next reminder.</string>
+    <string name="stark_widget_desc">Stark reactor toggle: tap to switch Jarvis between standby and active.</string>
 </resources>

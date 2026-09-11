@@ -3,6 +3,14 @@ package com.jarvis.app
 import android.Manifest
 import android.app.Application
 import android.content.Intent
+import com.jarvis.app.ui.StarkShareActivity
+import com.jarvis.app.hardware.StarkDeviceController
+import com.jarvis.app.ui.StarkLockActivity
+import com.jarvis.app.ui.components.GoldenBrainCoreView
+import com.jarvis.app.ui.components.StarkBriefingDashboard
+import com.jarvis.app.ui.components.StarkHeader
+import com.jarvis.app.ui.components.StarkMessageCard
+import com.jarvis.app.widget.StarkWidgetProvider
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -118,12 +126,19 @@ class MainActivity : ComponentActivity() {
         }
         if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
             val shared = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
+            val autoSend = intent.getBooleanExtra(StarkShareActivity.EXTRA_AUTO_SEND, false)
             intent.action = null // consume
             setIntent(intent)
             if (shared.isNotBlank()) {
                 try {
                     ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
-                        .incomingShare(shared)
+                        .let { vm ->
+                            if (autoSend) vm.send(shared)
+                            else startActivity(
+                                Intent(this, StarkShareActivity::class.java)
+                                    .putExtra(Intent.EXTRA_TEXT, shared)
+                            )
+                        }
                 } catch (_: Exception) {
                 }
             }
@@ -141,6 +156,16 @@ class MainActivity : ComponentActivity() {
             setIntent(intent)
             try {
                 ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java].showBriefing = true
+            } catch (_: Exception) {
+            }
+        }
+        if (intent?.action == StarkWidgetProvider.ACTION_STARK_WAKE) {
+            val wakeOn = intent.getBooleanExtra(StarkWidgetProvider.EXTRA_WAKE_ON, false)
+            intent.action = null // consume
+            setIntent(intent)
+            try {
+                ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
+                    .setWakeEnabled(wakeOn)
             } catch (_: Exception) {
             }
         }
@@ -307,7 +332,8 @@ fun JarvisScreen() {
             dailyBriefing = vm.dailyBriefing,
             onToggleDaily = vm::toggleDailyBriefing,
             onReminders = { vm.showReminders = true },
-            onBackup = vm::exportBackup
+            onBackup = vm::exportBackup,
+            onLock = { startActivity(Intent(this, StarkLockActivity::class.java)) }
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -338,7 +364,17 @@ fun JarvisScreen() {
                 }
             }
         }
+        val dashCtx = LocalContext.current
+        val dashBatt = remember { StarkDeviceController(dashCtx).getBatteryLevel() }
         if (vm.messages.size <= 1 && !vm.busy) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                GoldenBrainCoreView()
+            }
+            StarkBriefingDashboard(
+                temperature = vm.dashTemp,
+                batteryLevel = dashBatt,
+                systemPing = vm.dashPing
+            )
             Row(
                 Modifier.fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
@@ -364,7 +400,6 @@ fun JarvisScreen() {
     if (vm.showList) ListDialog(vm)
     if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, ::onWakeTap)
     else if (vm.showWhatsNew) WhatsNewDialog(vm)
-    if (vm.showShare) ShareDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)
     if (vm.showHooks) HooksDialog(vm)
     if (vm.showReminders) RemindersDialog(vm)
@@ -400,21 +435,20 @@ fun TopBar(
     dailyBriefing: Boolean,
     onToggleDaily: () -> Unit,
     onReminders: () -> Unit,
-    onBackup: () -> Unit
+    onBackup: () -> Unit,
+    onLock: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
+    var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().background(Panel)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color.White)
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        Box {
+            StarkHeader(
+                onMenuClick = { menuOpen = true },
+                onSettingsClick = onSettings,
+                isBrainConnected = online
+            )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text("＋ New chat") },
                         onClick = { menuOpen = false; onNewChat() }
@@ -431,59 +465,7 @@ fun TopBar(
                         text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off") },
                         onClick = { menuOpen = false; onToggleTts() }
                     )
-                    DropdownMenuItem(
-                        text = { Text(if (continuous) "🔁 Hands-free on" else "🔁 Hands-free off") },
-                        onClick = { menuOpen = false; onToggleContinuous() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("⚡ Briefing") },
-                        onClick = { menuOpen = false; onBriefing() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("📤 Share chat") },
-                        onClick = { menuOpen = false; onShareChat() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("🔌 Smart actions") },
-                        onClick = { menuOpen = false; onHooks() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (hindiListen) "🎙 Mic: Hindi" else "🎙 Mic: Auto") },
-                        onClick = { menuOpen = false; onToggleHindi() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (dailyBriefing) "☀ Briefing 8AM on" else "☀ Briefing 8AM off") },
-                        onClick = { menuOpen = false; onToggleDaily() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("⏰ Reminders") },
-                        onClick = { menuOpen = false; onReminders() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("💾 Backup") },
-                        onClick = { menuOpen = false; onBackup() }
-                    )
                 }
-            }
-            Box(
-                Modifier.size(38.dp).clip(CircleShape).background(Accent),
-                contentAlignment = Alignment.Center
-            ) { Text("J", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("JARVIS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 2.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (online) Good else Warn))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (online) "brain connected" else "API key needed",
-                        color = Muted, fontSize = 12.sp
-                    )
-                }
-            }
-            IconButton(onClick = onSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
-            }
         }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -528,28 +510,9 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
         ) {
             segs.forEach { s ->
                 if (!s.isCode) {
-                    Column {
-                    SelectionContainer {
-                        Text(
-                            s.text,
-                            color = if (isUser) Color.White else Color(0xFFC9D1D9),
-                            fontSize = 15.sp,
-                            lineHeight = 21.sp,
-                            modifier = Modifier
-                                .clip(
-                                    RoundedCornerShape(
-                                        topStart = 14.dp, topEnd = 14.dp,
-                                        bottomStart = if (isUser) 14.dp else 4.dp,
-                                        bottomEnd = if (isUser) 4.dp else 14.dp
-                                    )
-                                )
-                                .background(if (isUser) UserBlue else BotGray)
-                                .padding(12.dp)
-                        )
-                    }
+                    StarkMessageCard(isUser = isUser, message = s.text, timestamp = ts)
                     if (!isUser && s.text.startsWith("⚠")) {
                         TextButton(onClick = onRetry) { Text("↻ Retry", fontSize = 12.sp) }
-                    }
                     }
                 } else {
                     Column(
@@ -588,12 +551,6 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
                             )
                         }
                     }
-                }
-                if (ts.isNotEmpty()) {
-                    Text(
-                        ts, color = Muted, fontSize = 11.sp,
-                        modifier = Modifier.align(if (isUser) Alignment.End else Alignment.Start)
-                    )
                 }
             }
         }
@@ -670,8 +627,17 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
 }
 
 @Composable
+private fun MoreRow(label: String, onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text(label, modifier = Modifier.fillMaxWidth(), fontSize = 14.sp)
+    }
+}
+
+@Composable
 fun SettingsDialog(vm: JarvisViewModel) {
     var key by remember { mutableStateOf(vm.apiKey) }
+    val setCtx = LocalContext.current
+    var masterTaps by remember { mutableStateOf(0) }
     val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
     var model by remember { mutableStateOf(vm.model) }
     LaunchedEffect(models.joinToString()) {
@@ -679,7 +645,22 @@ fun SettingsDialog(vm: JarvisViewModel) {
     }
     AlertDialog(
         onDismissRequest = { vm.showSettings = false },
-        title = { Text("Jarvis Settings") },
+        title = {
+            Text(
+                "Jarvis Settings",
+                modifier = Modifier.clickable {
+                    if (!vm.masterUnlocked) {
+                        masterTaps++
+                        if (masterTaps >= 5) {
+                            vm.setMasterUnlocked()
+                            Toast.makeText(setCtx, "Master section unlocked", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(setCtx, (5 - masterTaps).toString() + " taps to unlock master", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            )
+        },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
@@ -707,7 +688,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                         }
                     }
                 }
-                MasterKeySection(vm)
+                if (vm.masterUnlocked) MasterKeySection(vm)
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Only needed if you want to use your own key.",
@@ -724,34 +705,6 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 if (vm.settingsMsg.isNotBlank()) {
                     Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
                 }
-                Text("🎙 Voice", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Current: " + (
-                            vm.ttsVoices.firstOrNull { it.id == vm.voiceName }?.label
-                                ?: "Auto"
-                            ),
-                        fontSize = 13.sp, color = Muted,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = { vm.previewVoice() }) { Text("Preview") }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Rate", fontSize = 13.sp, color = Muted, modifier = Modifier.width(44.dp))
-                    Slider(
-                        value = vm.ttsRate, onValueChange = vm::setRate,
-                        valueRange = 0.5f..2.0f, modifier = Modifier.weight(1f)
-                    )
-                    Text("%.2f".format(vm.ttsRate), fontSize = 12.sp, color = Muted)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Pitch", fontSize = 13.sp, color = Muted, modifier = Modifier.width(44.dp))
-                    Slider(
-                        value = vm.ttsPitch, onValueChange = vm::setPitch,
-                        valueRange = 0.5f..2.0f, modifier = Modifier.weight(1f)
-                    )
-                    Text("%.2f".format(vm.ttsPitch), fontSize = 12.sp, color = Muted)
-                }
                 val battOk = remember { vm.batteryUnrestricted() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -761,31 +714,16 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     )
                     if (!battOk) TextButton(onClick = { vm.requestBatteryUnrestricted() }) { Text("Fix") }
                 }
-                if (vm.ttsVoices.isNotEmpty()) {
-                    LazyColumn(Modifier.heightIn(max = 210.dp)) {
-                        items(vm.ttsVoices) { v ->
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .selectable(
-                                        selected = vm.voiceName == v.id,
-                                        onClick = { vm.selectVoice(v.id) }
-                                    )
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = vm.voiceName == v.id,
-                                    onClick = { vm.selectVoice(v.id) }
-                                )
-                                Text(
-                                    (if (personaForKey(v.id).gender == PersonaGender.FEMALE) "♀ " else "♂ ") + v.label,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-                }
+                Text("More", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                MoreRow("🔁 Hands-free " + if (vm.continuous) "on" else "off") { vm.toggleContinuous() }
+                MoreRow("⚡ Briefing") { vm.showBriefing = true }
+                MoreRow("📤 Share chat") { vm.exportChat() }
+                MoreRow("🔌 Smart actions") { vm.showHooks = true }
+                MoreRow("🎙 Mic: " + if (vm.hindiListen) "Hindi" else "Auto") { vm.toggleHindiListen() }
+                MoreRow("☀ Briefing 8AM " + if (vm.dailyBriefing) "on" else "off") { vm.toggleDailyBriefing() }
+                MoreRow("⏰ Reminders") { vm.showReminders = true }
+                MoreRow("💾 Backup") { vm.exportBackup() }
+                MoreRow("🔒 Stark ID lock") { setCtx.startActivity(Intent(setCtx, StarkLockActivity::class.java)) }
                 // Models stay hidden on the built-in key — only shown with your own key.
                 if (key.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -924,33 +862,6 @@ fun BriefingDialog(vm: JarvisViewModel) {
     )
 }
 
-@Composable
-fun ShareDialog(vm: JarvisViewModel) {
-    AlertDialog(
-        onDismissRequest = { vm.showShare = false },
-        title = { Text("⚡ Share Hub") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    vm.shareText.take(220) + if (vm.shareText.length > 220) "…" else "",
-                    fontSize = 13.sp, color = Muted, maxLines = 5
-                )
-                ShareActionRow("📝 Summarize") { vm.shareAction("sum") }
-                ShareActionRow("🧒 Explain like I'm 5") { vm.shareAction("eli5") }
-                ShareActionRow("🐞 Find bugs") { vm.shareAction("bugs") }
-                ShareActionRow("🌐 Translate to Hindi") { vm.shareAction("tr") }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { vm.showShare = false }) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
-private fun ShareActionRow(label: String, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
-}
 
 @Composable
 fun MasterKeySection(vm: JarvisViewModel) {

@@ -83,6 +83,22 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/reactor_widget_info" />
         </receiver>
+        <receiver android:name=".widget.StarkWidgetProvider" android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/stark_widget_info" />
+        </receiver>
+        <activity
+            android:name=".ui.StarkShareActivity"
+            android:exported="false"
+            android:label="Stark Hub"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+        <activity
+            android:name=".ui.StarkLockActivity"
+            android:exported="false"
+            android:label="Stark ID Gate"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
     </application>
 
 </manifest>
