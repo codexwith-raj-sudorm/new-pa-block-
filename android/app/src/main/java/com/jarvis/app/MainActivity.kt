@@ -284,7 +284,8 @@ fun JarvisScreen() {
             continuous = vm.continuous,
             onToggleContinuous = vm::toggleContinuous,
             onBriefing = { vm.showBriefing = true },
-            onShareChat = vm::exportChat
+            onShareChat = vm::exportChat,
+            onHooks = { vm.showHooks = true }
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -342,6 +343,7 @@ fun JarvisScreen() {
     if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showShare) ShareDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)
+    if (vm.showHooks) HooksDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -367,7 +369,8 @@ fun TopBar(
     continuous: Boolean,
     onToggleContinuous: () -> Unit,
     onBriefing: () -> Unit,
-    onShareChat: () -> Unit
+    onShareChat: () -> Unit,
+    onHooks: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -409,6 +412,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text("📤 Share chat") },
                         onClick = { menuOpen = false; onShareChat() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("🔌 Smart actions") },
+                        onClick = { menuOpen = false; onHooks() }
                     )
                 }
             }
@@ -740,6 +747,80 @@ fun SettingsDialog(vm: JarvisViewModel) {
         },
         dismissButton = {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun HooksDialog(vm: JarvisViewModel) {
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var post by remember { mutableStateOf(false) }
+    val hooks = remember(vm.hookTick) { vm.hooks() }
+    AlertDialog(
+        onDismissRequest = { vm.showHooks = false },
+        title = { Text("🔌 Smart actions") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Name it, paste a URL (Home Assistant, IFTTT, ESP…), then say turn on ....",
+                    fontSize = 13.sp, color = Muted
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        placeholder = { Text("Name: bedroom light") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = { post = !post }) { Text(if (post) "POST" else "GET") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextField(
+                        value = url,
+                        onValueChange = { url = it.trim() },
+                        placeholder = { Text("https://...") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = {
+                        vm.addHook(name, url, if (post) "POST" else "GET")
+                        name = ""
+                        url = ""
+                    }) { Text("Add") }
+                }
+                if (hooks.isEmpty()) {
+                    Text("No actions yet.", color = Muted, fontSize = 14.sp)
+                } else {
+                    LazyColumn(Modifier.heightIn(max = 220.dp)) {
+                        items(hooks) { h ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("• " + h.name, fontSize = 14.sp)
+                                    Text(h.method + " " + h.url.take(48), fontSize = 11.sp, color = Muted)
+                                }
+                                IconButton(onClick = { vm.removeHook(h.name) }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Delete",
+                                        tint = Muted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showHooks = false }) { Text("Close") }
         }
     )
 }

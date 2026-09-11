@@ -484,6 +484,26 @@ fun formatWeather(w: WttrNow): String {
         "Humidity ${w.humidity}%, wind ${w.windKph} km/h."
 }
 
+/** A user-defined smart action: spoken name -> HTTP call. */
+data class HookAction(val name: String, val url: String, val method: String)
+
+/** Match "turn on the bedroom light" to a webhook (longest name wins). Pure, tested. */
+fun matchHook(text: String, hooks: List<HookAction>): HookAction? {
+    val words = text.lowercase().replace(Regex("[^a-z0-9 ]"), " ")
+        .split(" ").filter { it.isNotEmpty() }.toSet()
+    var best: HookAction? = null
+    var bestLen = 0
+    for (h in hooks) {
+        val need = h.name.lowercase().split(" ").filter { it.isNotEmpty() }
+        if (need.isEmpty()) continue
+        if (need.all { it in words } && need.size > bestLen) {
+            best = h
+            bestLen = need.size
+        }
+    }
+    return best
+}
+
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
 object Router {
@@ -671,6 +691,30 @@ class Store(context: Context) {
         val all = loadNotes()
         all.remove(n)
         p.edit().putStringSet("notes_v1", all.toSet()).apply()
+    }
+
+    fun loadHooks(): MutableList<HookAction> {
+        val out = mutableListOf<HookAction>()
+        try {
+            val arr = JSONArray(p.getString("hooks_v1", "[]") ?: "[]")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(HookAction(o.getString("n"), o.getString("u"), o.optString("m", "GET")))
+            }
+        } catch (_: Exception) {
+        }
+        return out
+    }
+
+    fun saveHooks(list: List<HookAction>) {
+        try {
+            val arr = JSONArray()
+            for (h in list.take(30)) {
+                arr.put(JSONObject().put("n", h.name.take(40)).put("u", h.url.take(500)).put("m", h.method))
+            }
+            p.edit().putString("hooks_v1", arr.toString()).apply()
+        } catch (_: Exception) {
+        }
     }
 
     /** Legacy single history (pre-chats). Read once for migration, then deleted. */
@@ -911,6 +955,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showWhatsNew by mutableStateOf(false)
     var showShare by mutableStateOf(false)
     var showBriefing by mutableStateOf(false)
+    var showHooks by mutableStateOf(false)
+    var hookTick by mutableStateOf(0)
     var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
     var whatsNewItems by mutableStateOf<List<ChangelogEntry>>(emptyList())
@@ -1095,6 +1141,38 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         shareText = ""
         if (t.isBlank()) return
         send(sharePrompt(kind, t))
+    }
+
+    fun hooks(): List<HookAction> = store.loadHooks()
+
+    fun addHook(name: String, url: String, method: String) {
+        val n = name.trim().take(40)
+        val u = url.trim().take(500)
+        if (n.isEmpty() || !(u.startsWith("http://") || u.startsWith("https://"))) {
+            toast("Give the action a name and an http(s) URL.")
+            return
+        }
+        val all = store.loadHooks()
+        all.removeAll { it.name.equals(n, ignoreCase = true) }
+        all.add(0, HookAction(n, u, if (method == "POST") "POST" else "GET"))
+        store.saveHooks(all)
+        hookTick++
+    }
+
+    fun removeHook(name: String) {
+        val all = store.loadHooks()
+        all.removeAll { it.name.equals(name, ignoreCase = true) }
+        store.saveHooks(all)
+        hookTick++
+    }
+
+    private suspend fun fireHook(h: HookAction): String = withContext(Dispatchers.IO) {
+        val b = Request.Builder().url(h.url)
+        if (h.method == "POST") b.post("{}".toRequestBody("application/json; charset=utf-8".toMediaType()))
+        http.newCall(b.build()).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("HTTP " + resp.code)
+            "Done — " + h.name + " triggered."
+        }
     }
 
     fun exportChat() {
@@ -1679,6 +1757,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             messages.add(ChatMessage("bot", reply))
             speak(reply)
             persist()
+            return
+        }
+        matchHook(text, store.loadHooks())?.let { hook ->
+            busy = true
+            HudStateBus.update(thinking = true)
+            viewModelScope.launch {
+                try {
+                    val reply = fireHook(hook)
+                    messages.add(ChatMessage("bot", reply))
+                    speak(reply)
+                } catch (e: Exception) {
+                    messages.add(ChatMessage("bot", "⚠️ " + hook.name + " failed: " + e.message?.take(120)))
+                } finally {
+                    busy = false
+                    HudStateBus.update(thinking = false)
+                    persist()
+                }
+            }
             return
         }
         if (!brainOk) {
