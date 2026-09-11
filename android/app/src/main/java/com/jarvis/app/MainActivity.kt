@@ -16,6 +16,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -281,7 +282,8 @@ fun JarvisScreen() {
             wakeOn = vm.wakeOn,
             onWake = ::onWakeTap,
             continuous = vm.continuous,
-            onToggleContinuous = vm::toggleContinuous
+            onToggleContinuous = vm::toggleContinuous,
+            onBriefing = { vm.showBriefing = true }
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -312,6 +314,18 @@ fun JarvisScreen() {
                 }
             }
         }
+        if (vm.messages.size <= 1 && !vm.busy) {
+            Row(
+                Modifier.fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StarterChip("What can you do?") { vm.send("What can you do?") }
+                StarterChip("Calculate 15% of 240") { vm.send("Calculate 15% of 240") }
+                StarterChip("Motivate me") { vm.send("Motivate me in one line") }
+            }
+        }
         InputRow(
             onSend = vm::send,
             onMic = ::onMicTap,
@@ -326,6 +340,7 @@ fun JarvisScreen() {
     if (vm.showList) ListDialog(vm)
     if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showShare) ShareDialog(vm)
+    if (vm.showBriefing) BriefingDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -349,7 +364,8 @@ fun TopBar(
     onWake: () -> Unit,
     onList: () -> Unit,
     continuous: Boolean,
-    onToggleContinuous: () -> Unit
+    onToggleContinuous: () -> Unit,
+    onBriefing: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -383,6 +399,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text(if (continuous) "🔁 Hands-free on" else "🔁 Hands-free off") },
                         onClick = { menuOpen = false; onToggleContinuous() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("⚡ Briefing") },
+                        onClick = { menuOpen = false; onBriefing() }
                     )
                 }
             }
@@ -488,6 +508,11 @@ fun Bubble(m: ChatMessage) {
             }
         }
     }
+}
+
+@Composable
+private fun StarterChip(label: String, onClick: () -> Unit) {
+    AssistChip(onClick = onClick, label = { Text(label, fontSize = 12.sp) })
 }
 
 @Composable
@@ -691,6 +716,34 @@ fun SettingsDialog(vm: JarvisViewModel) {
 }
 
 @Composable
+fun BriefingDialog(vm: JarvisViewModel) {
+    val rows = remember { formatBriefing(vm.collectBriefing()) }
+    val now = remember {
+        java.time.LocalDateTime.now().format(
+            java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM - h:mm a")
+        )
+    }
+    AlertDialog(
+        onDismissRequest = { vm.showBriefing = false },
+        title = { Text("⚡ Briefing") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(now, fontSize = 13.sp, color = Muted)
+                rows.forEach { (k, v) ->
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(k, fontSize = 14.sp, color = Muted, modifier = Modifier.weight(1f))
+                        Text(v, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showBriefing = false }) { Text("Close") }
+        }
+    )
+}
+
+@Composable
 fun ShareDialog(vm: JarvisViewModel) {
     AlertDialog(
         onDismissRequest = { vm.showShare = false },
@@ -720,16 +773,33 @@ private fun ShareActionRow(label: String, onClick: () -> Unit) {
 
 @Composable
 fun ChatsDialog(vm: JarvisViewModel) {
+    var q by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { vm.showChats = false },
         title = { Text("💬 Chats") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (vm.chats.isEmpty()) {
-                    Text("No chats yet.", color = Muted, fontSize = 14.sp)
+                if (vm.chats.size > 1) {
+                    TextField(
+                        value = q,
+                        onValueChange = { q = it },
+                        placeholder = { Text("Search chats...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                val shown = remember(q, vm.chats.size) {
+                    if (q.isBlank()) vm.chats.toList()
+                    else vm.chats.filter { it.title.contains(q, ignoreCase = true) }
+                }
+                if (shown.isEmpty()) {
+                    Text(
+                        if (vm.chats.isEmpty()) "No chats yet." else "No matches.",
+                        color = Muted, fontSize = 14.sp
+                    )
                 } else {
                     LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                        items(vm.chats, key = { it.id }) { c ->
+                        items(shown, key = { it.id }) { c ->
                             val active = c.id == vm.activeChatId
                             Row(
                                 Modifier.fillMaxWidth()

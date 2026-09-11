@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        20, "2.9", listOf(
+            "Briefing card: battery, memory, storage, network at a glance",
+            "Search your chats + starter chips on empty chats"
+        )
+    ),
+    ChangelogEntry(
         19, "2.8", listOf(
             "Memory Vault: facts move to a local Room database",
             "Self-healing privacy: memories older than 30 days auto-expire",

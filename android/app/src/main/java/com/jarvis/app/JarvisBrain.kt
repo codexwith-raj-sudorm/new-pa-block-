@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.ActivityManager
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
@@ -12,9 +13,13 @@ import android.hardware.camera2.CameraManager
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.speech.RecognitionListener
@@ -281,6 +286,25 @@ fun sharePrompt(kind: String, text: String): String {
         else -> "Translate this to Hindi (give Roman + Devanagari):\n$t"
     }
 }
+
+/** Device telemetry snapshot for the Briefing card. */
+data class Briefing(
+    val batteryPct: Int,
+    val charging: Boolean,
+    val memUsedMb: Long,
+    val memTotalMb: Long,
+    val storeFreeGb: Double,
+    val storeTotalGb: Double,
+    val netName: String
+)
+
+/** Format a Briefing into (label, value) rows (pure, tested). */
+fun formatBriefing(b: Briefing): List<Pair<String, String>> = listOf(
+    "Battery" to "${b.batteryPct}%${if (b.charging) " (charging)" else ""}",
+    "Memory" to "${b.memUsedMb} / ${b.memTotalMb} MB",
+    "Storage free" to "${"%.1f".format(b.storeFreeGb)} / ${"%.0f".format(b.storeTotalGb)} GB",
+    "Network" to b.netName
+)
 
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
@@ -699,6 +723,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showList by mutableStateOf(false)
     var showWhatsNew by mutableStateOf(false)
     var showShare by mutableStateOf(false)
+    var showBriefing by mutableStateOf(false)
     var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
     var whatsNewItems by mutableStateOf<List<ChangelogEntry>>(emptyList())
@@ -1055,6 +1080,53 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- wake word service control ----
+
+    fun collectBriefing(): Briefing {
+        val ctx = getApplication<Application>()
+        var pct = -1
+        var charging = false
+        try {
+            val batt = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val lvl = batt?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scl = batt?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (lvl >= 0 && scl > 0) pct = (lvl * 100 / scl)
+            val st = batt?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            charging = st == BatteryManager.BATTERY_STATUS_CHARGING ||
+                st == BatteryManager.BATTERY_STATUS_FULL
+        } catch (_: Exception) {
+        }
+        var memUsed = -1L
+        var memTotal = -1L
+        try {
+            val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val mi = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(mi)
+            memTotal = mi.totalMem / (1024 * 1024)
+            memUsed = (mi.totalMem - mi.availMem) / (1024 * 1024)
+        } catch (_: Exception) {
+        }
+        var freeGb = -1.0
+        var totalGb = -1.0
+        try {
+            freeGb = ctx.filesDir.usableSpace / 1e9
+            totalGb = ctx.filesDir.totalSpace / 1e9
+        } catch (_: Exception) {
+        }
+        var net = "offline"
+        try {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+            net = when {
+                caps == null -> "offline"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "mobile data"
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+                else -> "connected"
+            }
+        } catch (_: Exception) {
+        }
+        return Briefing(pct, charging, memUsed, memTotal, freeGb, totalGb, net)
+    }
 
     fun batteryUnrestricted(): Boolean {
         return try {
