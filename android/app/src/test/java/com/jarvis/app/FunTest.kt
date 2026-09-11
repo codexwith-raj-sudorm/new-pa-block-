@@ -62,4 +62,10 @@ class FunTest {
         assertEquals("1 h", fmtDur(3600))
         assertEquals("45 sec", fmtDur(45))
     }
+
+    @Test fun fmtTimeStamps() {
+        assertEquals("", fmtTime(0))
+        assertEquals("", fmtTime(-5))
+        assertTrue(fmtTime(1_700_000_000_000L).contains(":"))
+    }
 }

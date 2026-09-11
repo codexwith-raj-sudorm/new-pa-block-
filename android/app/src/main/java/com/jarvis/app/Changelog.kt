@@ -9,6 +9,11 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        24, "3.3", listOf(
+            "Message timestamps — every bubble shows its time, saved forever"
+        )
+    ),
+    ChangelogEntry(
         23, "3.2", listOf(
             "Real weather: “Mumbai weather” or “will it rain” — no API key needed"
         )

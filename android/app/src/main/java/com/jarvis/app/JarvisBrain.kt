@@ -58,14 +58,14 @@ import java.util.concurrent.TimeUnit
 
 // ---------- models ----------
 
-data class ChatMessage(val role: String, val text: String) // role: user | bot
+data class ChatMessage(val role: String, val text: String, val time: Long = System.currentTimeMillis()) // role: user | bot
 
-data class ChatData(val id: String, var title: String, val msgs: MutableList<Pair<String, String>>)
+data class ChatData(val id: String, var title: String, val msgs: MutableList<Triple<String, String, Long>>)
 
 data class TtsVoice(val id: String, val label: String)
 
 /** Chat list title = first user message, truncated. Pure, tested. */
-fun chatTitle(msgs: List<Pair<String, String>>): String {
+fun chatTitle(msgs: List<Triple<String, String, Long>>): String {
     val first = msgs.firstOrNull { it.first == "user" }?.second?.trim().orEmpty()
     if (first.isEmpty()) return "New chat"
     return if (first.length <= 32) first else first.take(32).trimEnd() + "…"
@@ -698,10 +698,10 @@ class Store(context: Context) {
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
                 val marr = o.optJSONArray("msgs") ?: JSONArray()
-                val msgs = mutableListOf<Pair<String, String>>()
+                val msgs = mutableListOf<Triple<String, String, Long>>()
                 for (j in 0 until marr.length()) {
                     val m = marr.getJSONObject(j)
-                    msgs.add(m.getString("r") to m.getString("t"))
+                    msgs.add(Triple(m.getString("r"), m.getString("t"), m.optLong("ts", 0)))
                 }
                 out.add(ChatData(o.getString("id"), o.optString("title", "Chat"), msgs))
             }
@@ -715,8 +715,8 @@ class Store(context: Context) {
             val arr = JSONArray()
             for (c in chats.take(30)) {
                 val marr = JSONArray()
-                for ((r, t) in c.msgs.takeLast(40)) {
-                    marr.put(JSONObject().put("r", r).put("t", t.take(2000)))
+                for ((r, t, ts) in c.msgs.takeLast(40)) {
+                    marr.put(JSONObject().put("r", r).put("t", t.take(2000)).put("ts", ts))
                 }
                 arr.put(JSONObject().put("id", c.id).put("title", c.title.take(60)).put("msgs", marr))
             }
@@ -969,7 +969,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (loaded.isEmpty()) {
             val legacy = store.loadHistory()
             if (legacy.isNotEmpty()) {
-                loaded.add(ChatData("c1", chatTitle(legacy), legacy.toMutableList()))
+                loaded.add(ChatData("c1", chatTitle(legacy.map { Triple(it.first, it.second, 0L) }), legacy.map { Triple(it.first, it.second, 0L) }.toMutableList()))
             } else {
                 loaded.add(ChatData("c1", "New chat", mutableListOf()))
             }
@@ -979,8 +979,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val savedId = store.loadActiveId()
         activeChatId = if (loaded.any { it.id == savedId }) savedId else loaded[0].id
         val active = loaded.first { it.id == activeChatId }
-        for ((r, t) in active.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
+        for ((r, t, ts) in active.msgs) {
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
         }
         if (messages.isEmpty()) {
             messages.add(ChatMessage("bot", greet()))
@@ -1440,8 +1440,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val c = chats.firstOrNull { it.id == id } ?: return
         activeChatId = id
         messages.clear()
-        for ((r, t) in c.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
+        for ((r, t, ts) in c.msgs) {
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
         }
         if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         showChats = false
@@ -1458,8 +1458,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             stopSpeaking()
             activeChatId = chats[0].id
             messages.clear()
-            for ((r, t) in chats[0].msgs) {
-                messages.add(ChatMessage(if (r == "user") "user" else "bot", t))
+            for ((r, t, ts) in chats[0].msgs) {
+                messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
             }
             if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         }
@@ -2049,7 +2049,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun persist() {
         val c = chats.firstOrNull { it.id == activeChatId } ?: return
         c.msgs.clear()
-        c.msgs.addAll(messages.map { (if (it.role == "user") "user" else "model") to it.text })
+        c.msgs.addAll(messages.map { Triple(if (it.role == "user") "user" else "model", it.text, it.time) })
         c.title = chatTitle(c.msgs)
         store.saveChats(chats)
         store.saveActiveId(activeChatId)

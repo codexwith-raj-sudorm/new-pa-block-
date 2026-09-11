@@ -450,11 +450,23 @@ fun TopBar(
 }
 
 @Composable
+/** "h:mm a" stamp for chat bubbles (blank when unknown). Pure. */
+fun fmtTime(ts: Long): String {
+    if (ts <= 0) return ""
+    return try {
+        java.time.Instant.ofEpochMilli(ts).atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+    } catch (_: Exception) {
+        ""
+    }
+}
+
 fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val segs = remember(m.text) { splitCodeBlocks(m.text) }
+    val ts = remember(m.time) { fmtTime(m.time) }
     Box(Modifier.fillMaxWidth()) {
         Column(
             Modifier.align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
@@ -515,6 +527,12 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
                             )
                         }
                     }
+                }
+                if (ts.isNotEmpty()) {
+                    Text(
+                        ts, color = Muted, fontSize = 11.sp,
+                        modifier = Modifier.align(if (isUser) Alignment.End else Alignment.Start)
+                    )
                 }
             }
         }
