@@ -307,6 +307,10 @@ class Store(context: Context) {
         get() = p.getBoolean("battery_asked", false)
         set(v) = p.edit().putBoolean("battery_asked", v).apply()
 
+    var lastSeenCode: Int
+        get() = p.getInt("last_seen_code", 0)
+        set(v) = p.edit().putInt("last_seen_code", v).apply()
+
     fun facts(): MutableList<String> =
         p.getStringSet("facts", emptySet())?.toMutableList() ?: mutableListOf()
 
@@ -631,6 +635,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showChats by mutableStateOf(false)
     var showMemory by mutableStateOf(false)
     var showList by mutableStateOf(false)
+    var showWhatsNew by mutableStateOf(false)
+    var whatsNewFresh by mutableStateOf(false)
+    var whatsNewItems by mutableStateOf<List<ChangelogEntry>>(emptyList())
     var settingsMsg by mutableStateOf("")
         private set
     var apiKey by mutableStateOf(store.apiKey)
@@ -1108,6 +1115,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- memories ----
+
+    fun checkWhatsNew() {
+        try {
+            val cur = BuildConfig.VERSION_CODE
+            val last = store.lastSeenCode
+            if (cur > last) {
+                whatsNewFresh = last == 0
+                whatsNewItems = if (last == 0) CHANGELOG.filter { it.code == cur } else whatsNew(last)
+                if (whatsNewItems.isEmpty()) whatsNewItems = CHANGELOG.take(1)
+                showWhatsNew = true
+                store.lastSeenCode = cur
+            }
+        } catch (_: Exception) { }
+    }
 
     fun todoItems(): List<TodoItem> = store.loadTodos()
     fun noteItems(): List<String> = store.loadNotes()

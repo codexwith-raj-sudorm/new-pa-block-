@@ -15,6 +15,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 📝 Todos & notes: checkable lists ("add milk to my list", "done 2") + quick notes — all offline
 - 🔋 Wake word + reminders survive reboot (auto re-arm) + battery-optimization prompt
 - 🧲 Mini arc-reactor home-screen widget: tap to arm wake mode, tap while Jarvis speaks to interrupt
+- 🆕 What's-new popup on every update + full update history in Settings
 - ⚙️ Settings: optional own key, preferred model, refresh models
 
 ## Install (phone, no PC needed)

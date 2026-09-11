@@ -248,6 +248,7 @@ fun JarvisScreen() {
     LaunchedEffect(notifTick) {
         if (notifTick > 0) onWakeTap()
     }
+    LaunchedEffect(Unit) { vm.checkWhatsNew() }
 
     Column(Modifier.fillMaxSize().background(Bg)) {
         TopBar(
@@ -303,6 +304,7 @@ fun JarvisScreen() {
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
+    if (vm.showWhatsNew) WhatsNewDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -488,6 +490,16 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Text("What's new", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                CHANGELOG.forEach { e ->
+                    Text(
+                        "v${e.name}", fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp, color = Accent
+                    )
+                    e.features.forEach { f ->
+                        Text("• $f", fontSize = 13.sp, color = Muted)
+                    }
+                }
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Only needed if you want to use your own key.",
@@ -638,6 +650,28 @@ fun ChatsDialog(vm: JarvisViewModel) {
         },
         dismissButton = {
             TextButton(onClick = { vm.showChats = false }) { Text("Close") }
+        }
+    )
+}
+
+@Composable
+fun WhatsNewDialog(vm: JarvisViewModel) {
+    AlertDialog(
+        onDismissRequest = { vm.showWhatsNew = false },
+        title = { Text(if (vm.whatsNewFresh) "Welcome to Jarvis" else "What's new") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                vm.whatsNewItems.forEach { e ->
+                    Text("v${e.name}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Accent)
+                    e.features.forEach { f -> Text("• $f", fontSize = 14.sp) }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showWhatsNew = false }) { Text("Let's go") }
         }
     )
 }
