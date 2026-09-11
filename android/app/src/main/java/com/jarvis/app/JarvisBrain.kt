@@ -1204,7 +1204,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun greet(): String {
-        if (masterInstalled) return "Welcome back, Master. I am Jarvis, ready to serve."
+        if (masterInstalled) return masterGreet(masterName)
         return if (brainOk) "Hello. I am Jarvis. How can I help?"
         else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
     }

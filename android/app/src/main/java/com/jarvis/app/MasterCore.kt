@@ -15,6 +15,10 @@ const val BAKED_MASTER_ABOUT = "Raj Thakur from West Bengal, India is the creato
     "of Jarvis and its one true Master. He is building Jarvis as his dream " +
     "personal AI assistant."
 
+/** Personalized master welcome greeting (pure, tested). */
+fun masterGreet(name: String): String =
+    "Welcome back, Master " + firstName(name) + ". I am Jarvis, ready to serve."
+
 /** First word of a full name ("Raj Thakur" -> "Raj"). Pure, tested. */
 fun firstName(full: String): String =
     full.trim().split(Regex("\\s+")).firstOrNull().orEmpty()

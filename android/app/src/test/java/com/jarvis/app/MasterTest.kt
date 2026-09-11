@@ -52,4 +52,15 @@ class MasterTest {
         assertEquals("2026-09-12-morning", wakeGreetStamp("2026-09-12", "morning"))
         assertEquals("Raj", firstName("  Raj  Thakur "))
     }
+
+    @Test fun masterGreetPersonal() {
+        assertEquals(
+            "Welcome back, Master Raj. I am Jarvis, ready to serve.",
+            masterGreet("Raj Thakur")
+        )
+        assertEquals(
+            "Welcome back, Master Cher. I am Jarvis, ready to serve.",
+            masterGreet("Cher")
+        )
+    }
 }
