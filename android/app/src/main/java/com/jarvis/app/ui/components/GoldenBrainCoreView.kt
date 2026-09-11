@@ -79,11 +79,7 @@ fun GoldenBrainCoreView(
         modifier = modifier
             .size(sizeDp)
             .clip(CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = rememberRipple(bounded = true, color = Color(0xFFFDE68A)),
-                onClick = onClick
-            ),
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(sizeDp)) {
