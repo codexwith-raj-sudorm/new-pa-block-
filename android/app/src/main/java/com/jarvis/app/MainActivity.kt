@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
@@ -336,6 +337,30 @@ fun TopBar(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color.White)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("＋ New chat") },
+                        onClick = { menuOpen = false; onNewChat() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("🧠 Memory") },
+                        onClick = { menuOpen = false; onMemory() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("📝 Lists") },
+                        onClick = { menuOpen = false; onList() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off") },
+                        onClick = { menuOpen = false; onToggleTts() }
+                    )
+                }
+            }
             Box(
                 Modifier.size(38.dp).clip(CircleShape).background(UserBlue),
                 contentAlignment = Alignment.Center
@@ -352,13 +377,6 @@ fun TopBar(
                     )
                 }
             }
-            IconButton(onClick = onToggleTts) {
-                Icon(
-                    if (ttsOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
-                    contentDescription = if (ttsOn) "Mute voice" else "Unmute voice",
-                    tint = if (ttsOn) Accent else Muted
-                )
-            }
             IconButton(onClick = onSettings) {
                 Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color.White)
             }
@@ -367,10 +385,7 @@ fun TopBar(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onNewChat) { Text("＋ New", fontSize = 13.sp) }
             TextButton(onClick = onChats) { Text("💬 Chats", fontSize = 13.sp) }
-            TextButton(onClick = onMemory) { Text("🧠 Memory", fontSize = 13.sp) }
-            TextButton(onClick = onList) { Text("📝 List", fontSize = 13.sp) }
             TextButton(onClick = onWake) {
                 Text(
                     if (wakeOn) "👂 Wake on" else "👂 Wake",
@@ -491,14 +506,26 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("What's new", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                CHANGELOG.forEach { e ->
+                var updatesOpen by remember { mutableStateOf(false) }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { updatesOpen = !updatesOpen }
+                ) {
                     Text(
-                        "v${e.name}", fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp, color = Accent
+                        "🆕 Updates", fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                        modifier = Modifier.weight(1f)
                     )
-                    e.features.forEach { f ->
-                        Text("• $f", fontSize = 13.sp, color = Muted)
+                    Text(if (updatesOpen) "▾" else "▸", fontSize = 14.sp, color = Muted)
+                }
+                if (updatesOpen) {
+                    CHANGELOG.forEach { e ->
+                        Text(
+                            "v${e.name}", fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp, color = Accent
+                        )
+                        e.features.forEach { f ->
+                            Text("• $f", fontSize = 13.sp, color = Muted)
+                        }
                     }
                 }
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)

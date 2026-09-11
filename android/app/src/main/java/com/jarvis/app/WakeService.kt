@@ -333,7 +333,7 @@ class WakeService : Service() {
             val all = try { t.voices } catch (_: Exception) { null }.orEmpty()
             val loc = Locale.getDefault()
             val infos = all.map {
-                EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired)
+                EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired, it.features?.toSet().orEmpty())
             }
             val want = resolvePersonaVoices(infos, loc.language, loc.country ?: "")[key]
             val match = all.firstOrNull { it.name == want?.name }

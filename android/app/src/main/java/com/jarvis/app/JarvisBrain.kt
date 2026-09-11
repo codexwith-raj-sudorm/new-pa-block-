@@ -769,7 +769,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val all = try { t.voices } catch (_: Exception) { null }.orEmpty()
         if (all.isEmpty()) return null
         val infos = all.map {
-            EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired)
+            EngineVoiceInfo(it.name, it.locale?.language ?: "", it.locale?.country ?: "", it.isNetworkConnectionRequired, it.features?.toSet().orEmpty())
         }
         val loc = Locale.getDefault()
         val want = resolvePersonaVoices(infos, loc.language, loc.country ?: "")[personaKey] ?: return null

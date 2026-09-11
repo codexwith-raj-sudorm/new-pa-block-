@@ -48,7 +48,8 @@ data class EngineVoiceInfo(
     val name: String,
     val language: String,
     val country: String,
-    val networkRequired: Boolean
+    val networkRequired: Boolean,
+    val features: Set<String> = emptySet()
 )
 
 private val FEMALE_HINTS = listOf(
@@ -63,10 +64,11 @@ private val MALE_HINTS = listOf(
 )
 
 /** Gender guess from the engine voice name. Female checked first ("woman" contains "man"). */
-fun genderOfVoice(name: String): PersonaGender? {
+fun genderOfVoice(name: String, features: Set<String> = emptySet()): PersonaGender? {
     val n = name.lowercase()
-    if (FEMALE_HINTS.any { n.contains(it) }) return PersonaGender.FEMALE
-    if (MALE_HINTS.any { n.contains(it) }) return PersonaGender.MALE
+    val f = features.joinToString(" ").lowercase()
+    if (FEMALE_HINTS.any { n.contains(it) } || FEMALE_HINTS.any { f.contains(it) }) return PersonaGender.FEMALE
+    if (MALE_HINTS.any { n.contains(it) } || MALE_HINTS.any { f.contains(it) }) return PersonaGender.MALE
     return null
 }
 
@@ -77,7 +79,7 @@ fun scoreVoice(info: EngineVoiceInfo, persona: VoicePersona, deviceLang: String,
     if (wantCountry.isNotEmpty() && info.country.equals(wantCountry, ignoreCase = true)) s += 4
     else if (wantCountry.isNotEmpty() && info.country.isNotEmpty()) s -= 1
     if (!info.networkRequired) s += 3
-    when (genderOfVoice(info.name)) {
+    when (genderOfVoice(info.name, info.features)) {
         persona.gender -> s += 10
         null -> { }
         else -> s -= 50
@@ -103,6 +105,9 @@ fun resolvePersonaVoices(
     val out = mutableMapOf<String, EngineVoiceInfo?>()
     for (persona in VOICE_PERSONAS) {
         val pick = ranked(remaining, persona, strict = true).firstOrNull()?.first
+            // Fallback 1: reuse an already-taken voice, but NEVER cross genders.
+            ?: ranked(infos, persona, strict = true).firstOrNull()?.first
+            // Fallback 2: the whole engine disagrees (e.g. all-female) — take the best anyway.
             ?: ranked(infos, persona, strict = false).firstOrNull()?.first
         out[persona.key] = pick
         remaining.remove(pick)

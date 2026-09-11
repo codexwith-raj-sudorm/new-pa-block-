@@ -71,4 +71,31 @@ class PersonaTest {
         assertTrue("arjun got ${map["arjun"]?.name}", map["arjun"]?.name.orEmpty().startsWith("en-in"))
         assertTrue("kabir got ${map["kabir"]?.name}", map["kabir"]?.name.orEmpty().startsWith("en-in"))
     }
+
+    @Test fun fallbackReusesInsteadOfCrossing() {
+        val infos = listOf(
+            info("Voice Male"),
+            info("Voice Female 1"), info("Voice Female 2"), info("Voice Female 3"),
+            info("Voice Female 4"), info("Voice Female 5"), info("Voice Female 6")
+        )
+        val map = resolvePersonaVoices(infos, "en", "US")
+        for (k in listOf("jarvis", "arjun", "kabir", "dev")) {
+            assertEquals("$k crossed gender", "Voice Male", map[k]?.name)
+        }
+        for (k in listOf("priya", "ananya", "meera")) {
+            assertTrue("$k crossed", map[k]?.name.orEmpty().contains("Female"))
+        }
+    }
+
+    @Test fun featuresDiscloseGender() {
+        assertEquals(PersonaGender.FEMALE, genderOfVoice("en-us-x-abc-local", setOf("gender:female")))
+        assertEquals(PersonaGender.MALE, genderOfVoice("en-us-x-abc-local", setOf("gender:male")))
+        assertEquals(null, genderOfVoice("en-us-x-abc-local"))
+    }
+
+    @Test fun allSameGenderStillAssigns() {
+        val infos = List(8) { i -> info("Voice Female $i") }
+        val map = resolvePersonaVoices(infos, "en", "US")
+        assertTrue(map.values.all { it != null })
+    }
 }

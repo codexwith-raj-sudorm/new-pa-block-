@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        16, "2.5", listOf(
+            "Voice gender mismatches fixed (male names get male voices)",
+            "Hamburger menu: home screen keeps Wake, Chats, Settings only",
+            "Settings Updates section (collapsible history)"
+        )
+    ),
+    ChangelogEntry(
         15, "2.4", listOf(
             "Bubble ring becomes a live audio visualizer while listening/speaking",
             "Color states: green listening, amber thinking, gray offline",
