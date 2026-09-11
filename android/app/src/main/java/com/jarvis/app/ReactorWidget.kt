@@ -11,7 +11,7 @@ import android.widget.RemoteViews
 /** Tap action the widget's PendingIntent fires at MainActivity. */
 const val ACTION_WIDGET_TAP = "com.jarvis.app.WIDGET_TAP"
 
-/** Process-wide speech flag: VM replies and the service "Yes?" both report here. */
+/** Process-wide speech flag: VM replies and the service "Yes sir?" both report here. */
 object SpeechState {
     @Volatile var speaking: Boolean = false
 }

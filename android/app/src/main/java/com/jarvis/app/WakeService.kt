@@ -324,7 +324,7 @@ class WakeService : Service() {
                     TextToSpeech.QUEUE_FLUSH, null, "wake"
                 )
             } else {
-                tts?.speak("Yes?", TextToSpeech.QUEUE_FLUSH, null, "wake")
+                tts?.speak("Yes sir?", TextToSpeech.QUEUE_FLUSH, null, "wake")
             }
         } catch (_: Exception) {
         }

@@ -11,7 +11,7 @@ package com.jarvis.app
  */
 const val BAKED_MASTER_KEY = "JARVIS-RAJ-MASTER-77"
 const val BAKED_MASTER_NAME = "Raj Thakur"
-const val BAKED_MASTER_ABOUT = "Raj Thakur from Mumbai, India is the creator " +
+const val BAKED_MASTER_ABOUT = "Raj Thakur from West Bengal, India is the creator " +
     "of Jarvis and its one true Master. He is building Jarvis as his dream " +
     "personal AI assistant."
 
