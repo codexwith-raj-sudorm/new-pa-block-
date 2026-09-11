@@ -6,13 +6,17 @@ import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
+import android.app.NotificationManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.content.Intent
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -266,6 +270,17 @@ object Calculator {
     }
 }
 
+/** Build the prompt for a Share Hub quick action (pure, tested). */
+fun sharePrompt(kind: String, text: String): String {
+    val t = text.trim().take(4000)
+    return when (kind) {
+        "sum" -> "Summarize this in 3 short bullets:\n$t"
+        "eli5" -> "Explain this like I'm 5 years old:\n$t"
+        "bugs" -> "Review this code for bugs, then show the fixed code in a fenced block:\n$t"
+        else -> "Translate this to Hindi (give Roman + Devanagari):\n$t"
+    }
+}
+
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
 object Router {
@@ -324,6 +339,10 @@ class Store(context: Context) {
     var wakeEnabled: Boolean
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
+
+    var continuous: Boolean
+        get() = p.getBoolean("continuous", false)
+        set(v) = p.edit().putBoolean("continuous", v).apply()
 
     var batteryAsked: Boolean
         get() = p.getBoolean("battery_asked", false)
@@ -658,6 +677,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showMemory by mutableStateOf(false)
     var showList by mutableStateOf(false)
     var showWhatsNew by mutableStateOf(false)
+    var showShare by mutableStateOf(false)
+    var shareText by mutableStateOf("")
     var whatsNewFresh by mutableStateOf(false)
     var whatsNewItems by mutableStateOf<List<ChangelogEntry>>(emptyList())
     var settingsMsg by mutableStateOf("")
@@ -672,6 +693,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var listTick by mutableStateOf(0)
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
+    var continuous by mutableStateOf(store.continuous)
         private set
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
@@ -780,7 +802,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             t.setPitch(persona.pitch)
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
-                override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
+                override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } }
                 override fun onError(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
             })
         } catch (_: Exception) {
@@ -822,6 +844,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         ttsOn = !ttsOn
         store.ttsEnabled = ttsOn
         if (!ttsOn) stopSpeaking()
+    }
+
+    fun toggleContinuous() {
+        continuous = !continuous
+        store.continuous = continuous
+    }
+
+    fun incomingShare(t: String) {
+        shareText = t.trim().take(4000)
+        showShare = shareText.isNotBlank()
+    }
+
+    fun shareAction(kind: String) {
+        val t = shareText
+        showShare = false
+        shareText = ""
+        if (t.isBlank()) return
+        send(sharePrompt(kind, t))
     }
 
     private fun stopSpeaking() {
@@ -1356,11 +1396,33 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun setSilence(on: Boolean): String {
+        return try {
+            val ctx = getApplication<Application>()
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (!nm.isNotificationPolicyAccessGranted) {
+                val i = Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+                "Almost — flip the toggle for Jarvis, then say silence again."
+            } else {
+                nm.setInterruptionFilter(
+                    if (on) NotificationManager.INTERRUPTION_FILTER_NONE
+                    else NotificationManager.INTERRUPTION_FILTER_ALL
+                )
+                if (on) "Silent mode on. Say unsilence to restore sound."
+                else "Sound restored."
+            }
+        } catch (_: Exception) { "Couldn't change silent mode." }
+    }
+
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
             ?: return "I can open apps, flip the torch, dial contacts, or open settings — e.g. “open YouTube”."
         return when (cmd) {
             is OpenApp -> openAppByName(cmd.name)
+            is Silence -> setSilence(true)
+            is Unsilence -> setSilence(false)
             is Torch -> setTorch(cmd.on)
             is CallContact -> callContact(cmd.query)
             is WifiPanel -> openWifiPanel()

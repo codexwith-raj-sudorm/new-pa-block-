@@ -29,6 +29,14 @@ class DeviceTest {
         assertTrue(parseDeviceCommand("open settings") is SysSettings)
     }
 
+    @Test fun silenceParse() {
+        assertTrue(parseDeviceCommand("silence my phone") is Silence)
+        assertTrue(parseDeviceCommand("turn on silent mode") is Silence)
+        assertTrue(parseDeviceCommand("turn off silent mode") is Unsilence)
+        assertTrue(parseDeviceCommand("unsilence") is Unsilence)
+        assertTrue(parseDeviceCommand("sound on") is Unsilence)
+    }
+
     @Test fun garbageIsNull() {
         assertNull(parseDeviceCommand("hello there"))
         assertNull(parseDeviceCommand("what time is it"))

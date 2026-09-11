@@ -115,6 +115,18 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {
             }
         }
+        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+            val shared = intent.getStringExtra(Intent.EXTRA_TEXT).orEmpty()
+            intent.action = null // consume
+            setIntent(intent)
+            if (shared.isNotBlank()) {
+                try {
+                    ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
+                        .incomingShare(shared)
+                } catch (_: Exception) {
+                }
+            }
+        }
         if (intent?.action == ACTION_WIDGET_TAP) {
             StarkSounds.click()
             intent.action = null // consume
@@ -267,7 +279,9 @@ fun JarvisScreen() {
             ttsOn = vm.ttsOn,
             onToggleTts = vm::toggleTts,
             wakeOn = vm.wakeOn,
-            onWake = ::onWakeTap
+            onWake = ::onWakeTap,
+            continuous = vm.continuous,
+            onToggleContinuous = vm::toggleContinuous
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -311,6 +325,7 @@ fun JarvisScreen() {
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
     if (vm.showWhatsNew) WhatsNewDialog(vm)
+    if (vm.showShare) ShareDialog(vm)
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {
@@ -332,7 +347,9 @@ fun TopBar(
     onToggleTts: () -> Unit,
     wakeOn: Boolean,
     onWake: () -> Unit,
-    onList: () -> Unit
+    onList: () -> Unit,
+    continuous: Boolean,
+    onToggleContinuous: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -362,6 +379,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off") },
                         onClick = { menuOpen = false; onToggleTts() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(if (continuous) "🔁 Hands-free on" else "🔁 Hands-free off") },
+                        onClick = { menuOpen = false; onToggleContinuous() }
                     )
                 }
             }
@@ -667,6 +688,34 @@ fun SettingsDialog(vm: JarvisViewModel) {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
         }
     )
+}
+
+@Composable
+fun ShareDialog(vm: JarvisViewModel) {
+    AlertDialog(
+        onDismissRequest = { vm.showShare = false },
+        title = { Text("⚡ Share Hub") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    vm.shareText.take(220) + if (vm.shareText.length > 220) "…" else "",
+                    fontSize = 13.sp, color = Muted, maxLines = 5
+                )
+                ShareActionRow("📝 Summarize") { vm.shareAction("sum") }
+                ShareActionRow("🧒 Explain like I'm 5") { vm.shareAction("eli5") }
+                ShareActionRow("🐞 Find bugs") { vm.shareAction("bugs") }
+                ShareActionRow("🌐 Translate to Hindi") { vm.shareAction("tr") }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { vm.showShare = false }) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun ShareActionRow(label: String, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
 }
 
 @Composable

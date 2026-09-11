@@ -10,11 +10,14 @@ package com.jarvis.app
  * - "call mom" / "dial +919876543210" (opens the dialer — never auto-calls)
  * - "turn on wifi" (opens the Wi-Fi panel — Android 10+ forbids silent toggles)
  * - "open settings"
+ * - "silence my phone" / "turn off silent mode" (Do Not Disturb)
  */
 sealed interface DeviceCommand
 data class OpenApp(val name: String) : DeviceCommand
 data class Torch(val on: Boolean) : DeviceCommand
 data class CallContact(val query: String) : DeviceCommand
+object Silence : DeviceCommand
+object Unsilence : DeviceCommand
 object WifiPanel : DeviceCommand
 object SysSettings : DeviceCommand
 
@@ -29,6 +32,15 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         val off = Regex("""\boff\b""").containsMatchIn(low)
         if (on != off) return Torch(on)
     }
+
+    // Silence / unsilence (Do Not Disturb).
+    val dndWord = low.contains("silent") || low.contains("silence") ||
+        low.contains("do not disturb") || Regex("""\bdnd\b""").containsMatchIn(low)
+    val offWord = Regex("""\b(off|disable|stop|exit)\b""").containsMatchIn(low)
+    if (low.contains("unsilence") || low.contains("un-silence") ||
+        Regex("""\b(sound|ringer) on\b""").containsMatchIn(low) || (dndWord && offWord)
+    ) return Unsilence
+    if (dndWord) return Silence
 
     // Wi-Fi panel (apps can't flip the switch since Android 10).
     if (low.contains("wifi") || low.contains("wi-fi") || low.contains("wi fi")) return WifiPanel

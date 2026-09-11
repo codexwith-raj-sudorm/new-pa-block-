@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        18, "2.7", listOf(
+            "Share Hub: share any text to Jarvis — summarize, ELI5, bug-hunt, translate",
+            "“Silence my phone” / “unsilence” device command",
+            "Hands-free mode: mic re-opens after every reply"
+        )
+    ),
+    ChangelogEntry(
         17, "2.6", listOf(
             "Stark cinematic theme: obsidian + gold + cyan",
             "Code Terminal: fenced code renders with Copy button",
