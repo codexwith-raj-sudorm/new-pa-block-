@@ -5,7 +5,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 
 ![android](https://github.com/codexwith-raj-sudorm/new-pa-block-/actions/workflows/android.yml/badge.svg?branch=arena/01a08a6b-new-pa-block)
 
-## Features (v2)
+## Features (v3)
 
 - 💬 Chat with Gemini + auto model discovery, 20-message context, on-device history
 - 💬 Multi-chat: new / switch / delete chats with auto-titles
@@ -18,6 +18,14 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 🆕 What's-new popup on every update + full update history in Settings
 - 🌀 Stark HUD states: live waveform ring, color-coded modes, edge-dock, status ticker, interface chimes
 - ⚙️ Settings: optional own key, preferred model, refresh models
+- 🎨 Stark cinematic theme (obsidian + gold + cyan) + white-hot HUD speech state
+- 💻 Code Terminal: fenced code renders in monospace blocks with Copy (TTS skips code)
+- ⚡ Share Hub: system share target — summarize, ELI5, bug-hunt, translate any text
+- 🔇 Device silence: “silence my phone” / “unsilence” via Do Not Disturb
+- 🔁 Hands-free mode: mic re-opens after every reply (menu toggle)
+- 🗄️ Memory Vault: facts in Room DB with 30-day auto-expiry + seamless migration
+- 📊 Briefing card: battery, memory, storage, network + chat search + starter chips
+- ↻ One-tap retry on failed replies + 📤 export any chat as text
 
 ## Install (phone, no PC needed)
 

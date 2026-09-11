@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        21, "3.0", listOf(
+            "Retry button on failed replies — one tap to regenerate",
+            "Share any chat as text to WhatsApp, Gmail, anywhere"
+        )
+    ),
+    ChangelogEntry(
         20, "2.9", listOf(
             "Briefing card: battery, memory, storage, network at a glance",
             "Search your chats + starter chips on empty chats"

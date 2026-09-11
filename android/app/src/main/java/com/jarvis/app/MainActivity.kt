@@ -283,7 +283,8 @@ fun JarvisScreen() {
             onWake = ::onWakeTap,
             continuous = vm.continuous,
             onToggleContinuous = vm::toggleContinuous,
-            onBriefing = { vm.showBriefing = true }
+            onBriefing = { vm.showBriefing = true },
+            onShareChat = vm::exportChat
         )
         val listState = rememberLazyListState()
         LaunchedEffect(vm.messages.size, vm.busy) {
@@ -295,7 +296,7 @@ fun JarvisScreen() {
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(vm.messages) { Bubble(it) }
+            items(vm.messages) { Bubble(it, vm::retryLast) }
             if (vm.busy) {
                 item {
                     Box(Modifier.fillMaxWidth()) {
@@ -365,7 +366,8 @@ fun TopBar(
     onList: () -> Unit,
     continuous: Boolean,
     onToggleContinuous: () -> Unit,
-    onBriefing: () -> Unit
+    onBriefing: () -> Unit,
+    onShareChat: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
@@ -403,6 +405,10 @@ fun TopBar(
                     DropdownMenuItem(
                         text = { Text("⚡ Briefing") },
                         onClick = { menuOpen = false; onBriefing() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("📤 Share chat") },
+                        onClick = { menuOpen = false; onShareChat() }
                     )
                 }
             }
@@ -444,7 +450,7 @@ fun TopBar(
 }
 
 @Composable
-fun Bubble(m: ChatMessage) {
+fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -457,6 +463,7 @@ fun Bubble(m: ChatMessage) {
         ) {
             segs.forEach { s ->
                 if (!s.isCode) {
+                    Column {
                     SelectionContainer {
                         Text(
                             s.text,
@@ -474,6 +481,10 @@ fun Bubble(m: ChatMessage) {
                                 .background(if (isUser) UserBlue else BotGray)
                                 .padding(12.dp)
                         )
+                    }
+                    if (!isUser && s.text.startsWith("⚠")) {
+                        TextButton(onClick = onRetry) { Text("↻ Retry", fontSize = 12.sp) }
+                    }
                     }
                 } else {
                     Column(

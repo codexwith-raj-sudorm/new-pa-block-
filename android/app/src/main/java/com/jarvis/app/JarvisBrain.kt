@@ -276,6 +276,17 @@ object Calculator {
     }
 }
 
+/** Build a shareable plain-text transcript of a chat (pure, tested). */
+fun chatTranscript(title: String, msgs: List<ChatMessage>): String {
+    val sb = StringBuilder("JARVIS - ")
+    sb.append(title.ifBlank { "Chat" }).append("\n\n")
+    for (m in msgs) {
+        sb.append(if (m.role == "user") "You: " else "Jarvis: ")
+        sb.append(m.text.trim()).append("\n\n")
+    }
+    return sb.toString().trimEnd() + "\n"
+}
+
 /** Build the prompt for a Share Hub quick action (pure, tested). */
 fun sharePrompt(kind: String, text: String): String {
     val t = text.trim().take(4000)
@@ -908,6 +919,29 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         shareText = ""
         if (t.isBlank()) return
         send(sharePrompt(kind, t))
+    }
+
+    fun exportChat() {
+        try {
+            val c = chats.firstOrNull { it.id == activeChatId } ?: return
+            val t = chatTranscript(c.title, messages.toList())
+            val i = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_TEXT, t)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(Intent.createChooser(i, "Share chat"))
+        } catch (_: Exception) {
+        }
+    }
+
+    fun retryLast() {
+        if (busy || messages.size < 2) return
+        val last = messages.last()
+        if (last.role != "bot" || !last.text.startsWith("⚠")) return
+        val prev = messages[messages.size - 2]
+        if (prev.role != "user") return
+        messages.removeAt(messages.size - 1)
+        messages.removeAt(messages.size - 1)
+        send(prev.text)
     }
 
     private fun stopSpeaking() {
