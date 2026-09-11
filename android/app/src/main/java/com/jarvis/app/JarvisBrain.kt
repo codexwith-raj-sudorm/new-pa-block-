@@ -429,6 +429,61 @@ fun fmtDur(totalSec: Int): String {
     return parts.joinToString(" ")
 }
 
+/** Extract a city from "weather in X" / "X weather" / "rain in X". Pure, tested. */
+fun parseWeatherCity(raw: String): String {
+    val t = raw.trim().trimEnd('?', '.', '!').trim()
+    val pats = listOf(
+        Regex("""(?i)\bweather\s+(?:in|at|for)\s+(.+)"""),
+        Regex("""(?i)\bforecast\s+(?:in|at|for)?\s*(.+)"""),
+        Regex("""(?i)^(.+?)\s+weather$"""),
+        Regex("""(?i)\brain\s+(?:in|at)\s+(.+)""")
+    )
+    val leadQ = Regex("""(?i)^(what'?s?|what\s+is|how'?s?|how\s+is|will|is|the|a|an)\s+""")
+    val trailT = Regex("""(?i)\s+(today|tonight|tomorrow|right\s+now|this\s+\w+)$""")
+    for (p in pats) {
+        var c = p.find(t)?.groupValues?.get(1)?.trim() ?: continue
+        c = trailT.replace(c, "").trim()
+        var prev: String
+        do { prev = c; c = leadQ.replace(c, "").trim() } while (c != prev)
+        if (c.equals("the", true) || c.equals("a", true) || c.equals("an", true)) c = 
+        c = Regex("""(?i)^(in|at|for)\s+""").replace(c, "").trim()
+        if (c.isNotEmpty() && c.length <= 60 && !c.contains("\n")) return c
+    }
+    return ""
+}
+
+/** Current conditions from wttr.in (keyless JSON). */
+data class WttrNow(
+    val area: String, val country: String, val tempC: String,
+    val feelsC: String, val desc: String, val humidity: String, val windKph: String
+)
+
+/** Parse wttr.in j1 JSON (null when unparseable). Pure, tested. */
+fun parseWttr(json: String): WttrNow? {
+    return try {
+        val o = JSONObject(json)
+        val cur = o.getJSONArray("current_condition").getJSONObject(0)
+        val near = o.getJSONArray("nearest_area").getJSONObject(0)
+        WttrNow(
+            area = near.getJSONArray("areaName").getJSONObject(0).optString("value"),
+            country = near.getJSONArray("country").getJSONObject(0).optString("value"),
+            tempC = cur.optString("temp_C"),
+            feelsC = cur.optString("FeelsLikeC"),
+            desc = cur.getJSONArray("weatherDesc").getJSONObject(0).optString("value"),
+            humidity = cur.optString("humidity"),
+            windKph = cur.optString("windspeedKmph")
+        )
+    } catch (_: Exception) { null }
+}
+
+/** "Mumbai, India: Partly cloudy, 31C (feels 34C)...". Pure, tested. */
+fun formatWeather(w: WttrNow): String {
+    val deg = "°C"
+    val where = listOf(w.area, w.country).filter { it.isNotBlank() }.joinToString(", ")
+    return "$where: ${w.desc}, ${w.tempC}$deg (feels ${w.feelsC}$deg). " +
+        "Humidity ${w.humidity}%, wind ${w.windKph} km/h."
+}
+
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
 object Router {
@@ -461,6 +516,9 @@ object Router {
         if (low.startsWith("roll ")) return Hit("dice", t)
         convertUnits(t)?.let { return Hit("convert", t) }
         if ("joke" in low && t.length < 60) return Hit("joke", "")
+        if (low.contains("weather") || low.contains("forecast") ||
+            Regex("""\brain\b""").containsMatchIn(low)
+        ) return Hit("weather", t)
         daypartHit(low, t)?.let { return it }
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
@@ -838,6 +896,7 @@ object GeminiApi {
 class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
     private val audio: AudioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val http = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build()
 
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
@@ -1598,6 +1657,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         persist()
         HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
+            if (hit.tool == "weather") {
+                busy = true
+                HudStateBus.update(thinking = true)
+                viewModelScope.launch {
+                    try {
+                        val reply = fetchWeather(hit.arg)
+                        messages.add(ChatMessage("bot", reply))
+                        speak(reply)
+                    } catch (e: Exception) {
+                        messages.add(ChatMessage("bot", "⚠️ Couldn't reach the weather service."))
+                    } finally {
+                        busy = false
+                        HudStateBus.update(thinking = false)
+                        persist()
+                    }
+                }
+                return
+            }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
             speak(reply)
@@ -1658,6 +1735,19 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 else "Sound restored."
             }
         } catch (_: Exception) { "Couldn't change silent mode." }
+    }
+
+    private suspend fun fetchWeather(arg: String): String = withContext(Dispatchers.IO) {
+        val city = parseWeatherCity(arg)
+        val url = if (city.isBlank()) "https://wttr.in/?format=j1"
+        else "https://wttr.in/" + Uri.encode(city) + "?format=j1"
+        val req = Request.Builder().url(url).header("User-Agent", "curl/8.0").build()
+        http.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IllegalStateException("weather HTTP " + resp.code)
+            val w = parseWttr(resp.body?.string().orEmpty())
+                ?: throw IllegalStateException("bad weather data")
+            formatWeather(w)
+        }
     }
 
     private fun morningRoutine(): String {

@@ -13,8 +13,8 @@ android {
         applicationId 'com.jarvis.app'
         minSdk 26
         targetSdk 34
-        versionCode 22
-        versionName '3.1'
+        versionCode 23
+        versionName '3.2'
         // Built-in default key from CI secret (empty when the secret is unset).
         // Lightly obfuscated (reversed Base64) so the plain key isn't greppable in the APK.
         def _rawKey = System.getenv('GEMINI_API_KEY') ?: ''
