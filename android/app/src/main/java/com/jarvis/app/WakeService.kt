@@ -8,7 +8,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -20,11 +19,29 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.WindowManager
-import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.ComposeView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistry
+import androidx.savedstate.SavedStateRegistryController
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import java.util.Locale
 
 /**
@@ -55,7 +72,10 @@ class WakeService : Service() {
     private val main = Handler(Looper.getMainLooper())
     private var wakeRecognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
-    private var bubble: TextView? = null
+    private var bubbleView: ComposeView? = null
+    private var bubbleParams: WindowManager.LayoutParams? = null
+    private var bubbleLifecycle: ServiceLifecycleOwner? = null
+    private val bubbleTint = kotlinx.coroutines.flow.MutableStateFlow(Color(0xFF22D3EE))
     private var restarts = 0
     private var started = false
 
@@ -83,7 +103,7 @@ class WakeService : Service() {
             ACTION_PAUSE -> haltLoop()
             ACTION_RESUME -> if (started) startWakeLoop()
             ACTION_BUBBLE_RED -> tintBubble(0xFFE5484D.toInt())
-            ACTION_BUBBLE_BLUE -> tintBubble(0xFF1F6FEB.toInt())
+            ACTION_BUBBLE_BLUE -> tintBubble(0xFF22D3EE.toInt())
         }
         return START_STICKY
     }
@@ -160,7 +180,6 @@ class WakeService : Service() {
                     val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
                     destroyWakeRecognizer()
                     BubbleLevelBus.reset()
-                    calmBubble()
                     if (!started) return
                     restarts = 0
                     if (heard.any { hearsWakeWord(it) }) onWakeWord()
@@ -178,7 +197,6 @@ class WakeService : Service() {
                 override fun onError(error: Int) {
                     destroyWakeRecognizer()
                     BubbleLevelBus.reset()
-                    calmBubble()
                     if (!started) return
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH,
@@ -199,9 +217,9 @@ class WakeService : Service() {
                     }
                 }
 
-                override fun onEndOfSpeech() { unmute(); calmBubble(); BubbleLevelBus.reset() }
+                override fun onEndOfSpeech() { unmute(); BubbleLevelBus.reset() }
                 override fun onBeginningOfSpeech() { unmute() }
-                override fun onRmsChanged(rmsdB: Float) { pulseBubble(rmsdB); BubbleLevelBus.pushRms(rmsdB) }
+                override fun onRmsChanged(rmsdB: Float) { BubbleLevelBus.pushRms(rmsdB) }
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
@@ -234,7 +252,6 @@ class WakeService : Service() {
         if (!started) return
         restarts = 0
         BubbleLevelBus.reset()
-        calmBubble()
         flashBubble()
         speakYes()
         openAppForCommand()
@@ -300,22 +317,18 @@ class WakeService : Service() {
     // ---- floating bubble (over any app + home screen) ----
 
     private fun addBubble() {
-        if (bubble != null) return
+        if (bubbleView != null) return
         try {
-            val size = (60 * resources.displayMetrics.density).toInt()
-            val tv = TextView(this).apply {
-                text = "J"
-                textSize = 24f
-                gravity = Gravity.CENTER
-                setTextColor(0xFFFFFFFF.toInt())
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(0xFF1F6FEB.toInt())
-                }
-                elevation = 8f
-            }
+            val owner = ServiceLifecycleOwner()
+            owner.handleCreate()
+            bubbleLifecycle = owner
+            val view = ComposeView(this)
+            view.setViewTreeLifecycleOwner(owner)
+            view.setViewTreeViewModelStoreOwner(owner)
+            view.setViewTreeSavedStateRegistryOwner(owner)
+            val sizePx = (88 * resources.displayMetrics.density).toInt()
             val p = WindowManager.LayoutParams(
-                size, size,
+                sizePx, sizePx,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
@@ -323,90 +336,56 @@ class WakeService : Service() {
             p.gravity = Gravity.TOP or Gravity.START
             p.x = 24
             p.y = 320
-            var downX = 0f
-            var downY = 0f
-            var startX = 0
-            var startY = 0
-            var moved = false
-            tv.setOnTouchListener { v, e ->
-                when (e.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downX = e.rawX
-                        downY = e.rawY
-                        startX = p.x
-                        startY = p.y
-                        moved = false
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (e.rawX - downX).toInt()
-                        val dy = (e.rawY - downY).toInt()
-                        if (!moved && kotlin.math.abs(dx) + kotlin.math.abs(dy) > 16) moved = true
-                        if (moved) {
-                            p.x = startX + dx
-                            p.y = startY + dy
-                            try {
-                                wm.updateViewLayout(tv, p)
-                            } catch (_: Exception) {
-                            }
+            bubbleParams = p
+            view.setContent {
+                val level by BubbleLevelBus.level.collectAsState()
+                val tint by bubbleTint.collectAsState()
+                val s = 1f + 0.22f * level
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = s; scaleY = s }
+                ) {
+                    StarkBubble(
+                        startX = p.x.toFloat(),
+                        startY = p.y.toFloat(),
+                        accent = tint,
+                        onClick = { openAppForCommand() },
+                        onPositionChanged = { nx, ny ->
+                            p.x = nx.toInt()
+                            p.y = ny.toInt()
+                            runCatching { wm.updateViewLayout(view, p) }
                         }
-                        true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (!moved) v.performClick()
-                        true
-                    }
-                    else -> false
+                    )
                 }
             }
-            tv.setOnClickListener { openAppForCommand() }
-            wm.addView(tv, p)
-            bubble = tv
+            wm.addView(view, p)
+            bubbleView = view
+            owner.handleResume()
         } catch (_: Exception) {
-            bubble = null
+            bubbleView = null
         }
     }
 
     private fun removeBubble() {
-        val b = bubble ?: return
-        bubble = null
-        try {
-            wm.removeView(b)
-        } catch (_: Exception) {
-        }
+        val v = bubbleView ?: return
+        bubbleView = null
+        runCatching { wm.removeView(v) }
+        runCatching { bubbleLifecycle?.handleDestroy() }
+        bubbleLifecycle = null
+        bubbleParams = null
     }
 
     private fun tintBubble(color: Int) {
-        main.post {
-            try {
-                (bubble?.background as? GradientDrawable)?.setColor(color)
-            } catch (_: Exception) {
-            }
-        }
+        bubbleTint.value = Color(color)
     }
 
     private fun flashBubble() {
         tintBubble(0xFF3FB950.toInt())
         main.postDelayed({
-            if (started) tintBubble(0xFF1F6FEB.toInt())
+            if (started) tintBubble(0xFF22D3EE.toInt())
         }, 1500)
     }
 
-    /** Gemini-style reaction: bubble grows/glows with real mic level, still in silence. */
-    private fun pulseBubble(rmsdB: Float) {
-        val b = bubble ?: return
-        val lvl = normalizeRms(rmsdB)
-        b.scaleX = 1f + 0.35f * lvl
-        b.scaleY = 1f + 0.35f * lvl
-        b.elevation = 8f + 18f * lvl
-    }
-
-    private fun calmBubble() {
-        val b = bubble ?: return
-        b.scaleX = 1f
-        b.scaleY = 1f
-        b.elevation = 8f
-    }
 
     // ---- notification ----
 
@@ -479,5 +458,30 @@ class WakeService : Service() {
             } catch (_: Exception) {
             }
         }
+    }
+}
+
+/** Minimal lifecycle owner so a ComposeView can live inside a Service. */
+private class ServiceLifecycleOwner : LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
+    private val registry = LifecycleRegistry(this)
+    private val store = ViewModelStore()
+    private val savedController = SavedStateRegistryController.create(this)
+    override val lifecycle: Lifecycle get() = registry
+    override val viewModelStore: ViewModelStore get() = store
+    override val savedStateRegistry: SavedStateRegistry get() = savedController.savedStateRegistry
+    fun handleCreate() {
+        savedController.performAttach()
+        savedController.performRestore(null)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    }
+    fun handleResume() {
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    }
+    fun handleDestroy() {
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+        registry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        store.clear()
     }
 }
