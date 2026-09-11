@@ -567,6 +567,9 @@ fun parseMasterCardJson(json: String): Triple<String, String, String>? {
     } catch (_: Exception) { null }
 }
 
+/** Sanitize a chat title (pure, tested). */
+fun cleanTitle(t: String): String = t.trim().take(40).ifEmpty { "New chat" }
+
 /** Build a full JSON backup of user data (pure, tested). */
 fun buildBackup(
     chats: List<ChatData>,
@@ -1828,6 +1831,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         showChats = false
         persist()
+    }
+
+    fun renameChat(id: String, title: String) {
+        val i = chats.indexOfFirst { it.id == id }
+        if (i < 0) return
+        val c = chats[i]
+        chats[i] = ChatData(c.id, cleanTitle(title), c.msgs)
+        store.saveChats(chats)
     }
 
     fun deleteChat(id: String) {

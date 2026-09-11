@@ -1019,6 +1019,8 @@ fun MasterKeySection(vm: JarvisViewModel) {
 @Composable
 fun ChatsDialog(vm: JarvisViewModel) {
     var q by remember { mutableStateOf("") }
+    var renameTarget by remember { mutableStateOf<ChatData?>(null) }
+    var renameText by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { vm.showChats = false },
         title = { Text("💬 Chats") },
@@ -1067,6 +1069,13 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                         fontSize = 12.sp, color = Muted
                                     )
                                 }
+                                IconButton(onClick = { renameTarget = c; renameText = c.title }) {
+                                    Icon(
+                                        Icons.Filled.Edit,
+                                        contentDescription = "Rename chat",
+                                        tint = Muted
+                                    )
+                                }
                                 IconButton(onClick = { vm.deleteChat(c.id) }) {
                                     Icon(
                                         Icons.Filled.Delete,
@@ -1087,6 +1096,30 @@ fun ChatsDialog(vm: JarvisViewModel) {
             TextButton(onClick = { vm.showChats = false }) { Text("Close") }
         }
     )
+
+    if (renameTarget != null) {
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename chat") },
+            text = {
+                TextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.renameChat(renameTarget!!.id, renameText)
+                    renameTarget = null
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable
