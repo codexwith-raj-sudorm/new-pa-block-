@@ -705,6 +705,22 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     )
                     TextButton(onClick = { vm.previewVoice() }) { Text("Preview") }
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Rate", fontSize = 13.sp, color = Muted, modifier = Modifier.width(44.dp))
+                    Slider(
+                        value = vm.ttsRate, onValueChange = vm::setRate,
+                        valueRange = 0.5f..2.0f, modifier = Modifier.weight(1f)
+                    )
+                    Text("%.2f".format(vm.ttsRate), fontSize = 12.sp, color = Muted)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Pitch", fontSize = 13.sp, color = Muted, modifier = Modifier.width(44.dp))
+                    Slider(
+                        value = vm.ttsPitch, onValueChange = vm::setPitch,
+                        valueRange = 0.5f..2.0f, modifier = Modifier.weight(1f)
+                    )
+                    Text("%.2f".format(vm.ttsPitch), fontSize = 12.sp, color = Muted)
+                }
                 val battOk = remember { vm.batteryUnrestricted() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

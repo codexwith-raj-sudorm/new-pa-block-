@@ -351,6 +351,12 @@ private val JOKES = listOf(
 /** Joke by index (wraps around). Pure. */
 fun jokeAt(i: Int): String = JOKES[Math.floorMod(i, JOKES.size)]
 
+/** Clamp a user speech slider (0.5..2.0). Pure. */
+fun clampSpeech(v: Float): Float = v.coerceIn(0.5f, 2.0f)
+
+/** Persona base x user slider, clamped for the engine. Pure. */
+fun effSpeech(base: Float, user: Float): Float = (base * user).coerceIn(0.25f, 4f)
+
 /** Locale for the recognizer: Hindi when toggled, else system default. */
 fun localeForListen(hindiListen: Boolean): Locale =
     if (hindiListen) Locale.forLanguageTag("hi-IN") else Locale.getDefault()
@@ -580,6 +586,14 @@ class Store(context: Context) {
     var hindiListen: Boolean
         get() = p.getBoolean("listen_hi", false)
         set(v) = p.edit().putBoolean("listen_hi", v).apply()
+
+    var ttsRate: Float
+        get() = p.getFloat("tts_rate", 1f)
+        set(v) = p.edit().putFloat("tts_rate", v).apply()
+
+    var ttsPitch: Float
+        get() = p.getFloat("tts_pitch", 1f)
+        set(v) = p.edit().putFloat("tts_pitch", v).apply()
 
     var continuous: Boolean
         get() = p.getBoolean("continuous", false)
@@ -983,6 +997,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var ttsOn by mutableStateOf(store.ttsEnabled)
     var continuous by mutableStateOf(store.continuous)
     var hindiListen by mutableStateOf(store.hindiListen)
+    var ttsRate by mutableStateOf(store.ttsRate)
+    var ttsPitch by mutableStateOf(store.ttsPitch)
         private set
     var voiceName by mutableStateOf(store.ttsVoice)
         private set
@@ -1087,8 +1103,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             else t.language = Locale.getDefault()
             voiceName = key
             store.ttsVoice = key // persona key now (legacy engine names auto-heal to jarvis)
-            t.setSpeechRate(persona.rate)
-            t.setPitch(persona.pitch)
+            t.setSpeechRate(effSpeech(persona.rate, store.ttsRate))
+            t.setPitch(effSpeech(persona.pitch, store.ttsPitch))
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
                 override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } }
@@ -1143,6 +1159,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleHindiListen() {
         hindiListen = !hindiListen
         store.hindiListen = hindiListen
+    }
+
+    fun setRate(v: Float) {
+        ttsRate = clampSpeech(v)
+        store.ttsRate = ttsRate
+        applyVoice()
+    }
+
+    fun setPitch(v: Float) {
+        ttsPitch = clampSpeech(v)
+        store.ttsPitch = ttsPitch
+        applyVoice()
     }
 
     fun incomingShare(t: String) {

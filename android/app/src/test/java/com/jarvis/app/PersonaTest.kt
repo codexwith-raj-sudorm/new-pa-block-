@@ -98,4 +98,16 @@ class PersonaTest {
         val map = resolvePersonaVoices(infos, "en", "US")
         assertTrue(map.values.all { it != null })
     }
+
+    @Test fun speechClamp() {
+        assertEquals(0.5f, clampSpeech(0.1f), 0.001f)
+        assertEquals(2.0f, clampSpeech(9f), 0.001f)
+        assertEquals(1.25f, clampSpeech(1.25f), 0.001f)
+    }
+
+    @Test fun effSpeechMix() {
+        assertEquals(1.0f, effSpeech(1.0f, 1.0f), 0.001f)
+        assertEquals(0.25f, effSpeech(0.5f, 0.5f), 0.001f)
+        assertEquals(4.0f, effSpeech(3.0f, 2.0f), 0.001f)
+    }
 }
