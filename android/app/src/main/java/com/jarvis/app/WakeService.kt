@@ -403,6 +403,7 @@ class WakeService : Service() {
                             hudActive = hud.listening || hud.speaking,
                             accent = accent,
                             onClick = { StarkSounds.click(); openAppForCommand() },
+                            onDoubleTap = { StarkSounds.click(); hushSpeech() },
                             onPositionChanged = { nx, ny ->
                                 p.x = nx.toInt()
                                 p.y = ny.toInt()

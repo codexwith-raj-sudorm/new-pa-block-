@@ -45,6 +45,7 @@ fun StarkBubble(
     hudActive: Boolean = false,
     accent: Color = Color(0xFF22D3EE),
     onClick: () -> Unit,
+    onDoubleTap: () -> Unit = {},
     onPositionChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
     var offsetX by remember { mutableStateOf(startX) }
@@ -92,7 +93,7 @@ fun StarkBubble(
             .size(72.dp)
             .shadow(16.dp, CircleShape, spotColor = accent)
             .pointerInput(Unit) {
-                detectTapGestures(onTap = { onClick() })
+                detectTapGestures(onTap = { onClick() }, onDoubleTap = { onDoubleTap() })
             }
             .pointerInput(Unit) {
                 detectDragGestures(

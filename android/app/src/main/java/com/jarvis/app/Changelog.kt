@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        33, "4.2", listOf(
+            "Briefing widget: time, battery, next reminder on your home screen",
+            "Double-tap the HUD bubble to hush Jarvis mid-speech"
+        )
+    ),
+    ChangelogEntry(
         32, "4.1", listOf(
             "First-run setup wizard: mic, wake word, battery in 3 taps",
             "Reminders manager: see and cancel alarms in one place"

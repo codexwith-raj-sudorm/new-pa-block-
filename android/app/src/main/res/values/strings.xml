@@ -5,4 +5,5 @@
     <string name="shortcut_new_chat_long">Start a new chat</string>
     <string name="shortcut_briefing">Briefing</string>
     <string name="shortcut_briefing_long">Open device briefing</string>
+    <string name="briefing_widget_desc">Jarvis briefing: time, battery and your next reminder.</string>
 </resources>
