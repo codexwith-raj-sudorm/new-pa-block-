@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.room.Room
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -318,6 +319,7 @@ object Router {
 // ---------- on-device storage ----------
 
 class Store(context: Context) {
+    private val appCtx = context.applicationContext
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
 
     var apiKey: String
@@ -352,23 +354,42 @@ class Store(context: Context) {
         get() = p.getInt("last_seen_code", 0)
         set(v) = p.edit().putInt("last_seen_code", v).apply()
 
-    fun facts(): MutableList<String> =
-        p.getStringSet("facts", emptySet())?.toMutableList() ?: mutableListOf()
+    // Room vault (stark_vault): migrates legacy prefs once, purges 30-day TTL
+    // on first touch each process. Main-thread queries are OK here — the
+    // table is capped at 200 tiny rows, so reads stay sub-millisecond.
+    private val vault: VaultDao by lazy {
+        val dao = Room.databaseBuilder(appCtx, VaultDb::class.java, "stark_vault")
+            .allowMainThreadQueries()
+            .build().dao()
+        if (!p.getBoolean("vault_migrated", false)) {
+            val legacy = p.getStringSet("facts", emptySet()).orEmpty()
+            for (f in migrateLegacyFacts(legacy, System.currentTimeMillis())) dao.insert(f)
+            p.edit().putBoolean("vault_migrated", true).remove("facts").apply()
+        }
+        dao.purgeBefore(vaultCutoff(System.currentTimeMillis()))
+        dao
+    }
+
+    fun facts(): MutableList<String> = try {
+        vault.all().map { it.text }.toMutableList()
+    } catch (_: Exception) { mutableListOf() }
 
     fun addFact(f: String) {
-        val all = facts()
-        all.add(0, f)
-        p.edit().putStringSet("facts", all.take(50).toSet()).apply()
+        val t = f.trim().take(500)
+        if (t.isEmpty()) return
+        try {
+            vault.insert(VaultFact(text = t, ts = System.currentTimeMillis()))
+            vault.trimTo(200)
+        } catch (_: Exception) {
+        }
     }
 
     fun removeFact(f: String) {
-        val all = facts()
-        all.remove(f)
-        p.edit().putStringSet("facts", all.toSet()).apply()
+        try { vault.deleteText(f) } catch (_: Exception) { }
     }
 
     fun clearFacts() {
-        p.edit().remove("facts").apply()
+        try { vault.clear() } catch (_: Exception) { }
     }
 
     fun searchFacts(q: String): List<String> {

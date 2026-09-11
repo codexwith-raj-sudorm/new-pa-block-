@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        19, "2.8", listOf(
+            "Memory Vault: facts move to a local Room database",
+            "Self-healing privacy: memories older than 30 days auto-expire",
+            "Seamless migration — your existing memories carry over"
+        )
+    ),
+    ChangelogEntry(
         18, "2.7", listOf(
             "Share Hub: share any text to Jarvis — summarize, ELI5, bug-hunt, translate",
             "“Silence my phone” / “unsilence” device command",
