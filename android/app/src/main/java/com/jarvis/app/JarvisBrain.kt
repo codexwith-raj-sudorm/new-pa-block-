@@ -567,6 +567,10 @@ fun parseMasterCardJson(json: String): Triple<String, String, String>? {
     } catch (_: Exception) { null }
 }
 
+/** Wrap a code block with its language fence for sharing (pure, tested). */
+fun codeShareText(lang: String, code: String): String =
+    "```" + lang.trim().ifEmpty { "code" } + "\n" + code + "\n```"
+
 /** Sanitize a chat title (pure, tested). */
 fun cleanTitle(t: String): String = t.trim().take(40).ifEmpty { "New chat" }
 

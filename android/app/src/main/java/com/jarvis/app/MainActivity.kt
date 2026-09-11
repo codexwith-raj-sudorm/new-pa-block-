@@ -568,6 +568,14 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit) {
                                 clipboard.setText(AnnotatedString(s.text))
                                 Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()
                             }) { Text("Copy", fontSize = 12.sp) }
+                            TextButton(onClick = {
+                                try {
+                                    val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                                        .putExtra(Intent.EXTRA_TEXT, codeShareText(s.lang, s.text))
+                                    context.startActivity(Intent.createChooser(send, "Share code"))
+                                } catch (_: Exception) {
+                                }
+                            }) { Text("Share", fontSize = 12.sp) }
                         }
                         SelectionContainer {
                             Text(
@@ -1022,6 +1030,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
     var renameTarget by remember { mutableStateOf<ChatData?>(null) }
     var renameText by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
+    var armDelete by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = { vm.showChats = false },
         title = { Text("💬 Chats") },
@@ -1077,11 +1086,14 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                         tint = Muted
                                     )
                                 }
-                                IconButton(onClick = { vm.deleteChat(c.id) }) {
+                                IconButton(onClick = {
+                                    if (armDelete == c.id) { vm.deleteChat(c.id); armDelete = null }
+                                    else armDelete = c.id
+                                }) {
                                     Icon(
                                         Icons.Filled.Delete,
-                                        contentDescription = "Delete chat",
-                                        tint = Muted
+                                        contentDescription = if (armDelete == c.id) "Tap again to delete" else "Delete chat",
+                                        tint = if (armDelete == c.id) Color.Red else Muted
                                     )
                                 }
                             }
