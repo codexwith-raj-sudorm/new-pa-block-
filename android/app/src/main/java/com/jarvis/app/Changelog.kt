@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        15, "2.4", listOf(
+            "Bubble ring becomes a live audio visualizer while listening/speaking",
+            "Color states: green listening, amber thinking, gray offline",
+            "Snap-to-edge docking, HUD status ticker, Stark chimes"
+        )
+    ),
+    ChangelogEntry(
         14, "2.3", listOf(
             "What's-new popup on first open of every update",
             "Full update history in Settings"

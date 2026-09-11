@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         if (intent?.action == ACTION_WIDGET_TAP) {
+            StarkSounds.click()
             intent.action = null // consume
             setIntent(intent)
             try {

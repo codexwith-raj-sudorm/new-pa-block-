@@ -43,6 +43,23 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 /**
@@ -58,8 +75,6 @@ class WakeService : Service() {
         const val ACTION_PAUSE = "com.jarvis.app.WAKE_PAUSE"
         const val ACTION_RESUME = "com.jarvis.app.WAKE_RESUME"
         const val ACTION_WAKE_COMMAND = "com.jarvis.app.WAKE_COMMAND"
-        const val ACTION_BUBBLE_RED = "com.jarvis.app.BUBBLE_RED"
-        const val ACTION_BUBBLE_BLUE = "com.jarvis.app.BUBBLE_BLUE"
         const val ACTION_HUSH = "com.jarvis.app.HUSH"
         private const val NOTIF_ID = 41
         private const val CHANNEL_ID = "jarvis_wake"
@@ -77,7 +92,7 @@ class WakeService : Service() {
     private var bubbleView: ComposeView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
-    private val bubbleTint = kotlinx.coroutines.flow.MutableStateFlow(Color(0xFF22D3EE))
+    private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
     private var restarts = 0
     private var started = false
 
@@ -94,9 +109,9 @@ class WakeService : Service() {
                 }
                 applySavedVoice()
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(id: String?) { SpeechState.speaking = true }
-                    override fun onDone(id: String?) { SpeechState.speaking = false }
-                    override fun onError(id: String?) { SpeechState.speaking = false }
+                    override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
+                    override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
+                    override fun onError(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
                 })
             }
         }
@@ -109,8 +124,6 @@ class WakeService : Service() {
             ACTION_STOP -> shutDown(userStopped = true)
             ACTION_PAUSE -> haltLoop()
             ACTION_RESUME -> if (started) startWakeLoop()
-            ACTION_BUBBLE_RED -> tintBubble(0xFFE5484D.toInt())
-            ACTION_BUBBLE_BLUE -> tintBubble(0xFF22D3EE.toInt())
             ACTION_HUSH -> hushSpeech()
         }
         return START_STICKY
@@ -145,6 +158,7 @@ class WakeService : Service() {
         addBubble()
         muteBlip(800) // cover any start beep on arming
         refreshReactorWidgets(this)
+        HudStateBus.postTicker("[SYS: ONLINE]")
         toast("Wake word on — say \"Hey Jarvis\"")
         startWakeLoop()
     }
@@ -262,6 +276,8 @@ class WakeService : Service() {
         if (!started) return
         restarts = 0
         BubbleLevelBus.reset()
+        HudStateBus.postTicker("[VOICE: MATCH]")
+        StarkSounds.chime()
         flashBubble()
         speakYes()
         openAppForCommand()
@@ -341,9 +357,10 @@ class WakeService : Service() {
             view.setViewTreeLifecycleOwner(owner)
             view.setViewTreeViewModelStoreOwner(owner)
             view.setViewTreeSavedStateRegistryOwner(owner)
-            val sizePx = (88 * resources.displayMetrics.density).toInt()
+            val wPx = (120 * resources.displayMetrics.density).toInt()
+            val hPx = (104 * resources.displayMetrics.density).toInt()
             val p = WindowManager.LayoutParams(
-                sizePx, sizePx,
+                wPx, hPx,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
@@ -354,23 +371,61 @@ class WakeService : Service() {
             bubbleParams = p
             view.setContent {
                 val level by BubbleLevelBus.level.collectAsState()
-                val tint by bubbleTint.collectAsState()
-                val s = 1f + 0.22f * level
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = s; scaleY = s }
+                val hud by HudStateBus.state.collectAsState()
+                val tick by HudStateBus.ticker.collectAsState()
+                val flash by accentOverride.collectAsState()
+                val accent = flash ?: Color(
+                    hudAccentArgb(hud.listening, hud.thinking, hud.speaking, hud.online)
+                )
+                var tickVisible by remember { mutableStateOf(false) }
+                LaunchedEffect(tick) {
+                    if (tick != null) {
+                        tickVisible = true
+                        delay(2000)
+                        tickVisible = false
+                    }
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    StarkBubble(
-                        startX = p.x.toFloat(),
-                        startY = p.y.toFloat(),
-                        accent = tint,
-                        onClick = { openAppForCommand() },
-                        onPositionChanged = { nx, ny ->
-                            p.x = nx.toInt()
-                            p.y = ny.toInt()
-                            runCatching { wm.updateViewLayout(view, p) }
-                        }
-                    )
+                    val s = 1f + 0.22f * level
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.graphicsLayer { scaleX = s; scaleY = s }
+                    ) {
+                        StarkBubble(
+                            startX = p.x.toFloat(),
+                            startY = p.y.toFloat(),
+                            contentWidthDp = 120f,
+                            level = level,
+                            hudActive = hud.listening || hud.speaking,
+                            accent = accent,
+                            onClick = { StarkSounds.click(); openAppForCommand() },
+                            onPositionChanged = { nx, ny ->
+                                p.x = nx.toInt()
+                                p.y = ny.toInt()
+                                runCatching { wm.updateViewLayout(view, p) }
+                            }
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = tickVisible && tick != null,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Text(
+                            tick?.text.orEmpty(),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 9.sp,
+                            color = accent,
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .background(Color(0xFF0B1220).copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
             wm.addView(view, p)
@@ -390,15 +445,9 @@ class WakeService : Service() {
         bubbleParams = null
     }
 
-    private fun tintBubble(color: Int) {
-        bubbleTint.value = Color(color)
-    }
-
     private fun flashBubble() {
-        tintBubble(0xFF3FB950.toInt())
-        main.postDelayed({
-            if (started) tintBubble(0xFF22D3EE.toInt())
-        }, 1500)
+        accentOverride.value = Color(0xFF3FB950)
+        main.postDelayed({ if (started) accentOverride.value = null }, 1500)
     }
 
 

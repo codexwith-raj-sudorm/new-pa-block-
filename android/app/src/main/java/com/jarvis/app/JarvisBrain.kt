@@ -757,9 +757,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             t.setSpeechRate(persona.rate)
             t.setPitch(persona.pitch)
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(id: String?) { SpeechState.speaking = true }
-                override fun onDone(id: String?) { SpeechState.speaking = false }
-                override fun onError(id: String?) { SpeechState.speaking = false }
+                override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
+                override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
+                override fun onError(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
             })
         } catch (_: Exception) {
         }
@@ -848,24 +848,26 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             r.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     listening = true
-                    bubbleRed()
+                    HudStateBus.update(listening = true)
+                    HudStateBus.postTicker("[MIC: LIVE]")
                 }
 
                 override fun onResults(results: Bundle?) {
                     listening = false
+                    HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
                     val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()?.trim().orEmpty()
                     destroyRecognizer()
                     listenTries = 0
                     commandAudioEnd()
-                    bubbleBlue()
                     if (heard.isNotEmpty()) send(heard)
                     resumeWakeService()
                 }
 
                 override fun onError(error: Int) {
                     listening = false
+                    HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
                     destroyRecognizer()
                     if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && ++listenTries <= 3) {
@@ -885,7 +887,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         toast("Voice error ($error)")
                     }
                     commandAudioEnd()
-                    bubbleBlue()
                     resumeWakeService()
                 }
 
@@ -907,10 +908,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             r.startListening(intent)
         } catch (_: Exception) {
             listening = false
+            HudStateBus.update(listening = false)
             destroyRecognizer()
             listenTries = 0
             commandAudioEnd()
-            bubbleBlue()
             resumeWakeService()
         }
     }
@@ -928,6 +929,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
         }
         listening = false
+        HudStateBus.update(listening = false)
         BubbleLevelBus.reset()
         commandAudioEnd()
     }
@@ -1040,21 +1042,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun bubbleRed() {
-        try {
-            val appCtx = getApplication<Application>()
-            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_BUBBLE_RED))
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun bubbleBlue() {
-        try {
-            val appCtx = getApplication<Application>()
-            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_BUBBLE_BLUE))
-        } catch (_: Exception) {
-        }
-    }
 
     // ---- multi-chat ----
 
@@ -1303,6 +1290,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (text.isEmpty() || busy) return
         messages.add(ChatMessage("user", text))
         persist()
+        HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
@@ -1318,6 +1306,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         busy = true
+        HudStateBus.update(thinking = true)
+        HudStateBus.postTicker("[UPLINK: GEMINI]")
+        val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             try {
                 val system = buildSystem(store.facts())
@@ -1332,10 +1323,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 messages.add(ChatMessage("bot", reply))
                 speak(reply)
+                HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
             } catch (e: Exception) {
                 messages.add(ChatMessage("bot", "⚠️ ${e.message}"))
             } finally {
                 busy = false
+                HudStateBus.update(thinking = false)
                 persist()
             }
         }

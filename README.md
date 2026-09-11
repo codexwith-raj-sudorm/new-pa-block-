@@ -16,6 +16,7 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 - 🔋 Wake word + reminders survive reboot (auto re-arm) + battery-optimization prompt
 - 🧲 Mini arc-reactor home-screen widget: tap to arm wake mode, tap while Jarvis speaks to interrupt
 - 🆕 What's-new popup on every update + full update history in Settings
+- 🌀 Stark HUD states: live waveform ring, color-coded modes, edge-dock, status ticker, interface chimes
 - ⚙️ Settings: optional own key, preferred model, refresh models
 
 ## Install (phone, no PC needed)
