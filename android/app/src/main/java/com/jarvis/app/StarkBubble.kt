@@ -115,7 +115,7 @@ fun StarkBubble(
                 center = center,
                 style = Stroke(
                     width = 1.dp.toPx(),
-                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashArrayEffect(floatArrayOf(10f, 10f), 0f)
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                 )
             )
 
