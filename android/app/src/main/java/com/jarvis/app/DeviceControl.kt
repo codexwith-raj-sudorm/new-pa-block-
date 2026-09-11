@@ -18,6 +18,11 @@ data class Torch(val on: Boolean) : DeviceCommand
 data class CallContact(val query: String) : DeviceCommand
 object Silence : DeviceCommand
 object Unsilence : DeviceCommand
+data class SetAlarm(val time: Pair<Int, Int>?) : DeviceCommand
+data class SetTimer(val seconds: Int) : DeviceCommand
+data class NavigateTo(val query: String) : DeviceCommand
+data class WebSearch(val query: String) : DeviceCommand
+data class PlayMedia(val query: String) : DeviceCommand
 object WifiPanel : DeviceCommand
 object SysSettings : DeviceCommand
 
@@ -51,6 +56,36 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         if (q.isNotEmpty()) return CallContact(q)
     }
 
+    // Alarm ("wake me at 7", "set an alarm for 6:30 am"). No time -> clock app.
+    if (low.contains("alarm") || low.startsWith("wake me")) {
+        return SetAlarm(parseAlarmTime(t))
+    }
+
+    // Timer ("set a timer for 5 minutes", "countdown 10 sec").
+    if (low.contains("timer") || low.contains("countdown") || low.contains("stopwatch")) {
+        return SetTimer(parseDuration(t) ?: 60)
+    }
+
+    // Navigate ("navigate to Andheri station", "directions to work").
+    Regex("""^(navigate to|directions to|take me to|drive to)\s+(.+)$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val q = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
+            if (q.isNotEmpty()) return NavigateTo(q)
+        }
+
+    // Web search ("search for monsoon recipes", "google Taj Mahal").
+    Regex("""^(search(?: the web)?(?: for)?|google|look up)\s+(.+)$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val q = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
+            if (q.isNotEmpty()) return WebSearch(q)
+        }
+
+    // Play ("play Believer", "play some jazz").
+    Regex("""^play\s+(.+)$""", RegexOption.IGNORE_CASE).find(t)?.let {
+        val q = it.groupValues[1].trim().trimEnd('?', '.', '!').trim()
+        if (q.isNotEmpty()) return PlayMedia(q)
+    }
+
     // Open / launch (with settings shortcuts).
     Regex("""^(open|launch|start)\s+(.+)$""", RegexOption.IGNORE_CASE).find(t)?.let {
         var name = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
@@ -61,4 +96,36 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         if (name.isNotEmpty()) return OpenApp(name)
     }
     return null
+}
+
+/** Parse "7", "7am", "7:30", "7:30 pm" into 24h (hour, min). Pure, tested. */
+fun parseAlarmTime(raw: String): Pair<Int, Int>? {
+    val m = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?""", RegexOption.IGNORE_CASE)
+        .find(raw) ?: return null
+    var h = m.groupValues[1].toIntOrNull() ?: return null
+    val min = m.groupValues[2].ifEmpty { "0" }.toIntOrNull() ?: return null
+    if (min > 59) return null
+    val ap = m.groupValues[3].lowercase().replace(".", "")
+    if (ap == "pm" && h < 12) h += 12
+    if (ap == "am" && h == 12) h = 0
+    if (h !in 0..23) return null
+    return h to min
+}
+
+/** Parse "5 minutes", "10 sec", "1 hour 30 minutes" into seconds. Pure, tested. */
+fun parseDuration(raw: String): Int? {
+    var total = 0
+    var found = false
+    val rx = Regex("""(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\b""")
+    for (m in rx.findAll(raw.lowercase())) {
+        val n = m.groupValues[1].toIntOrNull() ?: continue
+        val u = m.groupValues[2]
+        total += when {
+            u.startsWith("h") -> n * 3600
+            u.startsWith("m") -> n * 60
+            else -> n
+        }
+        found = true
+    }
+    return if (found && total in 1..86400) total else null
 }

@@ -2,6 +2,8 @@ package com.jarvis.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.SearchManager
+import android.provider.AlarmClock
 import android.app.ActivityManager
 import android.app.Application
 import android.app.PendingIntent
@@ -14,6 +16,7 @@ import android.provider.ContactsContract
 import android.provider.Settings
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.AudioFocusRequest
@@ -317,6 +320,114 @@ fun formatBriefing(b: Briefing): List<Pair<String, String>> = listOf(
     "Network" to b.netName
 )
 
+// ---------- everyday fun tools (pure, tested) ----------
+
+/** Parse "roll a d20" / "roll dice" -> sides (default 6). Pure. */
+fun parseDice(raw: String): Int {
+    Regex("""d(\d{1,3})""").find(raw.lowercase())?.let {
+        val n = it.groupValues[1].toIntOrNull() ?: 6
+        if (n in 2..1000) return n
+    }
+    return 6
+}
+
+/** Roll a [sides] die from a 0..1 random value (pure for tests). */
+fun rollDie(sides: Int, r: Double): Int = (r * sides).toInt().coerceIn(0, sides - 1) + 1
+
+fun coinFace(heads: Boolean): String = if (heads) "Heads." else "Tails."
+
+private val JOKES = listOf(
+    "Why do programmers prefer dark mode? Because light attracts bugs.",
+    "There are only 10 kinds of people: those who understand binary and those who don't.",
+    "Why do Java developers wear glasses? Because they don't C#.",
+    "My Wi-Fi went down for five minutes today. So I had to talk to my family. They seem like nice people.",
+    "Why did the developer go broke? He used up all his cache.",
+    "Why did the smartphone go to therapy? Too many unresolved notifications.",
+    "I told my computer I needed a break. Now it keeps sending me KitKats.",
+    "AI will never beat natural stupidity. Present company excepted, of course."
+)
+
+/** Joke by index (wraps around). Pure. */
+fun jokeAt(i: Int): String = JOKES[Math.floorMod(i, JOKES.size)]
+
+/** Day-part greeting for an hour (0-23). Pure. */
+fun daypart(hour: Int): String = when (hour) {
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    in 17..21 -> "Good evening"
+    else -> "Burning the midnight oil"
+}
+
+/** "good morning" greeting (short messages only, so real questions win). Pure. */
+fun daypartHit(low: String, t: String): Router.Hit? {
+    if (t.length > 40) return null
+    val g = listOf("good morning", "good afternoon", "good evening")
+        .firstOrNull { low.startsWith(it) } ?: return null
+    return Router.Hit("routine", g)
+}
+
+private val TO_M = mapOf(
+    "mm" to 0.001, "cm" to 0.01, "m" to 1.0, "km" to 1000.0,
+    "in" to 0.0254, "ft" to 0.3048, "yd" to 0.9144, "mi" to 1609.344
+)
+private val TO_G = mapOf(
+    "mg" to 0.001, "g" to 1.0, "kg" to 1000.0,
+    "oz" to 28.3495, "lb" to 453.592
+)
+private val TEMP = setOf("c", "f", "k")
+private val UNIT_ALIAS = mapOf(
+    "millimeter" to "mm", "millimeters" to "mm", "centimeter" to "cm", "centimeters" to "cm",
+    "meter" to "m", "meters" to "m", "metre" to "m", "metres" to "m",
+    "kilometer" to "km", "kilometers" to "km", "kilometre" to "km", "kilometres" to "km",
+    "inch" to "in", "inches" to "in", "foot" to "ft", "feet" to "ft",
+    "yard" to "yd", "yards" to "yd", "mile" to "mi", "miles" to "mi",
+    "milligram" to "mg", "milligrams" to "mg", "gram" to "g", "grams" to "g",
+    "kilogram" to "kg", "kilograms" to "kg", "ounce" to "oz", "ounces" to "oz",
+    "pound" to "lb", "pounds" to "lb", "lbs" to "lb",
+    "celsius" to "c", "fahrenheit" to "f", "kelvin" to "k", "celcius" to "c"
+)
+
+private fun normUnit(u: String): String? {
+    val s = u.lowercase().trimEnd('.').replace("°", "")
+    UNIT_ALIAS[s]?.let { return it }
+    return if (s in TO_M || s in TO_G || s in TEMP) s else null
+}
+
+private fun trimNum(v: Double): String {
+    val r = kotlin.math.roundToInt(v * 100) / 100.0
+    return if (r == r.toLong().toDouble()) r.toLong().toString() else r.toString()
+}
+
+/** Convert "5 miles to km" etc. Length, mass, temperature. Pure, tested. */
+fun convertUnits(raw: String): String? {
+    val m = Regex("""(-?\d+(?:\.\d+)?)\s*([a-zA-Z°]+)\s+(?:to|in)\s+([a-zA-Z°]+)""")
+        .find(raw.trim()) ?: return null
+    val v = m.groupValues[1].toDoubleOrNull() ?: return null
+    val from = normUnit(m.groupValues[2]) ?: return null
+    val to = normUnit(m.groupValues[3]) ?: return null
+    val res: Double = if (from in TEMP && to in TEMP) {
+        val c = when (from) { "f" -> (v - 32) * 5 / 9; "k" -> v - 273.15; else -> v }
+        when (to) { "f" -> c * 9 / 5 + 32; "k" -> c + 273.15; else -> c }
+    } else if (from in TO_M && to in TO_M) {
+        v * TO_M.getValue(from) / TO_M.getValue(to)
+    } else if (from in TO_G && to in TO_G) {
+        v * TO_G.getValue(from) / TO_G.getValue(to)
+    } else return null
+    return "${trimNum(v)} $from = ${trimNum(res)} $to"
+}
+
+/** 90 -> "1 min 30 sec". Pure. */
+fun fmtDur(totalSec: Int): String {
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    val parts = mutableListOf<String>()
+    if (h > 0) parts.add("$h h")
+    if (m > 0) parts.add("$m min")
+    if (s > 0 || parts.isEmpty()) parts.add("$s sec")
+    return parts.joinToString(" ")
+}
+
 // ---------- offline tool router (pure Kotlin, unit-tested) ----------
 
 object Router {
@@ -345,6 +456,11 @@ object Router {
         }
         if (low == "reminders" || "my reminder" in low || low.startsWith("list reminders")) return Hit("reminders", "")
         if (low.startsWith("remind me")) return Hit("remind", t)
+        if ("flip a coin" in low || "coin flip" in low || low == "flip coin") return Hit("coin", "")
+        if (low.startsWith("roll ")) return Hit("dice", t)
+        convertUnits(t)?.let { return Hit("convert", t) }
+        if ("joke" in low && t.length < 60) return Hit("joke", "")
+        daypartHit(low, t)?.let { return it }
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1543,6 +1659,82 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) { "Couldn't change silent mode." }
     }
 
+    private fun morningRoutine(): String {
+        val now = java.time.LocalTime.now()
+        val time = now.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+        val b = try { collectBriefing() } catch (_: Exception) { null }
+        val batt = if (b != null && b.batteryPct >= 0) " Battery at ${b.batteryPct}%." else ""
+        return "${daypart(now.hour)}! It's $time.$batt How can I help?"
+    }
+
+    private fun setAlarm(time: Pair<Int, Int>?): String {
+        return try {
+            val ctx = getApplication<Application>()
+            if (time == null) {
+                val i = Intent(AlarmClock.ACTION_SHOW_ALARMS)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+                "Opening your alarms — tell me a time like “wake me at 7 am” to set one."
+            } else {
+                val i = Intent(AlarmClock.ACTION_SET_ALARM)
+                    .putExtra(AlarmClock.EXTRA_HOUR, time.first)
+                    .putExtra(AlarmClock.EXTRA_MINUTES, time.second)
+                    .putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis alarm")
+                    .putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                ctx.startActivity(i)
+                "Alarm set for %02d:%02d.".format(time.first, time.second)
+            }
+        } catch (_: Exception) { "Couldn't open the clock app." }
+    }
+
+    private fun setTimer(seconds: Int): String {
+        return try {
+            val ctx = getApplication<Application>()
+            val i = Intent(AlarmClock.ACTION_SET_TIMER)
+                .putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+                .putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis timer")
+                .putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            "Timer set for ${fmtDur(seconds)}."
+        } catch (_: Exception) { "Couldn't open the clock app." }
+    }
+
+    private fun navigateTo(q: String): String {
+        return try {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(q)))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(i)
+            "Navigating to $q."
+        } catch (_: Exception) { "Couldn't open Maps." }
+    }
+
+    private fun webSearch(q: String): String {
+        return try {
+            val i = Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, q)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(i)
+            "Searching for $q."
+        } catch (_: Exception) { "Couldn't start a search." }
+    }
+
+    private fun playMedia(q: String): String {
+        return try {
+            val clean = q.replace(
+                Regex("""\s+on\s+(youtube|spotify|jiosaavn|wynk)$""", RegexOption.IGNORE_CASE), ""
+            ).trim()
+            val label = clean.ifBlank { "music" }
+            val i = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(label))
+            )
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            getApplication<Application>().startActivity(i)
+            "Playing $label."
+        } catch (_: Exception) { "Couldn't open YouTube." }
+    }
+
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
             ?: return "I can open apps, flip the torch, dial contacts, or open settings — e.g. “open YouTube”."
@@ -1554,6 +1746,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             is CallContact -> callContact(cmd.query)
             is WifiPanel -> openWifiPanel()
             is SysSettings -> openSysSettings()
+            is SetAlarm -> setAlarm(cmd.time)
+            is SetTimer -> setTimer(cmd.seconds)
+            is NavigateTo -> navigateTo(cmd.query)
+            is WebSearch -> webSearch(cmd.query)
+            is PlayMedia -> playMedia(cmd.query)
         }
     }
 
@@ -1738,6 +1935,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "remind" -> scheduleReminder(parseReminder(hit.arg))
         "reminders" -> listReminders()
         "reminder_cancel" -> cancelReminder(hit.arg)
+        "coin" -> coinFace(kotlin.random.Random.nextBoolean())
+        "dice" -> {
+            val sides = parseDice(hit.arg)
+            "= ${rollDie(sides, kotlin.random.Random.nextDouble())} (d$sides)"
+        }
+        "convert" -> convertUnits(hit.arg) ?: "Couldn't convert that."
+        "joke" -> jokeAt(kotlin.random.Random.nextInt(1000))
+        "routine" -> morningRoutine()
         "device" -> runDevice(hit.arg)
         "lists" -> runLists(hit.arg)
         else -> "?"
