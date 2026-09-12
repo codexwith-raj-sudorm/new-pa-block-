@@ -50,6 +50,20 @@ class DeviceTest {
         assertEquals("9830012345", waDigits("9830012345", "US"))
     }
 
+    @Test fun callControlParse() {
+        assertEquals(AnswerCall, parseDeviceCommand("answer"))
+        assertEquals(AnswerCall, parseDeviceCommand("answer the call"))
+        assertEquals(AnswerCall, parseDeviceCommand("pick up the phone"))
+        assertEquals(EndCall, parseDeviceCommand("hang up"))
+        assertEquals(EndCall, parseDeviceCommand("end the call"))
+        assertEquals(EndCall, parseDeviceCommand("reject call"))
+        assertEquals(Speaker(true), parseDeviceCommand("speaker on"))
+        assertEquals(Speaker(false), parseDeviceCommand("turn off the speaker"))
+        assertEquals(Speaker(true), parseDeviceCommand("speakerphone on"))
+        assertNull(parseDeviceCommand("answer my question"))
+        assertEquals(OpenApp("speaker settings"), parseDeviceCommand("open speaker settings"))
+    }
+
     @Test fun wifiAndSettingsParse() {
         assertTrue(parseDeviceCommand("turn on wifi") is WifiPanel)
         assertTrue(parseDeviceCommand("open settings") is SysSettings)

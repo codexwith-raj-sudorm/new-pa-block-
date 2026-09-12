@@ -1780,10 +1780,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
         }
         muteBeeps(true)
+        MicHandoff.appActive = true
     }
 
     private fun commandAudioEnd() {
         muteBeeps(false)
+        MicHandoff.appActive = false
         try {
             audio.abandonAudioFocusRequest(focusRequest)
         } catch (_: Exception) {
@@ -1881,6 +1883,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
             wakeOn = true
             store.wakeEnabled = true
+            armStandbyWatchdog(appCtx, true)
             if (!store.batteryAsked) {
                 store.batteryAsked = true
                 if (!batteryUnrestricted()) requestBatteryUnrestricted()
@@ -1892,6 +1895,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
             wakeOn = false
             store.wakeEnabled = false
+            armStandbyWatchdog(appCtx, false)
         }
         StarkWidgetProvider.refreshAll(appCtx)
         refreshReactorWidgets(appCtx)
@@ -2451,7 +2455,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
-            ?: return "I can open apps, call and text contacts, open chats, or flip the torch — e.g. “text mom I’ll be late”."
+            ?: return "I can place and answer calls, text, open apps and chats, or flip the torch — e.g. “text mom I’ll be late”."
         return when (cmd) {
             is OpenApp -> openAppByName(cmd.name)
             is Silence -> setSilence(true)
@@ -2460,6 +2464,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             is CallContact -> callContact(cmd.query)
             is TextMessage -> textMessage(cmd.app, cmd.contact, cmd.body)
             is OpenChat -> openChat(cmd.app, cmd.contact)
+            is AnswerCall -> answerCall()
+            is EndCall -> endCall()
+            is Speaker -> setCallSpeaker(cmd.on)
             is WifiPanel -> openWifiPanel()
             is SysSettings -> openSysSettings()
             is SetAlarm -> setAlarm(cmd.time)
@@ -2549,6 +2556,74 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             "Calling $query."
         } catch (_: Exception) {
             "Couldn’t place the call."
+        }
+    }
+
+    private fun telephonyCallState(ctx: Context): Int? {
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) return null
+        return try {
+            @Suppress("DEPRECATION")
+            val tm = ctx.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+            tm.callState
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun answerCall(): String {
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.ANSWER_PHONE_CALLS
+            return "I need phone permission to answer calls — allow it, then say that again."
+        }
+        val st = telephonyCallState(ctx)
+        if (st != null && st != android.telephony.TelephonyManager.CALL_STATE_RINGING) {
+            return if (st == android.telephony.TelephonyManager.CALL_STATE_OFFHOOK) "You're already on a call."
+            else "No incoming call right now."
+        }
+        return try {
+            val tm = ctx.getSystemService(Context.TELECOM_SERVICE) as android.telecom.TelecomManager
+            tm.acceptRingingCall()
+            "Answered."
+        } catch (_: Exception) {
+            "Couldn't answer that call."
+        }
+    }
+
+    private fun endCall(): String {
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.ANSWER_PHONE_CALLS
+            return "I need phone permission to end calls — allow it, then say that again."
+        }
+        if (telephonyCallState(ctx) == android.telephony.TelephonyManager.CALL_STATE_IDLE) {
+            return "No active call."
+        }
+        return try {
+            val tm = ctx.getSystemService(Context.TELECOM_SERVICE) as android.telecom.TelecomManager
+            tm.endCall()
+            "Call ended."
+        } catch (_: Exception) {
+            "Couldn't end the call."
+        }
+    }
+
+    private fun setCallSpeaker(on: Boolean): String {
+        val ctx = getApplication<Application>()
+        if (telephonyCallState(ctx) == android.telephony.TelephonyManager.CALL_STATE_IDLE) {
+            return "No active call — nothing to put on speaker."
+        }
+        return try {
+            audio.setSpeakerphoneOn(on)
+            val ok = try {
+                audio.isSpeakerphoneOn == on
+            } catch (_: Exception) {
+                true
+            }
+            if (!ok) return "Couldn't flip the speaker."
+            if (on) "Speaker on." else "Speaker off."
+        } catch (_: Exception) {
+            "Couldn't flip the speaker."
         }
     }
 

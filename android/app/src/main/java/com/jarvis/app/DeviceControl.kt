@@ -8,6 +8,7 @@ package com.jarvis.app
  * - "open YouTube" / "launch whatsapp app" / "start camera"
  * - "turn on the flashlight" / "torch off"
  * - "call mom" / "dial +919876543210" (places the call directly)
+ * - "answer" / "hang up" / "speaker on" (in-call control)
  * - "text mom I'll be late" / "whatsapp ram hi" / "telegram launch at 6"
  * - "open mom's chat" / "open my whatsapp chat with ram"
  * - "turn on wifi" (opens the Wi-Fi panel — Android 10+ forbids silent toggles)
@@ -30,6 +31,9 @@ object SysSettings : DeviceCommand
 enum class MsgApp { SMS, WHATSAPP, TELEGRAM }
 data class TextMessage(val app: MsgApp, val contact: String, val body: String) : DeviceCommand
 data class OpenChat(val app: MsgApp?, val contact: String) : DeviceCommand
+object AnswerCall : DeviceCommand
+object EndCall : DeviceCommand
+data class Speaker(val on: Boolean) : DeviceCommand
 
 fun parseDeviceCommand(raw: String): DeviceCommand? {
     val t = raw.trim()
@@ -41,6 +45,13 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         val on = Regex("""\bon\b""").containsMatchIn(low)
         val off = Regex("""\boff\b""").containsMatchIn(low)
         if (on != off) return Torch(on)
+    }
+
+    // Speakerphone ("speaker on", "turn off the speaker", "speakerphone off").
+    if (low.contains("speaker")) {
+        val on = Regex("""\bon\b""").containsMatchIn(low)
+        val off = Regex("""\boff\b""").containsMatchIn(low)
+        if (on != off) return Speaker(on)
     }
 
     // Silence / unsilence (Do Not Disturb).
@@ -100,6 +111,12 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
             val c = it.groupValues[1].trim()
             if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[2]), c)
         }
+
+    // Answer / end calls ("answer", "pick up the phone", "hang up", "end the call").
+    if (Regex("""^(answer|accept)( (the )?(call|phone|it))?$""", RegexOption.IGNORE_CASE).matches(t)) return AnswerCall
+    if (Regex("""^(pick\s?up|pickup)( the)? (call|phone)$""", RegexOption.IGNORE_CASE).matches(t)) return AnswerCall
+    if (Regex("""^(hang\s?up|hangup)$""", RegexOption.IGNORE_CASE).matches(t)) return EndCall
+    if (Regex("""^(end|stop|reject|decline)( the (call|phone))$""", RegexOption.IGNORE_CASE).matches(t)) return EndCall
 
     // Alarm ("wake me at 7", "set an alarm for 6:30 am"). No time -> clock app.
     if (low.contains("alarm") || low.startsWith("wake me")) {

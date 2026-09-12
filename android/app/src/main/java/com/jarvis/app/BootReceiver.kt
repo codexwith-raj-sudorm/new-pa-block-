@@ -23,6 +23,7 @@ class BootReceiver : BroadcastReceiver() {
         store.saveReminders(pending)
         for (r in pending) runCatching { armReminderAlarm(context, r.id, r.at, r.text) }
         if (store.dailyBriefing) runCatching { armDailyBriefing(context, true) }
+        runCatching { armStandbyWatchdog(context, store.wakeEnabled) }
         runCatching { StarkWidgetProvider.refreshAll(context) }
         runCatching { refreshReactorWidgets(context) }
     }

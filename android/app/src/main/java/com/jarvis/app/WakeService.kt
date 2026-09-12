@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -19,10 +20,13 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
@@ -94,6 +98,11 @@ class WakeService : Service() {
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
     private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
     private var restarts = 0
+    private var inCall = false
+    @Suppress("DEPRECATION")
+    private var callListener: PhoneStateListener? = null
+    private val errorTimes = ArrayDeque<Long>()
+    private var lastStandbyToastMs = 0L
     private var lastBubbleHushMs = 0L
     private var started = false
 
@@ -120,11 +129,16 @@ class WakeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == null) {
+            // Sticky restart after process death — come back if still armed.
+            if (!started && store.wakeEnabled) startUp()
+            return START_STICKY
+        }
         when (intent?.action) {
             ACTION_START -> startUp()
             ACTION_STOP -> shutDown(userStopped = true)
             ACTION_PAUSE -> haltLoop()
-            ACTION_RESUME -> if (started) startWakeLoop()
+            ACTION_RESUME -> if (started && !inCall && !MicHandoff.appActive && wakeRecognizer == null) startWakeLoop()
             ACTION_HUSH -> hushSpeech()
         }
         return START_STICKY
@@ -144,6 +158,7 @@ class WakeService : Service() {
         started = true
         isRunning = true
         restarts = 0
+        errorTimes.clear()
         try {
             val notif = buildNotification("Say \"Hey Jarvis\" — tap to open")
             if (Build.VERSION.SDK_INT >= 29) {
@@ -162,12 +177,16 @@ class WakeService : Service() {
         HudStateBus.postTicker("[SYS: ONLINE]")
         toast("Wake word on — say \"Hey Jarvis\"")
         startWakeLoop()
+        startCallWatch()
+        armStandbyWatchdog(this, true)
     }
 
     private fun shutDown(userStopped: Boolean = false) {
         started = false
         isRunning = false
         if (userStopped) runCatching { store.wakeEnabled = false }
+        if (userStopped) runCatching { armStandbyWatchdog(this, false) }
+        stopCallWatch()
         haltLoop()
         removeBubble()
         unmute()
@@ -192,8 +211,7 @@ class WakeService : Service() {
         try {
             destroyWakeRecognizer()
             if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                toast("Voice input not available on this device")
-                shutDown()
+                enterStandbyRetry("no recognition")
                 return
             }
             val r = SpeechRecognizer.createSpeechRecognizer(this)
@@ -223,22 +241,20 @@ class WakeService : Service() {
                     destroyWakeRecognizer()
                     BubbleLevelBus.reset()
                     if (!started) return
+                    if (inCall) return // call watch resumes us on hangup
                     when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH,
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> startWakeLoop()
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restartWithStormGuard()
                         SpeechRecognizer.ERROR_CLIENT,
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
                             if (++restarts > 10) {
-                                toast("Wake word stopped (mic busy)")
-                                shutDown()
+                                restarts = 0
+                                enterStandbyRetry("mic busy")
                             } else {
                                 startWakeLoop()
                             }
                         }
-                        else -> {
-                            toast("Wake word stopped (error $error)")
-                            shutDown()
-                        }
+                        else -> enterStandbyRetry("error $error")
                     }
                 }
 
@@ -266,10 +282,7 @@ class WakeService : Service() {
             r.startListening(intent)
         } catch (_: Exception) {
             destroyWakeRecognizer()
-            if (started) {
-                toast("Couldn't start wake-word listening")
-                shutDown()
-            }
+            if (started) enterStandbyRetry("mic failed")
         }
     }
 
@@ -282,6 +295,76 @@ class WakeService : Service() {
         flashBubble()
         speakWakeGreeting()
         openAppForCommand()
+    }
+
+    /** Restart with storm guard: hot error loops cool down 60s. */
+    private fun restartWithStormGuard() {
+        val now = System.currentTimeMillis()
+        while (errorTimes.isNotEmpty() && now - errorTimes.first() > 60_000) errorTimes.removeFirst()
+        errorTimes.addLast(now)
+        val backoff = standbyBackoffMs(errorTimes.size)
+        if (backoff > 0) {
+            HudStateBus.postTicker("[STANDBY: COOLING]")
+            main.postDelayed({ if (started && !inCall) startWakeLoop() }, backoff)
+        } else {
+            startWakeLoop()
+        }
+    }
+
+    /**
+     * 24x7 path: never die on transient failures. Stay alive mic-off and let
+     * the watchdog resume the loop (5-min retry + 15-min heartbeat).
+     */
+    private fun enterStandbyRetry(reason: String) {
+        haltLoop()
+        HudStateBus.postTicker("[STANDBY: PAUSED]")
+        val now = System.currentTimeMillis()
+        if (shouldStandbyToast(now, lastStandbyToastMs)) {
+            lastStandbyToastMs = now
+            toast("Wake paused ($reason) — resumes automatically")
+        }
+        armStandbyRetry(this)
+    }
+
+    // ---- call awareness (pause the loop off-hook, resume on hangup) ----
+
+    private fun startCallWatch() {
+        stopCallWatch()
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            @Suppress("DEPRECATION")
+            val l = object : PhoneStateListener() {
+                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                    when (state) {
+                        TelephonyManager.CALL_STATE_IDLE -> if (inCall) {
+                            inCall = false
+                            HudStateBus.postTicker("[CALL: END]")
+                            if (started && wakeRecognizer == null && !MicHandoff.appActive) startWakeLoop()
+                        }
+                        else -> if (!inCall) {
+                            inCall = true
+                            HudStateBus.postTicker("[CALL: PAUSED]")
+                            haltLoop()
+                        }
+                    }
+                }
+            }
+            @Suppress("DEPRECATION")
+            tm.listen(l, PhoneStateListener.LISTEN_CALL_STATE)
+            callListener = l
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun stopCallWatch() {
+        try {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            @Suppress("DEPRECATION")
+            callListener?.let { tm.listen(it, PhoneStateListener.LISTEN_NONE) }
+        } catch (_: Exception) {
+        }
+        callListener = null
     }
 
     private fun haltLoop() {

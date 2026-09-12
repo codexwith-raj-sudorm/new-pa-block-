@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        46, "5.5", listOf(
+            "24x7 standby: heartbeat watchdog, auto-revive, call-aware wake",
+            "Answer, hang up and speaker calls by voice",
+            "OEM autostart shortcuts for Xiaomi, Oppo, Vivo and more",
+            "Standby never dies on errors — pauses and resumes itself"
+        )
+    ),
+    ChangelogEntry(
         45, "5.4", listOf(
             "Conversation mode: say Hey Jarvis once, talk till 10s of silence",
             "Direct calling plus SMS, WhatsApp and Telegram texting",

@@ -230,6 +230,7 @@ fun JarvisScreen() {
     var wakeRequest by remember { mutableStateOf(false) }
     var micGrantedTick by remember { mutableStateOf(0) }
     var notifTick by remember { mutableStateOf(0) }
+    var phoneTick by remember { mutableStateOf(0) }
     val micPerm = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -250,6 +251,13 @@ fun JarvisScreen() {
     ) { granted ->
         if (granted) notifTick++
         else Toast.makeText(context, "Allow notifications for the listening indicator", Toast.LENGTH_LONG).show()
+    }
+    val phonePerm = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // Nice-to-have (pause wake on calls): proceed even if denied.
+        if (!granted) Toast.makeText(context, "Call detection off — wake pauses on calls anyway", Toast.LENGTH_LONG).show()
+        phoneTick++
     }
     val devicePerm = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -307,6 +315,10 @@ fun JarvisScreen() {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
     }
+    fun hasPhonePerm(): Boolean {
+        return ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) ==
+            PackageManager.PERMISSION_GRANTED
+    }
     fun onMicTap() {
         if (vm.listening) {
             vm.stopListening()
@@ -346,6 +358,10 @@ fun JarvisScreen() {
             notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
         }
+        if (!hasPhonePerm()) {
+            phonePerm.launch(Manifest.permission.READ_PHONE_STATE)
+            return
+        }
         vm.setWakeEnabled(true)
     }
     LaunchedEffect(micGrantedTick) {
@@ -353,6 +369,9 @@ fun JarvisScreen() {
     }
     LaunchedEffect(notifTick) {
         if (notifTick > 0) onWakeTap()
+    }
+    LaunchedEffect(phoneTick) {
+        if (phoneTick > 0) onWakeTap()
     }
     LaunchedEffect(Unit) { vm.checkWhatsNew() }
     LaunchedEffect(Unit) {
@@ -796,6 +815,16 @@ fun SettingsDialog(vm: JarvisViewModel) {
                         modifier = Modifier.weight(1f)
                     )
                     if (!battOk) TextButton(onClick = { vm.requestBatteryUnrestricted() }) { Text("Fix") }
+                }
+                if (autoStartTarget(Build.MANUFACTURER.orEmpty()) != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Autostart: allow Jarvis or the system kills standby",
+                            fontSize = 13.sp, color = Muted,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { openAutoStartSettings(setCtx) }) { Text("Open") }
+                    }
                 }
                 Text("More", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 MoreRow("🔁 Hands-free " + if (vm.continuous) "on" else "off") { vm.toggleContinuous() }

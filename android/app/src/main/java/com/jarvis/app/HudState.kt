@@ -17,6 +17,11 @@ data class HudState(
 
 data class Ticker(val text: String, val seq: Long)
 
+/** Process-wide mic handoff flag (memory-only: resets on process death). */
+object MicHandoff {
+    @Volatile var appActive: Boolean = false
+}
+
 /** Process-wide HUD bus: the ViewModel + service publish, the bubble observes. */
 object HudStateBus {
     private val _state = MutableStateFlow(HudState())
