@@ -1,10 +1,13 @@
 package com.jarvis.app
 
+import com.jarvis.app.ui.components.acousticBarCyan
+import com.jarvis.app.ui.components.acousticBarHeight
 import com.jarvis.app.ui.components.arcSpinMs
 import com.jarvis.app.ui.components.coreStateLabel
 import com.jarvis.app.ui.components.hudReadoutLine
 import com.jarvis.app.ui.components.hudStatusLine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ArcHudTest {
@@ -30,6 +33,20 @@ class ArcHudTest {
         assertEquals(2600, arcSpinMs(false, true))
         assertEquals(9000, arcSpinMs(false, false))
         assertEquals(1200, arcSpinMs(true, true))
+    }
+
+    @Test
+    fun acousticBars() {
+        for (i in 0 until 24) {
+            val h = acousticBarHeight(0.7f, i)
+            assertTrue(h >= 0.08f && h <= 1f)
+            assertEquals(h, acousticBarHeight(0.7f, i), 0f)
+            assertEquals(0.08f, acousticBarHeight(0f, i), 0f)
+        }
+        assertTrue(acousticBarCyan(0))
+        assertTrue(acousticBarCyan(5))
+        assertTrue(!acousticBarCyan(1))
+        assertTrue(!acousticBarCyan(6))
     }
 
     @Test

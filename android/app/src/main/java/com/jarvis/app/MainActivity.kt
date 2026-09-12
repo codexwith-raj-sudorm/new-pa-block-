@@ -5,10 +5,12 @@ import android.app.Application
 import android.content.Intent
 import com.jarvis.app.ui.StarkShareActivity
 import com.jarvis.app.hardware.StarkDeviceController
+import com.jarvis.app.ui.components.AcousticArray
 import com.jarvis.app.ui.components.ArcCoreReactor
 import com.jarvis.app.ui.components.HeaderMiniReactor
 import com.jarvis.app.ui.components.HudBackdrop
 import com.jarvis.app.ui.components.HudCyan
+import com.jarvis.app.ui.components.HudGold
 import com.jarvis.app.ui.components.HudInk
 import com.jarvis.app.ui.components.coreStateLabel
 import com.jarvis.app.ui.components.hudReadoutLine
@@ -28,6 +30,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -363,7 +366,25 @@ fun JarvisScreen() {
             val coreLvl by BubbleLevelBus.level.collectAsState()
             val coreHud by HudStateBus.state.collectAsState()
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF0D1526).copy(alpha = 0.85f))
+                        .border(1.dp, HudGold.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            "MATRIX // ARC CORE", color = HudGold, fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            coreStateLabel(vm.listening, vm.busy, coreHud.speaking),
+                            color = HudCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                        )
+                    }
                     ArcCoreReactor(
                         listening = vm.listening,
                         thinking = vm.busy,
@@ -371,11 +392,9 @@ fun JarvisScreen() {
                         level = coreLvl,
                         onTap = vm::interruptSpeech
                     )
-                    Text(
-                        coreStateLabel(vm.listening, vm.busy, coreHud.speaking),
-                        color = HudCyan, fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace, letterSpacing = 4.sp
-                    )
+                    if (vm.listening || coreHud.speaking) {
+                        AcousticArray(level = coreLvl, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    }
                     Text(
                         hudReadoutLine(vm.dashTemp, vm.dashPing, vm.dashBatt),
                         color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,

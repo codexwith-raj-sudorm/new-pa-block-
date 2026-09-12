@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +33,7 @@ import kotlin.math.sin
 val HudCyan = Color(0xFF67E8F9)
 val HudBlue = Color(0xFF38BDF8)
 val HudAmber = Color(0xFFFBBF24)
+val HudGold = Color(0xFFFFBA27)
 val HudInk = Color(0xFFE6EDF3)
 
 /** One-line status for the HUD bar. Pure, tested. */
@@ -62,6 +65,16 @@ fun hudReadoutLine(temp: String, ping: String, batt: Int): String {
     return "SYS $t \u2022 NET $p \u2022 PWR $b"
 }
 
+/** Deterministic per-bar height from mic level (0.08..1). Pure, tested. */
+fun acousticBarHeight(level: Float, index: Int): Float {
+    val l = level.coerceIn(0f, 1f)
+    val frac = (sin(index * 12.9898f) * 43758.5453f).let { it - kotlin.math.floor(it) }
+    return (0.08f + 0.92f * l * (0.35f + 0.65f * frac)).coerceIn(0.08f, 1f)
+}
+
+/** Every 5th bar is cyan (reference contrast rhythm). Pure, tested. */
+fun acousticBarCyan(index: Int): Boolean = index % 5 == 0
+
 /**
  * Reactive arc-core: tick ring, counter-rotating coil arcs, glowing core that
  * breathes with the mic/speech level, radar sweep while listening. Tap = interrupt.
@@ -78,7 +91,7 @@ fun ArcCoreReactor(
 ) {
     val spinMs = arcSpinMs(thinking, listening)
     val stateColor = when {
-        speaking -> HudAmber
+        speaking -> HudGold
         listening -> HudCyan
         thinking -> HudBlue
         else -> HudCyan.copy(alpha = 0.7f)
@@ -138,21 +151,26 @@ fun ArcCoreReactor(
             val a = Math.toRadians((i * 36f + spin / 3f).toDouble())
             val cr = r * 0.64f
             drawCircle(
-                stateColor.copy(alpha = 0.9f),
+                HudGold.copy(alpha = 0.9f),
                 radius = r * 0.042f,
                 center = Offset(c.x + cr * cos(a).toFloat(), c.y + cr * sin(a).toFloat())
             )
         }
+        // Orbiting synaptic spark.
+        val sa = Math.toRadians((spin * 2.5).toDouble())
+        val sc = Offset(c.x + rr * cos(sa).toFloat(), c.y + rr * sin(sa).toFloat())
+        drawCircle(HudGold.copy(alpha = 0.25f), radius = r * 0.06f, center = sc)
+        drawCircle(Color.White, radius = r * 0.022f, center = sc)
         // Breathing core.
         val coreR = r * 0.42f * (1f + 0.05f * lvl + 0.04f * pulse * active)
         drawCircle(
             Brush.radialGradient(
-                listOf(Color.White, stateColor, Color.Transparent),
+                listOf(Color.White, HudGold, Color.Transparent),
                 center = c, radius = coreR * 1.7f
             ),
             radius = coreR * 1.7f, center = c
         )
-        drawCircle(stateColor, radius = coreR * 0.55f, center = c)
+        drawCircle(Color.White, radius = coreR * 0.32f, center = c)
         // Radar sweep while listening.
         if (listening) {
             drawArc(
@@ -202,5 +220,23 @@ fun HudBackdrop(content: @Composable () -> Unit) {
             drawLine(bc, Offset(sw - m, sh - m), Offset(sw - m - len, sh - m), w)
         }
         content()
+    }
+}
+
+/** Gold waveform strip (every 5th bar cyan), driven by the live mic level. */
+@Composable
+fun AcousticArray(level: Float, modifier: Modifier = Modifier) {
+    val barCount = 24
+    Canvas(modifier.height(52.dp).fillMaxWidth()) {
+        val gap = 4f
+        val bw = (size.width - gap * (barCount - 1)) / barCount
+        for (i in 0 until barCount) {
+            val h = size.height * acousticBarHeight(level, i)
+            drawRect(
+                if (acousticBarCyan(i)) HudCyan else HudGold,
+                topLeft = Offset(i * (bw + gap), size.height - h),
+                size = Size(bw, h)
+            )
+        }
     }
 }
