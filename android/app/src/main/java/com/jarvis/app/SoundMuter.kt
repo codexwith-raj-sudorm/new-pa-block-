@@ -17,11 +17,26 @@ object SoundMuter {
         AudioManager.STREAM_ACCESSIBILITY
     )
 
+    /** Streams we actually muted (subset of [STREAMS]); only these get unmuted. */
+    private val mutedByUs = mutableSetOf<Int>()
+
+    @Synchronized
     fun mute(am: AudioManager) {
-        for (s in STREAMS) runCatching { am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0) }
+        mutedByUs.clear()
+        for (s in STREAMS) {
+            if (!isMuted(am, s)) {
+                runCatching { am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0) }
+                mutedByUs.add(s)
+            }
+        }
     }
 
+    @Synchronized
     fun unmute(am: AudioManager) {
-        for (s in STREAMS) runCatching { am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) }
+        for (s in mutedByUs) runCatching { am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, 0) }
+        mutedByUs.clear()
     }
+
+    private fun isMuted(am: AudioManager, stream: Int): Boolean =
+        runCatching { am.isStreamMute(stream) }.getOrDefault(false)
 }

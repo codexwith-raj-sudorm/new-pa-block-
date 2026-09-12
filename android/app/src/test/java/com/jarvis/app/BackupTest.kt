@@ -36,4 +36,12 @@ class BackupTest {
         )
         assertEquals(0, o.getJSONArray("chats").length())
     }
+
+    @Test fun capsMsgsPerChat() {
+        val big = ChatData("c9", "Big", MutableList(600) { i -> Triple("user", "m$i", i.toLong()) })
+        val o = org.json.JSONObject(buildBackup(listOf(big), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()))
+        val msgs = o.getJSONArray("chats").getJSONObject(0).getJSONArray("msgs")
+        assertEquals(500, msgs.length())
+        assertEquals("m100", msgs.getJSONArray(0).getString(1))
+    }
 }

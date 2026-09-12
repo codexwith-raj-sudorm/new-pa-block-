@@ -41,6 +41,7 @@ import androidx.room.Room
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jarvis.app.local.StarkVaultDb
+import com.jarvis.app.widget.StarkWidgetProvider
 import com.jarvis.app.hardware.StarkDeviceController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -582,7 +583,7 @@ fun buildBackup(
     for (c in chats) {
         val co = JSONObject().put("title", c.title)
         val marr = JSONArray()
-        for ((r, t, ts) in c.msgs) {
+        for ((r, t, ts) in c.msgs.takeLast(500)) {
             marr.put(JSONArray().put(r).put(t).put(ts))
         }
         co.put("msgs", marr)
@@ -1248,8 +1249,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             t.setPitch(0.68f) // fixed
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
-                override fun onDone(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } }
-                override fun onError(id: String?) { SpeechState.speaking = false; HudStateBus.update(speaking = false) }
+                override fun onDone(id: String?) { if (id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } } }
+                override fun onError(id: String?) { if (id == null || id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false) } }
             })
         } catch (_: Exception) {
         }
@@ -1386,6 +1387,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return false
         }
         store.masterKey = ""
+        store.masterName = ""
+        store.masterAbout = ""
+        masterName = ""
+        masterAbout = ""
         masterInstalled = false
         settingsMsg = "Master key removed. Normal mode."
         return true
@@ -1482,6 +1487,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             getApplication<Application>().startActivity(Intent.createChooser(i, "Backup Jarvis data"))
         } catch (_: Exception) {
+            toast("Backup failed — history too large to share")
         }
     }
 
@@ -1508,6 +1514,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         send(prev.text)
     }
 
+    private var speakChunks = 1
+
     private fun stopSpeaking() {
         SpeechState.speaking = false
         try {
@@ -1520,6 +1528,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         stopSpeaking()
         SpeechState.speaking = false
         HudStateBus.update(speaking = false)
+        if (WakeService.isRunning) {
+            try {
+                getApplication<Application>().startService(
+                    Intent(getApplication(), WakeService::class.java).setAction(WakeService.ACTION_HUSH)
+                )
+            } catch (_: Exception) {
+            }
+        }
         if (continuous && ttsOn) {
             try {
                 startListening()
@@ -1536,8 +1552,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (clean.isEmpty()) return
             val chunks = splitSentences(clean)
             if (chunks.isEmpty()) return
-            t.speak(chunks[0], TextToSpeech.QUEUE_FLUSH, null, "jarvis")
-            for (c in chunks.drop(1)) t.speak(c, TextToSpeech.QUEUE_ADD, null, "jarvis")
+            speakChunks = chunks.size
+            t.speak(chunks[0], TextToSpeech.QUEUE_FLUSH, null, "jarvis0")
+            chunks.drop(1).forEachIndexed { i, c ->
+                t.speak(c, TextToSpeech.QUEUE_ADD, null, "jarvis" + (i + 1))
+            }
         } catch (_: Exception) {
         }
     }
@@ -1780,6 +1799,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             wakeOn = false
             store.wakeEnabled = false
         }
+        StarkWidgetProvider.refreshAll(appCtx)
+        refreshReactorWidgets(appCtx)
     }
 
     fun syncWakeState() {
@@ -2101,7 +2122,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     fun send(raw: String) {
         val text = raw.trim()
-        if (text.isEmpty() || busy) return
+        val sendChatId = activeChatId
+        if (text.isEmpty()) return
+        if (busy) { toast("Still thinking — one sec"); return }
         messages.add(ChatMessage("user", text))
         persist()
         HudStateBus.update(online = brainOk)
@@ -2112,10 +2135,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 viewModelScope.launch {
                     try {
                         val reply = if (hit.tool == "fx") fetchFx(hit.arg) else fetchWeather(hit.arg)
-                        messages.add(ChatMessage("bot", reply))
+                        deliverReply(sendChatId, reply)
                         speak(reply)
                     } catch (e: Exception) {
-                        messages.add(ChatMessage("bot", "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service."))
+                        deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service.")
                     } finally {
                         busy = false
                         HudStateBus.update(thinking = false)
@@ -2136,10 +2159,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             viewModelScope.launch {
                 try {
                     val reply = fireHook(hook)
-                    messages.add(ChatMessage("bot", reply))
+                    deliverReply(sendChatId, reply)
                     speak(reply)
                 } catch (e: Exception) {
-                    messages.add(ChatMessage("bot", "⚠️ " + hook.name + " failed: " + e.message?.take(120)))
+                    deliverReply(sendChatId, "⚠️ " + hook.name + " failed: " + e.message?.take(120))
                 } finally {
                     busy = false
                     HudStateBus.update(thinking = false)
@@ -2162,7 +2185,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val system = buildSystem(store.facts())
-                val hist = messages.dropLast(1)
+                val hist = messages.dropLast(1).takeLast(40)
                     .map { (if (it.role == "user") "user" else "model") to it.text }
                 val (reply, _) = try {
                     GeminiApi.chat(effectiveKey, resolveModels(false), system, hist, text)
@@ -2171,15 +2194,27 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     // Model list went stale — rediscover once and retry.
                     GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
                 }
-                messages.add(ChatMessage("bot", reply))
+                deliverReply(sendChatId, reply)
                 speak(reply)
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
             } catch (e: Exception) {
-                messages.add(ChatMessage("bot", "⚠️ ${e.message}"))
+                deliverReply(sendChatId, "⚠️ ${e.message}")
             } finally {
                 busy = false
                 HudStateBus.update(thinking = false)
                 persist()
+            }
+        }
+    }
+
+    /** Route an async reply to the chat it was sent from (user may have switched). */
+    private fun deliverReply(sendChatId: String, reply: String) {
+        if (activeChatId == sendChatId) {
+            messages.add(ChatMessage("bot", reply))
+        } else {
+            chats.find { it.id == sendChatId }?.let {
+                it.msgs.add(Triple("model", reply, System.currentTimeMillis()))
+                store.saveChats(chats)
             }
         }
     }
@@ -2546,7 +2581,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val c = chats.firstOrNull { it.id == activeChatId } ?: return
         c.msgs.clear()
         c.msgs.addAll(messages.map { Triple(if (it.role == "user") "user" else "model", it.text, it.time) })
-        c.title = chatTitle(c.msgs)
+        if (c.title.isBlank() || c.title == "New chat") c.title = chatTitle(c.msgs)
         store.saveChats(chats)
         store.saveActiveId(activeChatId)
     }

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.jarvis.app.widget.StarkWidgetProvider
 
 /** After reboot: re-arm the wake service (if it was on) + pending reminder alarms. */
 class BootReceiver : BroadcastReceiver() {
@@ -22,5 +23,7 @@ class BootReceiver : BroadcastReceiver() {
         store.saveReminders(pending)
         for (r in pending) runCatching { armReminderAlarm(context, r.id, r.at, r.text) }
         if (store.dailyBriefing) runCatching { armDailyBriefing(context, true) }
+        runCatching { StarkWidgetProvider.refreshAll(context) }
+        runCatching { refreshReactorWidgets(context) }
     }
 }

@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import androidx.core.content.ContextCompat
+import com.jarvis.app.widget.StarkWidgetProvider
 
 /** Quick Settings tile: tap to toggle the "Hey Jarvis" wake service. */
 class WakeTile : TileService() {
@@ -41,6 +42,8 @@ class WakeTile : TileService() {
             }
         } catch (_: Exception) {
         }
+        StarkWidgetProvider.refreshAll(this)
+        refreshReactorWidgets(this)
         refresh()
     }
 

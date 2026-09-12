@@ -17,8 +17,7 @@ class StarkDeviceController(private val context: Context) {
                     .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
             } ?: return
             cameraManager.setTorchMode(cameraId, enable)
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (_: Exception) {
         }
     }
 

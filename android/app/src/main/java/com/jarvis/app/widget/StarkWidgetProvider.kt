@@ -9,6 +9,8 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.jarvis.app.MainActivity
 import com.jarvis.app.R
+import com.jarvis.app.Store
+import com.jarvis.app.WakeService
 
 /** Widget status label for the Stark toggle (pure, tested). */
 fun starkWidgetLabel(awake: Boolean): String = if (awake) "JARVIS: ACTIVE" else "STANDBY"
@@ -19,14 +21,23 @@ class StarkWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_WAKE = "com.jarvis.app.STARK_TOGGLE_WAKE"
         const val ACTION_STARK_WAKE = "com.jarvis.app.STARK_WAKE_SET"
         const val EXTRA_WAKE_ON = "com.jarvis.app.EXTRA_WAKE_ON"
-        private const val PREFS = "stark_widget"
-        private const val KEY_AWAKE = "awake"
+        /** Live truth: the wake service is up, or wake mode is armed. */
+        fun isAwake(ctx: Context): Boolean = try {
+            WakeService.isRunning || Store(ctx.applicationContext).wakeEnabled
+        } catch (_: Exception) {
+            false
+        }
 
-        private fun isAwake(ctx: Context): Boolean =
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_AWAKE, false)
-
-        private fun setAwake(ctx: Context, awake: Boolean) =
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_AWAKE, awake).apply()
+        /** Rebind every Stark widget from live truth. Safe to call anywhere. */
+        fun refreshAll(ctx: Context) {
+            try {
+                val mgr = AppWidgetManager.getInstance(ctx)
+                val ids = mgr.getAppWidgetIds(ComponentName(ctx, StarkWidgetProvider::class.java))
+                if (ids.isEmpty()) return
+                for (id in ids) StarkWidgetProvider().updateAppWidget(ctx, mgr, id)
+            } catch (_: Exception) {
+            }
+        }
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -55,7 +66,6 @@ class StarkWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         if (intent.action == ACTION_TOGGLE_WAKE) {
             val nowAwake = !isAwake(context)
-            setAwake(context, nowAwake)
 
             // Drive real wake-word listening via MainActivity (foreground-safe).
             try {
@@ -70,10 +80,7 @@ class StarkWidgetProvider : AppWidgetProvider() {
             } catch (_: Exception) {
             }
 
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val thisWidget = ComponentName(context, StarkWidgetProvider::class.java)
-            val appWidgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
-            onUpdate(context, appWidgetManager, appWidgetIds)
+            refreshAll(context)
         }
     }
 }

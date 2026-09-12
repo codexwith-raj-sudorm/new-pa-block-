@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        44, "5.3", listOf(
+            "Reactive arc-core HUD: core breathes with voice, radar sweep, live readouts",
+            "HUD chrome: grid backdrop, slim status bar, interrupt mini-reactor",
+            "Option diet: dead settings removed, share + briefing moved into context",
+            "Bugfix rollup: reply routing, TTS chunks, widgets, muter, chat titles"
+        )
+    ),
+    ChangelogEntry(
         43, "5.2", listOf(
             "Tap the arc reactor to interrupt speech, even hands-free",
             "Reminder quick-add inside the dialog",

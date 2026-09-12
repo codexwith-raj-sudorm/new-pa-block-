@@ -5,11 +5,14 @@ import android.app.Application
 import android.content.Intent
 import com.jarvis.app.ui.StarkShareActivity
 import com.jarvis.app.hardware.StarkDeviceController
-import com.jarvis.app.ui.StarkLockActivity
-import com.jarvis.app.ui.components.GoldenBrainCoreView
+import com.jarvis.app.ui.components.ArcCoreReactor
 import com.jarvis.app.ui.components.HeaderMiniReactor
-import com.jarvis.app.ui.components.StarkBriefingDashboard
-import com.jarvis.app.ui.components.StarkHeader
+import com.jarvis.app.ui.components.HudBackdrop
+import com.jarvis.app.ui.components.HudCyan
+import com.jarvis.app.ui.components.HudInk
+import com.jarvis.app.ui.components.coreStateLabel
+import com.jarvis.app.ui.components.hudReadoutLine
+import com.jarvis.app.ui.components.hudStatusLine
 import com.jarvis.app.ui.components.StarkMessageCard
 import com.jarvis.app.widget.StarkWidgetProvider
 import android.content.pm.PackageManager
@@ -311,30 +314,19 @@ fun JarvisScreen() {
     }
     LaunchedEffect(Unit) { vm.checkWhatsNew() }
 
-    Column(Modifier.fillMaxSize().background(Bg)) {
-        TopBar(
+    HudBackdrop {
+    Column(Modifier.fillMaxSize()) {
+        HudTopBar(
             online = vm.brainOk,
+            wakeOn = vm.wakeOn,
+            ttsOn = vm.ttsOn,
             onSettings = vm::openSettings,
             onNewChat = vm::newChat,
             onChats = { vm.showChats = true },
             onMemory = { vm.showMemory = true },
             onList = { vm.showList = true },
-            ttsOn = vm.ttsOn,
             onToggleTts = vm::toggleTts,
-            wakeOn = vm.wakeOn,
             onWake = ::onWakeTap,
-            continuous = vm.continuous,
-            onToggleContinuous = vm::toggleContinuous,
-            onBriefing = { vm.showBriefing = true },
-            onShareChat = vm::exportChat,
-            onHooks = { vm.showHooks = true },
-            hindiListen = vm.hindiListen,
-            onToggleHindi = vm::toggleHindiListen,
-            dailyBriefing = vm.dailyBriefing,
-            onToggleDaily = vm::toggleDailyBriefing,
-            onReminders = { vm.showReminders = true },
-            onBackup = vm::exportBackup,
-            onLock = { context.startActivity(Intent(context, StarkLockActivity::class.java)) },
             onInterrupt = vm::interruptSpeech
         )
         val listState = rememberLazyListState()
@@ -367,15 +359,30 @@ fun JarvisScreen() {
             }
         }
         if (vm.messages.size <= 1 && !vm.busy) {
+            LaunchedEffect(Unit) { vm.refreshDashboard() }
+            val coreLvl by BubbleLevelBus.level.collectAsState()
+            val coreHud by HudStateBus.state.collectAsState()
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                GoldenBrainCoreView(onClick = vm::interruptSpeech)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ArcCoreReactor(
+                        listening = vm.listening,
+                        thinking = vm.busy,
+                        speaking = coreHud.speaking,
+                        level = coreLvl,
+                        onTap = vm::interruptSpeech
+                    )
+                    Text(
+                        coreStateLabel(vm.listening, vm.busy, coreHud.speaking),
+                        color = HudCyan, fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace, letterSpacing = 4.sp
+                    )
+                    Text(
+                        hudReadoutLine(vm.dashTemp, vm.dashPing, vm.dashBatt),
+                        color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.clickable { vm.refreshDashboard() }.padding(4.dp)
+                    )
+                }
             }
-            StarkBriefingDashboard(
-                onRefresh = vm::refreshDashboard,
-                temperature = vm.dashTemp,
-                batteryLevel = vm.dashBatt,
-                systemPing = vm.dashPing
-            )
             Row(
                 Modifier.fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
@@ -393,6 +400,7 @@ fun JarvisScreen() {
             micVisible = voiceAvailable(context),
             listening = vm.listening
         )
+    }
     }
 
     if (vm.showSettings) SettingsDialog(vm)
@@ -415,75 +423,82 @@ private fun voiceAvailable(context: android.content.Context): Boolean {
 }
 
 @Composable
-fun TopBar(
+fun HudTopBar(
     online: Boolean,
+    wakeOn: Boolean,
+    ttsOn: Boolean,
     onSettings: () -> Unit,
     onNewChat: () -> Unit,
     onChats: () -> Unit,
     onMemory: () -> Unit,
-    ttsOn: Boolean,
-    onToggleTts: () -> Unit,
-    wakeOn: Boolean,
-    onWake: () -> Unit,
     onList: () -> Unit,
-    continuous: Boolean,
-    onToggleContinuous: () -> Unit,
-    onBriefing: () -> Unit,
-    onShareChat: () -> Unit,
-    onHooks: () -> Unit,
-    hindiListen: Boolean,
-    onToggleHindi: () -> Unit,
-    dailyBriefing: Boolean,
-    onToggleDaily: () -> Unit,
-    onReminders: () -> Unit,
-    onBackup: () -> Unit,
-    onLock: () -> Unit,
+    onToggleTts: () -> Unit,
+    onWake: () -> Unit,
     onInterrupt: () -> Unit
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(Panel)) {
+    Column(Modifier.fillMaxWidth().background(Color(0xFF0A1424))) {
         Box {
-            StarkHeader(
-                onMenuClick = { menuOpen = true },
-                onSettingsClick = onSettings,
-                isBrainConnected = online
-            )
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("＋ New chat") },
-                        onClick = { menuOpen = false; onNewChat() }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = HudCyan)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "J.A.R.V.I.S", color = HudInk, fontSize = 15.sp,
+                        fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
                     )
-                    DropdownMenuItem(
-                        text = { Text("🧠 Memory") },
-                        onClick = { menuOpen = false; onMemory() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("📝 Lists") },
-                        onClick = { menuOpen = false; onList() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off") },
-                        onClick = { menuOpen = false; onToggleTts() }
+                    Text(
+                        hudStatusLine(online, wakeOn),
+                        color = if (online) HudCyan else JarvisRed,
+                        fontSize = 10.sp, fontFamily = FontFamily.Monospace
                     )
                 }
+                HeaderMiniReactor(isSpeaking = hud.speaking, onInterrupt = onInterrupt)
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = HudCyan)
+                }
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("\uFF0B New chat") },
+                    onClick = { menuOpen = false; onNewChat() }
+                )
+                DropdownMenuItem(
+                    text = { Text("\U0001F9E0 Memory") },
+                    onClick = { menuOpen = false; onMemory() }
+                )
+                DropdownMenuItem(
+                    text = { Text("\U0001F4DD Lists") },
+                    onClick = { menuOpen = false; onList() }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (ttsOn) "\U0001F50A Voice on" else "\U0001F507 Voice off") },
+                    onClick = { menuOpen = false; onToggleTts() }
+                )
+            }
         }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onChats) { Text("💬 Chats", fontSize = 13.sp) }
+            TextButton(onClick = onChats) {
+                Text("\u25A4 CHATS", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = HudCyan)
+            }
             TextButton(onClick = onWake) {
                 Text(
-                    if (wakeOn) "👂 Wake on" else "👂 Wake",
-                    fontSize = 13.sp,
-                    color = if (wakeOn) JarvisRed else Color.Unspecified,
-                    modifier = Modifier.graphicsLayer { val s = 1f + 0.18f * wakePulse; scaleX = s; scaleY = s }
+                    if (wakeOn) "\u25C9 WAKE ON" else "\u25CE WAKE",
+                    fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                    color = if (wakeOn) JarvisRed else HudCyan,
+                    modifier = Modifier.graphicsLayer { val sc = 1f + 0.18f * wakePulse; scaleX = sc; scaleY = sc }
                 )
             }
-            HeaderMiniReactor(isSpeaking = hud.speaking, onInterrupt = onInterrupt)
         }
     }
 }
@@ -578,7 +593,7 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
         input = ""
         keyboard?.hide()
     }
-    Column(Modifier.fillMaxWidth().background(Panel)) {
+    Column(Modifier.fillMaxWidth().background(Color(0xFF0A1424).copy(alpha = 0.92f))) {
         if (listening) {
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",
@@ -600,20 +615,22 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
                     Icon(
                         Icons.Filled.Mic,
                         contentDescription = if (listening) "Stop listening" else "Voice input",
-                        tint = if (listening) JarvisRed else Accent
+                        tint = if (listening) JarvisRed else HudCyan
                     )
                 }
             }
             TextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text(if (listening) "Listening…" else "Ask Jarvis anything…") },
+                placeholder = { Text(if (listening) "LISTENING…" else "ASK JARVIS…", fontFamily = FontFamily.Monospace) },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { submit() }),
                 modifier = Modifier.weight(1f),
                 colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF0E1930),
+                    unfocusedContainerColor = Color(0xFF0E1930),
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
@@ -621,6 +638,7 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
             Spacer(Modifier.width(8.dp))
             Button(
                 onClick = { submit() },
+                colors = ButtonDefaults.buttonColors(containerColor = HudCyan.copy(alpha = 0.16f), contentColor = HudCyan),
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
@@ -721,13 +739,10 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Text("More", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 MoreRow("🔁 Hands-free " + if (vm.continuous) "on" else "off") { vm.toggleContinuous() }
                 MoreRow("⚡ Briefing") { vm.showBriefing = true }
-                MoreRow("📤 Share chat") { vm.exportChat() }
                 MoreRow("🔌 Smart actions") { vm.showHooks = true }
                 MoreRow("🎙 Mic: " + if (vm.hindiListen) "Hindi" else "Auto") { vm.toggleHindiListen() }
-                MoreRow("☀ Briefing 8AM " + if (vm.dailyBriefing) "on" else "off") { vm.toggleDailyBriefing() }
                 MoreRow("⏰ Reminders") { vm.showReminders = true }
                 MoreRow("💾 Backup") { vm.exportBackup() }
-                MoreRow("🔒 Stark ID lock") { setCtx.startActivity(Intent(setCtx, StarkLockActivity::class.java)) }
                 // Models stay hidden on the built-in key — only shown with your own key.
                 if (key.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -858,6 +873,7 @@ fun BriefingDialog(vm: JarvisViewModel) {
                         Text(v, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+                MoreRow("☀ Daily briefing " + if (vm.dailyBriefing) "on" else "off") { vm.toggleDailyBriefing() }
             }
         },
         confirmButton = {
@@ -960,6 +976,9 @@ fun ChatsDialog(vm: JarvisViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { vm.exportChat() }) { Text("📤 Share open chat", fontSize = 13.sp) }
+                }
                 val shown = remember(q, vm.chats.size) {
                     if (q.isBlank()) vm.chats.toList()
                     else vm.chats.filter { it.title.contains(q, ignoreCase = true) }
@@ -1041,7 +1060,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.renameChat(renameTarget!!.id, renameText)
+                    renameTarget?.let { vm.renameChat(it.id, renameText) }
                     renameTarget = null
                 }) { Text("Save") }
             },
