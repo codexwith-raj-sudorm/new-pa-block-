@@ -9,6 +9,15 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        45, "5.4", listOf(
+            "Conversation mode: say Hey Jarvis once, talk till 10s of silence",
+            "Direct calling plus SMS, WhatsApp and Telegram texting",
+            "Open contact chats straight from voice",
+            "Bubble tap interrupts speech; nearby-voice noise gate",
+            "Battery-unrestricted flow actually works now"
+        )
+    ),
+    ChangelogEntry(
         44, "5.3", listOf(
             "Reactive arc-core HUD: core breathes with voice, radar sweep, live readouts",
             "HUD chrome: grid backdrop, slim status bar, interrupt mini-reactor",

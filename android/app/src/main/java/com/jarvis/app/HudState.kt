@@ -3,6 +3,9 @@ package com.jarvis.app
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /** What JARVIS is doing right now (drives bubble color + ticker + waveform). */
 data class HudState(
@@ -34,6 +37,18 @@ object HudStateBus {
 
     fun postTicker(text: String) {
         _ticker.value = Ticker(text, ++seq)
+    }
+}
+
+/**
+ * One-shot interrupt requests (e.g. bubble tap while speaking).
+ * The UI collects [requests] and routes them to the ViewModel.
+ */
+object InterruptBus {
+    private val _req = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val requests: SharedFlow<Unit> = _req.asSharedFlow()
+    fun request() {
+        _req.tryEmit(Unit)
     }
 }
 

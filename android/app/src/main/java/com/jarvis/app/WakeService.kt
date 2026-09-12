@@ -94,6 +94,7 @@ class WakeService : Service() {
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
     private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
     private var restarts = 0
+    private var lastBubbleHushMs = 0L
     private var started = false
 
     override fun onCreate() {
@@ -330,6 +331,25 @@ class WakeService : Service() {
         }
     }
 
+    /**
+     * Arc-reactor bubble tap: while Jarvis speaks it stops the response
+     * (service TTS + in-app speech); otherwise it opens the app for a command.
+     */
+    private fun onBubbleTap() {
+        StarkSounds.click()
+        val now = System.currentTimeMillis()
+        if (SpeechState.speaking) {
+            lastBubbleHushMs = now
+            hushSpeech()
+            InterruptBus.request()
+            HudStateBus.postTicker("[INTERRUPT]")
+        } else if (now - lastBubbleHushMs < 600) {
+            // Second tap of a hush double-tap — swallow so the app doesn't pop open.
+        } else {
+            openAppForCommand()
+        }
+    }
+
     private fun hushSpeech() {
         SpeechState.speaking = false
         runCatching { tts?.stop() }
@@ -412,7 +432,7 @@ class WakeService : Service() {
                             level = level,
                             hudActive = hud.listening || hud.speaking,
                             accent = accent,
-                            onClick = { StarkSounds.click(); openAppForCommand() },
+                            onClick = { onBubbleTap() },
                             onDoubleTap = { StarkSounds.click(); hushSpeech() },
                             onPositionChanged = { nx, ny ->
                                 p.x = nx.toInt()

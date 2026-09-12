@@ -1148,6 +1148,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var tts: TextToSpeech? = null
     private var recognizer: SpeechRecognizer? = null
     private var listenTries = 0
+    private var convoActive = false
+    private var convoLastVoiceMs = 0L
+    private var utterPeakRms = 0f
+    private var convoWatchdog: kotlinx.coroutines.Job? = null
+    var batteryFixTick by mutableStateOf(0)
+    var batteryStateTick by mutableStateOf(0)
     private val focusRequest: AudioFocusRequest by lazy {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).build()
     }
@@ -1249,7 +1255,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             t.setPitch(0.68f) // fixed
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
-                override fun onDone(id: String?) { if (id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if (continuous && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } } }
+                override fun onDone(id: String?) { if (id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if ((continuous || convoActive) && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } } }
                 override fun onError(id: String?) { if (id == null || id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false) } }
             })
         } catch (_: Exception) {
@@ -1574,6 +1580,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 resumeWakeService()
                 return
             }
+            utterPeakRms = 0f
             commandAudioBegin()
             val r = SpeechRecognizer.createSpeechRecognizer(ctx)
             recognizer = r
@@ -1592,6 +1599,22 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         ?.firstOrNull()?.trim().orEmpty()
                     destroyRecognizer()
                     listenTries = 0
+                    if (convoActive) {
+                        commandAudioEnd()
+                        if (heard.isNotEmpty() && !isNearbyVoice(utterPeakRms)) {
+                            // Far-field/background chatter — ignore, stay in session.
+                            HudStateBus.postTicker("[NOISE: IGNORED]")
+                            restartConvoListen()
+                            return
+                        }
+                        if (heard.isNotEmpty()) {
+                            convoLastVoiceMs = System.currentTimeMillis()
+                            send(heard)
+                        } else {
+                            restartConvoListen()
+                        }
+                        return // session owns the mic until the 10s timeout
+                    }
                     commandAudioEnd()
                     if (heard.isNotEmpty()) send(heard)
                     resumeWakeService()
@@ -1611,6 +1634,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         return
                     }
                     listenTries = 0
+                    if (convoActive) {
+                        commandAudioEnd()
+                        if (error == SpeechRecognizer.ERROR_CLIENT) {
+                            endConvoSession() // user took over / cancelled
+                        } else if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        ) {
+                            if (convoExpired(System.currentTimeMillis(), convoLastVoiceMs)) {
+                                endConvoSession()
+                            } else {
+                                restartConvoListen()
+                            }
+                        } else {
+                            toast("Voice error ($error)")
+                            endConvoSession()
+                        }
+                        return
+                    }
                     if (error == SpeechRecognizer.ERROR_NO_MATCH ||
                         error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                     ) {
@@ -1624,7 +1665,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
                 override fun onEndOfSpeech() { BubbleLevelBus.reset() }
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) { BubbleLevelBus.pushRms(rmsdB) }
+                override fun onRmsChanged(rmsdB: Float) { BubbleLevelBus.pushRms(rmsdB); if (rmsdB > utterPeakRms) utterPeakRms = rmsdB }
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -1648,11 +1689,69 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun startListeningDelayed(ms: Long) {
+    // ---- conversation session (wake once, talk until 10s of silence) ----
+
+    fun startConvoSession() {
+        convoActive = true
+        convoLastVoiceMs = System.currentTimeMillis()
+        HudStateBus.postTicker("[CONVO: LIVE]")
+        startConvoWatchdog()
+        // Half-duplex: wait for the "Yes sir?" greeting to finish first.
         viewModelScope.launch {
-            delay(ms)
-            if (!listening) startListening()
+            var waits = 0
+            while (SpeechState.speaking && waits < 15 && convoActive) {
+                delay(200)
+                waits++
+            }
+            if (convoActive && !listening) startListening()
         }
+    }
+
+    private fun restartConvoListen() {
+        if (!convoActive) return
+        viewModelScope.launch {
+            delay(350)
+            if (convoActive && !listening && !busy && !SpeechState.speaking && !showSettings) {
+                try {
+                    startListening()
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    private fun startConvoWatchdog() {
+        convoWatchdog?.cancel()
+        convoWatchdog = viewModelScope.launch {
+            while (convoActive) {
+                delay(1500)
+                if (!convoActive) return@launch
+                if (listening || busy || SpeechState.speaking) continue
+                if (convoExpired(System.currentTimeMillis(), convoLastVoiceMs)) {
+                    endConvoSession()
+                } else if (!showSettings) {
+                    // Idle gap with time left (voice off, missed callback) — reopen mic.
+                    try {
+                        startListening()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+        }
+    }
+
+    private fun endConvoSession() {
+        if (!convoActive) return
+        convoActive = false
+        convoWatchdog?.cancel()
+        convoWatchdog = null
+        destroyRecognizer()
+        listening = false
+        HudStateBus.update(listening = false)
+        BubbleLevelBus.reset()
+        commandAudioEnd()
+        HudStateBus.postTicker("[CONVO: END]")
+        resumeWakeService()
     }
 
     fun stopListening() {
@@ -1757,20 +1856,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             val ctx = getApplication<Application>()
             val pm = ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             pm.isIgnoringBatteryOptimizations(ctx.packageName)
-        } catch (_: Exception) { true }
+        } catch (_: Exception) { false }
     }
 
+    /**
+     * Ask Android to drop Jarvis from battery optimization. The UI owns the
+     * result contract (see JarvisScreen), so this just raises the request.
+     */
     fun requestBatteryUnrestricted() {
-        try {
-            val ctx = getApplication<Application>()
-            val i = Intent(
-                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                android.net.Uri.parse("package:" + ctx.packageName)
-            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            ctx.startActivity(i)
-        } catch (_: Exception) {
-            toast("Allow Jarvis to run unrestricted in battery settings.")
-        }
+        batteryFixTick++
     }
 
     fun setWakeEnabled(on: Boolean) {
@@ -2357,13 +2451,15 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
-            ?: return "I can open apps, flip the torch, dial contacts, or open settings — e.g. “open YouTube”."
+            ?: return "I can open apps, call and text contacts, open chats, or flip the torch — e.g. “text mom I’ll be late”."
         return when (cmd) {
             is OpenApp -> openAppByName(cmd.name)
             is Silence -> setSilence(true)
             is Unsilence -> setSilence(false)
             is Torch -> setTorch(cmd.on)
             is CallContact -> callContact(cmd.query)
+            is TextMessage -> textMessage(cmd.app, cmd.contact, cmd.body)
+            is OpenChat -> openChat(cmd.app, cmd.contact)
             is WifiPanel -> openWifiPanel()
             is SysSettings -> openSysSettings()
             is SetAlarm -> setAlarm(cmd.time)
@@ -2414,26 +2510,147 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) { "Couldn't reach the torch." }
     }
 
-    private fun callContact(query: String): String {
+    private sealed interface Recipient {
+        data class Found(val number: String) : Recipient
+        object NeedPermission : Recipient
+        object NotFound : Recipient
+    }
+
+    /** Digits fast-path, else contact lookup (queues READ_CONTACTS when missing). */
+    private fun resolveRecipient(query: String): Recipient {
         val ctx = getApplication<Application>()
         val digits = query.filter { it.isDigit() || it == '+' }
         if (digits.length >= 7 && digits.length >= query.trim().length - 2) {
-            dialNumber(ctx, digits)
-            return "Dialling $digits."
+            return Recipient.Found(digits)
         }
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             permRequest = Manifest.permission.READ_CONTACTS
-            return "I need contacts permission to find “$query” — allow it, then ask again."
+            return Recipient.NeedPermission
         }
-        val number = findContactNumber(ctx, query) ?: return "Couldn't find “$query” in contacts."
-        dialNumber(ctx, number)
-        return "Dialling $query."
+        val n = findContactNumber(ctx, query)
+        return if (n != null) Recipient.Found(n) else Recipient.NotFound
     }
 
-    private fun dialNumber(ctx: Context, number: String) {
-        val i = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + android.net.Uri.encode(number)))
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        ctx.startActivity(i)
+    private fun callContact(query: String): String {
+        val ctx = getApplication<Application>()
+        val number = when (val r = resolveRecipient(query)) {
+            is Recipient.Found -> r.number
+            Recipient.NeedPermission -> return "I need contacts permission to find “$query” — allow it, then ask again."
+            Recipient.NotFound -> return "Couldn’t find “$query” in contacts."
+        }
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.CALL_PHONE
+            return "I need call permission to dial directly — allow it, then say that again."
+        }
+        return try {
+            val i = Intent(Intent.ACTION_CALL, Uri.parse("tel:" + Uri.encode(number)))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            "Calling $query."
+        } catch (_: Exception) {
+            "Couldn’t place the call."
+        }
+    }
+
+    private fun textMessage(app: MsgApp, contact: String, body: String): String {
+        val ctx = getApplication<Application>()
+        if (app == MsgApp.TELEGRAM && contact.isEmpty()) {
+            return if (openTelegramShare(ctx, body)) "Pick a Telegram chat to send that."
+            else "Couldn’t open Telegram sharing."
+        }
+        val number = when (val r = resolveRecipient(contact)) {
+            is Recipient.Found -> r.number
+            Recipient.NeedPermission -> return "I need contacts permission to find “$contact” — allow it, then ask again."
+            Recipient.NotFound -> return "Couldn’t find “$contact” in contacts."
+        }
+        return when (app) {
+            MsgApp.SMS -> sendSmsText(ctx, contact, number, body)
+            MsgApp.WHATSAPP -> openWhatsAppChat(ctx, contact, number, body)
+            MsgApp.TELEGRAM -> if (openTelegramShare(ctx, body)) {
+                "Telegram needs a username — pick $contact’s chat to send that."
+            } else {
+                "Couldn’t open Telegram sharing."
+            }
+        }
+    }
+
+    private fun sendSmsText(ctx: Context, label: String, number: String, body: String): String {
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.SEND_SMS
+            return "I need SMS permission to text directly — allow it, then say that again."
+        }
+        return try {
+            @Suppress("DEPRECATION")
+            val sm = android.telephony.SmsManager.getDefault()
+            val parts = sm.divideMessage(body)
+            if (parts.size <= 1) sm.sendTextMessage(number, null, body, null, null)
+            else sm.sendMultipartTextMessage(number, null, parts, null, null)
+            "Texted $label: “${body.take(80)}”"
+        } catch (_: Exception) {
+            "Couldn’t send that text."
+        }
+    }
+
+    private fun openWhatsAppChat(ctx: Context, label: String, number: String, body: String?): String {
+        return try {
+            val digits = waDigits(number, java.util.Locale.getDefault().country ?: "")
+            val url = "https://wa.me/$digits" + if (body != null) "?text=" + Uri.encode(body) else ""
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                i.setPackage("com.whatsapp")
+                ctx.startActivity(i)
+            } catch (_: Exception) {
+                i.setPackage(null)
+                ctx.startActivity(i)
+            }
+            if (body != null) "Opening $label’s WhatsApp chat — tap send." else "Opening $label’s WhatsApp chat."
+        } catch (_: Exception) {
+            "Couldn’t open WhatsApp."
+        }
+    }
+
+    private fun openTelegramShare(ctx: Context, body: String): Boolean {
+        return try {
+            val i = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://t.me/share/url?url=&text=" + Uri.encode(body))
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun openChat(app: MsgApp?, contact: String): String {
+        val ctx = getApplication<Application>()
+        if (app == MsgApp.TELEGRAM) {
+            return "I can’t open Telegram chats by contact name yet — try WhatsApp or text."
+        }
+        val number = when (val r = resolveRecipient(contact)) {
+            is Recipient.Found -> r.number
+            Recipient.NeedPermission -> return "I need contacts permission to find “$contact” — allow it, then ask again."
+            Recipient.NotFound -> return "Couldn’t find “$contact” in contacts."
+        }
+        if (app == MsgApp.WHATSAPP || (app == null && isAppInstalled(ctx, "com.whatsapp"))) {
+            return openWhatsAppChat(ctx, contact, number, null)
+        }
+        return try {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse("sms:" + Uri.encode(number)))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+            "Opening $contact’s texts."
+        } catch (_: Exception) {
+            "Couldn’t open that conversation."
+        }
+    }
+
+    private fun isAppInstalled(ctx: Context, pkg: String): Boolean {
+        return try {
+            ctx.packageManager.getLaunchIntentForPackage(pkg) != null
+        } catch (_: Exception) {
+            false
+        }
     }
 
     private fun findContactNumber(ctx: Context, query: String): String? {

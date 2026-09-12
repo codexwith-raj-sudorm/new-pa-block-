@@ -7,7 +7,9 @@ package com.jarvis.app
  * Understood (case-insensitive):
  * - "open YouTube" / "launch whatsapp app" / "start camera"
  * - "turn on the flashlight" / "torch off"
- * - "call mom" / "dial +919876543210" (opens the dialer — never auto-calls)
+ * - "call mom" / "dial +919876543210" (places the call directly)
+ * - "text mom I'll be late" / "whatsapp ram hi" / "telegram launch at 6"
+ * - "open mom's chat" / "open my whatsapp chat with ram"
  * - "turn on wifi" (opens the Wi-Fi panel — Android 10+ forbids silent toggles)
  * - "open settings"
  * - "silence my phone" / "turn off silent mode" (Do Not Disturb)
@@ -25,6 +27,9 @@ data class WebSearch(val query: String) : DeviceCommand
 data class PlayMedia(val query: String) : DeviceCommand
 object WifiPanel : DeviceCommand
 object SysSettings : DeviceCommand
+enum class MsgApp { SMS, WHATSAPP, TELEGRAM }
+data class TextMessage(val app: MsgApp, val contact: String, val body: String) : DeviceCommand
+data class OpenChat(val app: MsgApp?, val contact: String) : DeviceCommand
 
 fun parseDeviceCommand(raw: String): DeviceCommand? {
     val t = raw.trim()
@@ -55,6 +60,46 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         val q = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
         if (q.isNotEmpty()) return CallContact(q)
     }
+
+    // Text / WhatsApp / Telegram ("text mom I'll be late", "send a whatsapp to ram hi").
+    // Bare "telegram <text>" (no "to <contact>") opens the share picker instead.
+    Regex("""^(?:send(?: an?)?\s+)?(text(?: message)?|sms|message|whatsapp|telegram)(?: message)?\s+(.+)$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val appWord = it.groupValues[1].lowercase()
+            val rest = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
+            val app = when {
+                appWord.startsWith("whatsapp") -> MsgApp.WHATSAPP
+                appWord.startsWith("telegram") -> MsgApp.TELEGRAM
+                else -> MsgApp.SMS
+            }
+            val toM = Regex("""^to\s+(.+)$""", RegexOption.IGNORE_CASE).find(rest)
+            if (app == MsgApp.TELEGRAM && toM == null) {
+                if (rest.isNotEmpty()) return TextMessage(MsgApp.TELEGRAM, "", rest)
+            } else {
+                val noTo = toM?.groupValues?.get(1)?.trim() ?: rest
+                Regex("""^"([^"]+)"\s+(.+)$""").find(noTo)?.let { qm ->
+                    val c = qm.groupValues[1].trim()
+                    val b = qm.groupValues[2].trim()
+                    if (c.isNotEmpty() && b.isNotEmpty()) return TextMessage(app, c, b)
+                }
+                val parts = noTo.split(Regex("""\s+"""), limit = 2)
+                if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                    return TextMessage(app, parts[0].trim(), parts[1].trim())
+                }
+            }
+        }
+
+    // Open a chat ("open mom's chat", "open my whatsapp chat with ram").
+    Regex("""^open\s+(?:my\s+)?(?:(whatsapp|telegram|sms|text)\s+)?chat\s+with\s+(.+)$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val c = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
+            if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[1]), c)
+        }
+    Regex("""^open\s+(.+?)['\u2019]s\s+chat(?:\s+on\s+(whatsapp|telegram|sms|text))?$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val c = it.groupValues[1].trim()
+            if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[2]), c)
+        }
 
     // Alarm ("wake me at 7", "set an alarm for 6:30 am"). No time -> clock app.
     if (low.contains("alarm") || low.startsWith("wake me")) {
@@ -128,4 +173,19 @@ fun parseDuration(raw: String): Int? {
         found = true
     }
     return if (found && total in 1..86400) total else null
+}
+
+/** Map "whatsapp" / "telegram" / "sms" / "text" to [MsgApp]. Pure, tested. */
+fun parseMsgApp(word: String): MsgApp? = when (word.lowercase()) {
+    "whatsapp" -> MsgApp.WHATSAPP
+    "telegram" -> MsgApp.TELEGRAM
+    "sms", "text" -> MsgApp.SMS
+    else -> null
+}
+
+/** Normalize a dial string for wa.me: digits only + best-effort country code. Pure, tested. */
+fun waDigits(number: String, defaultCountry: String = ""): String {
+    var d = number.filter { it.isDigit() }
+    if (d.length == 10 && defaultCountry == "IN") d = "91$d"
+    return d
 }

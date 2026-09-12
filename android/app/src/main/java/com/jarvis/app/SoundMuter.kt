@@ -22,7 +22,8 @@ object SoundMuter {
 
     @Synchronized
     fun mute(am: AudioManager) {
-        mutedByUs.clear()
+        // NOTE: never clear here — a second mute() before unmute() (mic retry)
+        // must not lose track of streams the first call muted.
         for (s in STREAMS) {
             if (!isMuted(am, s)) {
                 runCatching { am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, 0) }

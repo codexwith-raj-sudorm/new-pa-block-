@@ -24,6 +24,32 @@ class DeviceTest {
         assertEquals(CallContact("+919876543210"), parseDeviceCommand("dial +919876543210"))
     }
 
+    @Test fun textParse() {
+        assertEquals(TextMessage(MsgApp.SMS, "mom", "I'll be late"), parseDeviceCommand("text mom I'll be late"))
+        assertEquals(TextMessage(MsgApp.SMS, "ram", "hello"), parseDeviceCommand("send a text to ram hello"))
+        assertEquals(TextMessage(MsgApp.SMS, "mom", "hi"), parseDeviceCommand("message mom hi"))
+        assertEquals(TextMessage(MsgApp.WHATSAPP, "ram", "hi"), parseDeviceCommand("whatsapp ram hi"))
+        assertEquals(TextMessage(MsgApp.WHATSAPP, "ram", "hi there"), parseDeviceCommand("send a whatsapp to ram hi there"))
+        assertEquals(TextMessage(MsgApp.TELEGRAM, "", "launch at 6"), parseDeviceCommand("telegram launch at 6"))
+        assertEquals(TextMessage(MsgApp.TELEGRAM, "ram", "hi"), parseDeviceCommand("telegram to ram hi"))
+        assertEquals(TextMessage(MsgApp.SMS, "Mary Jane", "hello"), parseDeviceCommand("text \"Mary Jane\" hello"))
+    }
+
+    @Test fun openChatParse() {
+        assertEquals(OpenChat(null, "mom"), parseDeviceCommand("open mom's chat"))
+        assertEquals(OpenChat(MsgApp.WHATSAPP, "ram"), parseDeviceCommand("open my whatsapp chat with ram"))
+        assertEquals(OpenChat(null, "ram"), parseDeviceCommand("open chat with ram"))
+        assertEquals(OpenChat(MsgApp.WHATSAPP, "ram"), parseDeviceCommand("open ram's chat on whatsapp"))
+    }
+
+    @Test fun msgHelpers() {
+        assertEquals(MsgApp.WHATSAPP, parseMsgApp("whatsapp"))
+        assertEquals(null, parseMsgApp("signal"))
+        assertEquals("919830012345", waDigits("+91 98300 12345", "IN"))
+        assertEquals("919830012345", waDigits("9830012345", "IN"))
+        assertEquals("9830012345", waDigits("9830012345", "US"))
+    }
+
     @Test fun wifiAndSettingsParse() {
         assertTrue(parseDeviceCommand("turn on wifi") is WifiPanel)
         assertTrue(parseDeviceCommand("open settings") is SysSettings)

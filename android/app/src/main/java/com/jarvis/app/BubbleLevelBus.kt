@@ -11,6 +11,18 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 fun normalizeRms(rms: Float): Float = ((rms - 1f) / 9f).coerceIn(0f, 1f)
 
+/** RMS dB floor for a nearby voice; below this is far-field/background noise. */
+const val NEARBY_RMS_DB = 2.5f
+
+/** True when the utterance peaked like a nearby voice. Pure, tested. */
+fun isNearbyVoice(peakRmsDb: Float): Boolean = peakRmsDb >= NEARBY_RMS_DB
+
+/** Conversation sessions end after this long with no nearby voice. */
+const val CONVO_SILENCE_MS = 10_000L
+
+/** True when the conversation window has run dry. Pure, tested. */
+fun convoExpired(nowMs: Long, lastVoiceMs: Long): Boolean = nowMs - lastVoiceMs >= CONVO_SILENCE_MS
+
 /**
  * Live mic-level bus fed by onRmsChanged from whichever recognizer is running
  * (wake loop in [WakeService] or command session in [JarvisVm]). Exactly one

@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
             setIntent(intent)
             try {
                 ViewModelProvider(this, JarvisVmFactory(application))[JarvisViewModel::class.java]
-                    .startListeningDelayed(800)
+                    .startConvoSession()
             } catch (_: Exception) {
             }
         }
@@ -259,6 +259,45 @@ fun JarvisScreen() {
     LaunchedEffect(vm.permRequest) {
         vm.permRequest?.let { devicePerm.launch(it); vm.permRequest = null }
     }
+    val batteryFix = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            Toast.makeText(context, "Battery unrestricted — wake stays alive", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Battery still optimized — wake may be killed", Toast.LENGTH_LONG).show()
+        }
+        vm.batteryStateTick++
+    }
+    LaunchedEffect(vm.batteryFixTick) {
+        if (vm.batteryFixTick > 0) {
+            val req = Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + context.packageName)
+            )
+            var launched = false
+            try {
+                batteryFix.launch(req)
+                launched = true
+            } catch (_: Exception) {
+            }
+            if (!launched) {
+                // Some OEMs strip the one-tap dialog — fall back to the list.
+                try {
+                    context.startActivity(
+                        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (_: Exception) {
+                    Toast.makeText(
+                        context, "Open Settings > Battery > Jarvis > Unrestricted",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                vm.batteryStateTick++
+            }
+        }
+    }
     fun hasMicPerm(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
@@ -316,6 +355,9 @@ fun JarvisScreen() {
         if (notifTick > 0) onWakeTap()
     }
     LaunchedEffect(Unit) { vm.checkWhatsNew() }
+    LaunchedEffect(Unit) {
+        InterruptBus.requests.collect { vm.interruptSpeech() }
+    }
 
     HudBackdrop {
     Column(Modifier.fillMaxSize()) {
@@ -746,7 +788,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 if (vm.settingsMsg.isNotBlank()) {
                     Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
                 }
-                val battOk = remember { vm.batteryUnrestricted() }
+                val battOk = remember(vm.batteryStateTick) { vm.batteryUnrestricted() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         if (battOk) "Battery: unrestricted ✓" else "Battery: optimized (wake can be killed)",
