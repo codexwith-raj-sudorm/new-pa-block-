@@ -116,7 +116,7 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
     if (Regex("""^(answer|accept)( (the )?(call|phone|it))?$""", RegexOption.IGNORE_CASE).matches(t)) return AnswerCall
     if (Regex("""^(pick\s?up|pickup)( the)? (call|phone)$""", RegexOption.IGNORE_CASE).matches(t)) return AnswerCall
     if (Regex("""^(hang\s?up|hangup)$""", RegexOption.IGNORE_CASE).matches(t)) return EndCall
-    if (Regex("""^(end|stop|reject|decline)( the (call|phone))$""", RegexOption.IGNORE_CASE).matches(t)) return EndCall
+    if (Regex("""^(end|stop|reject|decline)( the)? (call|phone)$""", RegexOption.IGNORE_CASE).matches(t)) return EndCall
 
     // Alarm ("wake me at 7", "set an alarm for 6:30 am"). No time -> clock app.
     if (low.contains("alarm") || low.startsWith("wake me")) {
