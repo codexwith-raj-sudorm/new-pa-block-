@@ -471,15 +471,15 @@ fun HudTopBar(
                     onClick = { menuOpen = false; onNewChat() }
                 )
                 DropdownMenuItem(
-                    text = { Text("\U0001F9E0 Memory") },
+                    text = { Text("🧠 Memory") },
                     onClick = { menuOpen = false; onMemory() }
                 )
                 DropdownMenuItem(
-                    text = { Text("\U0001F4DD Lists") },
+                    text = { Text("📝 Lists") },
                     onClick = { menuOpen = false; onList() }
                 )
                 DropdownMenuItem(
-                    text = { Text(if (ttsOn) "\U0001F50A Voice on" else "\U0001F507 Voice off") },
+                    text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off") },
                     onClick = { menuOpen = false; onToggleTts() }
                 )
             }
