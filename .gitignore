@@ -1,0 +1,15 @@
+# Python / Flask
+.env
+__pycache__/
+*.pyc
+venv/
+*.db
+data/
+
+# Android
+.gradle/
+build/
+local.properties
+*.apk
+captures/
+.externalNativeBuild/
