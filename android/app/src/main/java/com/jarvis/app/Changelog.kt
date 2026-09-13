@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        47, "5.6", listOf(
+            "Wake-mode interface: neural brain with orbiting live panels",
+            "Typed questions stay silent — only voice answers speak",
+            "All settings features now voice commands; settings stripped lean",
+            "Origin marks and copyright protection embedded"
+        )
+    ),
+    ChangelogEntry(
         46, "5.5", listOf(
             "24x7 standby: heartbeat watchdog, auto-revive, call-aware wake",
             "Answer, hang up and speaker calls by voice",
