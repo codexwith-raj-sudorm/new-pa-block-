@@ -650,6 +650,21 @@ object Router {
         ) return Hit("weather", t)
         daypartHit(low, t)?.let { return it }
         if (low.contains("notification") && ("read" in low || "check" in low || "my" in low || "any" in low || low == "notifications")) return Hit("notifs", "")
+        // Settings features, promoted to voice tools.
+        if (low.contains("hands-free") || low.contains("handsfree") || low.contains("hands free")) return Hit("handsfree", t)
+        if (low.contains("daily briefing")) return Hit("dailybrief", t)
+        if (low.contains("briefing")) return Hit("briefing", t)
+        if (low.contains("smart action")) return Hit("hooks", t)
+        val micWord = low.contains("mic") || low.contains("listen") || low.contains("mode")
+        if ((micWord && (low.contains("hindi") || low.contains("auto") || low.contains("english"))) ||
+            (low.contains("understand") && low.contains("hindi"))
+        ) return Hit("miclang", t)
+        if (low.startsWith("open reminders") || low == "show reminders") return Hit("reminders_ui", t)
+        if (low.contains("backup") || low.contains("back up")) return Hit("backup", t)
+        if (low.contains("battery")) return Hit("battery", t)
+        if (low.contains("autostart") || low.contains("auto-start") || low.contains("auto start")) return Hit("autostart", t)
+        if (low.contains("what's new") || low.contains("whats new") || low.contains("changelog") || low.contains("change log")) return Hit("whatsnew", t)
+        if (low.contains("what can you do") || Regex("""^help[?.!]*$""").matches(low)) return Hit("help", t)
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1611,14 +1626,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         if (heard.isNotEmpty()) {
                             convoLastVoiceMs = System.currentTimeMillis()
-                            send(heard)
+                            send(heard, true)
                         } else {
                             restartConvoListen()
                         }
                         return // session owns the mic until the 10s timeout
                     }
                     commandAudioEnd()
-                    if (heard.isNotEmpty()) send(heard)
+                    if (heard.isNotEmpty()) send(heard, true)
                     resumeWakeService()
                 }
 
@@ -2220,7 +2235,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun send(raw: String) {
+    fun send(raw: String, fromVoice: Boolean = false) {
         val text = raw.trim()
         val sendChatId = activeChatId
         if (text.isEmpty()) return
@@ -2236,7 +2251,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     try {
                         val reply = if (hit.tool == "fx") fetchFx(hit.arg) else fetchWeather(hit.arg)
                         deliverReply(sendChatId, reply)
-                        speak(reply)
+                        if (fromVoice) speak(reply)
                     } catch (e: Exception) {
                         deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service.")
                     } finally {
@@ -2249,7 +2264,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
-            speak(reply)
+            if (fromVoice) speak(reply)
             persist()
             return
         }
@@ -2260,7 +2275,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     val reply = fireHook(hook)
                     deliverReply(sendChatId, reply)
-                    speak(reply)
+                    if (fromVoice) speak(reply)
                 } catch (e: Exception) {
                     deliverReply(sendChatId, "⚠️ " + hook.name + " failed: " + e.message?.take(120))
                 } finally {
@@ -2274,7 +2289,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (!brainOk) {
             val reply = "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
-            speak(reply)
+            if (fromVoice) speak(reply)
             persist()
             return
         }
@@ -2295,7 +2310,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
                 }
                 deliverReply(sendChatId, reply)
-                speak(reply)
+                if (fromVoice) speak(reply)
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
             } catch (e: Exception) {
                 deliverReply(sendChatId, "⚠️ ${e.message}")
@@ -2822,6 +2837,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         return "Cancelled: “${hit.text}”."
     }
 
+    private val voiceHelp = "You can say:\n" +
+        "\u2022 \"Briefing\" \u2014 the day at a glance\n" +
+        "\u2022 \"Remind me in 10 minutes to stretch\"\n" +
+        "\u2022 \"Remember that ...\" / \"Recall ...\"\n" +
+        "\u2022 \"Turn on the flashlight\" / \"Call mom\"\n" +
+        "\u2022 \"Hands-free on\" / \"Daily briefing on\"\n" +
+        "\u2022 \"Smart actions\" / \"List smart actions\"\n" +
+        "\u2022 \"Back up my data\" / \"Battery status\"\n" +
+        "\u2022 \"What\u0027s new\" / \"Help\""
+
     private fun runTool(hit: Router.Hit): String = when (hit.tool) {
         "time" -> {
             val now = LocalDateTime.now()
@@ -2860,6 +2885,89 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "device" -> runDevice(hit.arg)
         "notifs" -> readNotifs()
         "lists" -> runLists(hit.arg)
+        "handsfree" -> {
+            val a = hit.arg.lowercase()
+            val on = Regex("""\bon\b|enable""").containsMatchIn(a)
+            val off = Regex("""\boff\b|disable""").containsMatchIn(a)
+            val target = if (on != off) on else !continuous
+            if (target != continuous) toggleContinuous()
+            "Hands-free is now ${if (target) "on" else "off"}."
+        }
+        "briefing" -> formatBriefing(collectBriefing())
+            .joinToString("\n") { (k, v) -> "$k: $v" }
+        "dailybrief" -> {
+            val a = hit.arg.lowercase()
+            val on = Regex("""\bon\b|enable""").containsMatchIn(a)
+            val off = Regex("""\boff\b|disable""").containsMatchIn(a)
+            val target = if (on != off) on else !dailyBriefing
+            if (target != dailyBriefing) toggleDailyBriefing()
+            "Daily briefing is now ${if (target) "on" else "off"}."
+        }
+        "hooks" -> {
+            val a = hit.arg.lowercase()
+            when {
+                a.contains("list") || a.contains("show") -> {
+                    val hs = hooks()
+                    if (hs.isEmpty()) "No smart actions yet. Say 'smart actions' to add one."
+                    else "Smart actions:\n" + hs.joinToString("\n") { "\u2022 " + it.name }
+                }
+                a.contains("remove") || a.contains("delete") -> {
+                    val name = Regex("""(?:remove|delete)(?: smart action)?\s+(.+)""")
+                        .find(a)?.groupValues?.get(1)?.trim().orEmpty()
+                    if (name.isEmpty()) "Which smart action should I remove?"
+                    else if (hooks().none { it.name.equals(name, ignoreCase = true) })
+                        "No smart action named $name."
+                    else {
+                        removeHook(name)
+                        "Removed $name."
+                    }
+                }
+                else -> {
+                    showHooks = true
+                    "Opening smart actions."
+                }
+            }
+        }
+        "miclang" -> {
+            val wantHindi = hit.arg.lowercase().contains("hindi")
+            if (wantHindi == hindiListen) {
+                if (wantHindi) "Mic is already on Hindi." else "Mic is already on Auto."
+            } else {
+                toggleHindiListen()
+                if (wantHindi) "Mic set to Hindi." else "Mic set to Auto."
+            }
+        }
+        "reminders_ui" -> {
+            showReminders = true
+            "Opening reminders."
+        }
+        "backup" -> {
+            exportBackup()
+            "Opening the share sheet with your backup."
+        }
+        "battery" -> {
+            val a = hit.arg.lowercase()
+            if (a.contains("fix") || a.contains("unrestrict") || a.contains("optimiz") || a.contains("allow")) {
+                requestBatteryUnrestricted()
+                "Opening battery settings \u2014 set Jarvis to Unrestricted."
+            } else {
+                val pct = collectBriefing().batteryPct
+                val pctTxt = if (pct >= 0) "$pct%" else "unknown"
+                val state = if (batteryUnrestricted()) "unrestricted \u2713"
+                else "optimized \u2014 say 'fix battery' so wake mode survives"
+                "Battery at $pctTxt. Optimization: $state."
+            }
+        }
+        "autostart" -> {
+            if (openAutoStartSettings(getApplication())) "Opening autostart settings \u2014 allow Jarvis."
+            else "This phone has no special autostart page \u2014 just keep battery unrestricted."
+        }
+        "whatsnew" -> {
+            val e = CHANGELOG.firstOrNull()
+            if (e == null) "No changelog yet."
+            else "v${e.name}:\n" + e.features.joinToString("\n") { "\u2022 $it" }
+        }
+        "help" -> voiceHelp
         else -> "?"
     }
 

@@ -767,28 +767,6 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                var updatesOpen by remember { mutableStateOf(false) }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clickable { updatesOpen = !updatesOpen }
-                ) {
-                    Text(
-                        "🆕 Updates", fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(if (updatesOpen) "▾" else "▸", fontSize = 14.sp, color = Muted)
-                }
-                if (updatesOpen) {
-                    CHANGELOG.forEach { e ->
-                        Text(
-                            "v${e.name}", fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp, color = Accent
-                        )
-                        e.features.forEach { f ->
-                            Text("• $f", fontSize = 13.sp, color = Muted)
-                        }
-                    }
-                }
                 if (vm.masterUnlocked) MasterKeySection(vm)
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
@@ -806,32 +784,6 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 if (vm.settingsMsg.isNotBlank()) {
                     Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
                 }
-                val battOk = remember(vm.batteryStateTick) { vm.batteryUnrestricted() }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (battOk) "Battery: unrestricted ✓" else "Battery: optimized (wake can be killed)",
-                        fontSize = 13.sp, color = Muted,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (!battOk) TextButton(onClick = { vm.requestBatteryUnrestricted() }) { Text("Fix") }
-                }
-                if (autoStartTarget(Build.MANUFACTURER.orEmpty()) != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Autostart: allow Jarvis or the system kills standby",
-                            fontSize = 13.sp, color = Muted,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = { openAutoStartSettings(setCtx) }) { Text("Open") }
-                    }
-                }
-                Text("More", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                MoreRow("🔁 Hands-free " + if (vm.continuous) "on" else "off") { vm.toggleContinuous() }
-                MoreRow("⚡ Briefing") { vm.showBriefing = true }
-                MoreRow("🔌 Smart actions") { vm.showHooks = true }
-                MoreRow("🎙 Mic: " + if (vm.hindiListen) "Hindi" else "Auto") { vm.toggleHindiListen() }
-                MoreRow("⏰ Reminders") { vm.showReminders = true }
-                MoreRow("💾 Backup") { vm.exportBackup() }
                 // Models stay hidden on the built-in key — only shown with your own key.
                 if (key.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
