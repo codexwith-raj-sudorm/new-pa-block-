@@ -2,7 +2,7 @@ package com.jarvis.app
 
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -16,8 +16,9 @@ import java.util.concurrent.TimeUnit
 private const val SECURE_FILE = "jarvis_secure"
 
 private fun securePrefs(ctx: Context) = EncryptedSharedPreferences.create(
-    ctx.applicationContext, SECURE_FILE,
-    MasterKey.Builder(ctx.applicationContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+    SECURE_FILE,
+    MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+    ctx.applicationContext,
     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
 )
