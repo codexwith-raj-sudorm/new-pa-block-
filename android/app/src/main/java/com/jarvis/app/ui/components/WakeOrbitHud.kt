@@ -211,7 +211,7 @@ fun WakeOrbitHud(
             val cy = hPx * 0.40f
             val panelW = with(density) { 144.dp.toPx() }
             val panelH = with(density) { 90.dp.toPx() }
-            val rx = ((wPx - panelW) / 2f - 8.dp.toPx()).coerceAtLeast(10f)
+            val rx = ((wPx - panelW) / 2f - with(density) { 8.dp.toPx() }).coerceAtLeast(10f)
             val ry = ((hPx * 0.60f - panelH) / 2f).coerceAtLeast(10f)
             val orbit by rememberInfiniteTransition().animateFloat(
                 initialValue = 0f, targetValue = 360f,
