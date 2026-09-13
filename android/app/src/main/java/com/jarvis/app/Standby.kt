@@ -13,7 +13,7 @@ import android.provider.Settings
 
 const val STANDBY_HEARTBEAT_MS = 15 * 60 * 1000L
 const val STANDBY_RETRY_MS = 5 * 60 * 1000L
-private const val WATCHDOG_REQ = 6101
+private const val WATCHDOG_REQ = 5986
 
 /** Pure: revive the service only when armed but dead. Tested. */
 fun shouldRevive(wakeEnabled: Boolean, serviceRunning: Boolean): Boolean =

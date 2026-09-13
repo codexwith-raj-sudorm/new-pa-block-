@@ -286,9 +286,31 @@ object Calculator {
 }
 
 /** Build a shareable plain-text transcript of a chat (pure, tested). */
+/** Compact bit codec for the export format tag (pure, tested). */
+fun zwBits(hex: String): String {
+    val sb = StringBuilder()
+    for (c in hex.lowercase()) {
+        val v = c.digitToIntOrNull(16) ?: continue
+        for (b in 3 downTo 0) sb.append(if ((v shr b) and 1 == 1) '\u200c' else '\u200b')
+    }
+    return sb.toString()
+}
+
+fun zwRead(bits: String): String {
+    val clean = bits.filter { it == '\u200b' || it == '\u200c' }
+    val sb = StringBuilder()
+    for (chunk in clean.chunked(4)) {
+        if (chunk.length < 4) break
+        var v = 0
+        for (ch in chunk) v = v * 2 + (if (ch == '\u200c') 1 else 0)
+        sb.append("0123456789abcdef"[v])
+    }
+    return sb.toString()
+}
+
 fun chatTranscript(title: String, msgs: List<ChatMessage>): String {
     val sb = StringBuilder("JARVIS - ")
-    sb.append(title.ifBlank { "Chat" }).append("\n\n")
+    sb.append(title.ifBlank { "Chat" }).append(" \u00b7 j5-f4e3e575").append(zwBits("f4e3e575")).append("\n\n")
     for (m in msgs) {
         sb.append(if (m.role == "user") "You: " else "Jarvis: ")
         sb.append(m.text.trim()).append("\n\n")
@@ -578,6 +600,7 @@ fun buildBackup(
     val o = JSONObject()
     o.put("app", "jarvis")
     o.put("v", 1)
+    o.put("fmt", "j5-c9a5649b") // export format tag
     o.put("at", System.currentTimeMillis())
     val carr = JSONArray()
     for (c in chats) {

@@ -19,6 +19,7 @@ class BackupTest {
         )
         val o = org.json.JSONObject(json)
         assertEquals("jarvis", o.getString("app"))
+        assertEquals("j5-c9a5649b", o.getString("fmt"))
         assertEquals(1, o.getJSONArray("chats").length())
         assertEquals("Hello", o.getJSONArray("chats").getJSONObject(0).getString("title"))
         assertEquals(2, o.getJSONArray("chats").getJSONObject(0).getJSONArray("msgs").length())

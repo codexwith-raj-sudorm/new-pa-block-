@@ -15,7 +15,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
-const val BRIEFING_REQ = 7001
+const val BRIEFING_REQ = 6325
 
 /** Daily 8 AM proactive briefing: greeting + battery + weather, no chat needed. */
 class BriefingReceiver : BroadcastReceiver() {
