@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bw_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#CC0B1220"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:padding="12dp">
+    <TextView
+        android:id="@+id/bw_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#F59E0B"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+    <TextView
+        android:id="@+id/bw_date"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#8B949E"
+        android:textSize="13sp" />
+    <TextView
+        android:id="@+id/bw_batt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="#E6EDF3"
+        android:textSize="13sp" />
+    <TextView
+        android:id="@+id/bw_next"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textColor="#22D3EE"
+        android:textSize="13sp" />
+</LinearLayout>
