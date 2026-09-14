@@ -1165,6 +1165,20 @@ fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
                     btn = "Fix",
                     onBtn = vm::requestBatteryUnrestricted
                 )
+                OnboardRow(
+                    done = remember { isAccessEnabled(context) },
+                    label = "Screen control (read, tap, scroll)",
+                    btn = "Enable",
+                    onBtn = {
+                        try {
+                            context.startActivity(
+                                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (_: Exception) {
+                        }
+                    }
+                )
                 Text("Then just talk to me. Try a starter chip below.", fontSize = 13.sp, color = Muted)
             }
         },

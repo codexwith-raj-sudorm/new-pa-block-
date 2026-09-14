@@ -1,5 +1,6 @@
 package com.jarvis.app
 
+import com.jarvis.app.ui.ShotActivity
 import android.Manifest
 import android.app.AlarmManager
 import android.app.SearchManager
@@ -739,6 +740,21 @@ object Router {
         Regex("""^show (?:the )?readme (?:of|from|in) (.+)$""").find(low)?.let { m ->
             repoName(m.groupValues[1])?.let { return Hit("github_read", "README|$it") }
         }
+        // Screen: screenshots + accessibility control.
+        if (low == "screenshot" || low == "take screenshot" || low.startsWith("screenshot ") ||
+            low.contains("take a screenshot") || low.contains("capture screen") ||
+            low.contains("share my screen")
+        ) return Hit("shot", "")
+        if (low.contains("accessibility")) return Hit("access_setup", "")
+        if (low.contains("on my screen") || low == "read screen" || low == "read my screen" ||
+            low.contains("what is on my screen") || low.contains("what's on my screen")
+        ) return Hit("access_read", "")
+        Regex("""^tap (.+)$""").find(low)?.let {
+            val q = it.groupValues[1].trim().trimEnd('?', '.', '!').trim()
+            if (q.isNotEmpty()) return Hit("access_tap", q)
+        }
+        Regex("""^scroll (up|down)$""").find(low)?.let { return Hit("access_scroll", it.groupValues[1]) }
+        if (low == "go back" || low == "press back" || low == "back button") return Hit("access_back", "")
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1596,6 +1612,32 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
             toast("Backup failed — history too large to share")
         }
+    }
+
+    fun takeScreenshot() {
+        try {
+            getApplication<Application>().startActivity(
+                Intent(getApplication(), ShotActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
+            toast("Couldn't open screen capture")
+        }
+    }
+
+    fun openAccessSettings() {
+        try {
+            getApplication<Application>().startActivity(
+                Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun needAccess(): String {
+        openAccessSettings()
+        return "Turn on Jarvis in Accessibility settings first \u2014 opening it now."
     }
 
     fun exportChat() {
@@ -3128,6 +3170,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             else "v${e.name}:\n" + e.features.joinToString("\n") { "\u2022 $it" }
         }
         "help" -> voiceHelp + "\n\u2022 \"My repos\" / \"Check builds for ...\""
+        "shot" -> {
+            takeScreenshot()
+            "Taking a screenshot \u2014 approve the prompt, then the share sheet opens."
+        }
+        "access_setup" -> {
+            openAccessSettings()
+            "Opening Accessibility settings \u2014 turn on Jarvis screen control."
+        }
+        "access_read" -> AccessBridge.read() ?: needAccess()
+        "access_tap" -> AccessBridge.tap(hit.arg) ?: needAccess()
+        "access_scroll" -> AccessBridge.scroll(hit.arg == "down") ?: needAccess()
+        "access_back" -> AccessBridge.back() ?: needAccess()
         else -> "?"
     }
 
