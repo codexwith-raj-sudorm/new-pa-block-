@@ -6,6 +6,7 @@ package com.jarvis.app
  *
  * Understood (case-insensitive):
  * - "open YouTube" / "launch whatsapp app" / "start camera"
+ * - "recent apps" / "open X from recents" (task switcher via accessibility)
  * - "turn on the flashlight" / "torch off"
  * - "call mom" / "dial +919876543210" (places the call directly)
  * - "answer" / "hang up" / "speaker on" (in-call control)
@@ -190,6 +191,21 @@ fun parseDuration(raw: String): Int? {
         found = true
     }
     return if (found && total in 1..86400) total else null
+}
+
+/** Strict app-label match: exact / prefix / package-name hit. Pure, tested. */
+fun isAppMatchStrict(label: String, pkgName: String, query: String): Boolean {
+    val l = label.lowercase().replace(" ", "")
+    val q = query.lowercase().replace(" ", "")
+    if (q.isEmpty()) return false
+    return l == q || l.startsWith(q) || (l.isNotEmpty() && q.startsWith(l)) ||
+        pkgName.lowercase().contains(q)
+}
+
+/** Loose app-label match: label contains the query. Pure, tested. */
+fun isAppMatchLoose(label: String, query: String): Boolean {
+    val q = query.lowercase().trim()
+    return q.isNotEmpty() && label.lowercase().contains(q)
 }
 
 /** Map "whatsapp" / "telegram" / "sms" / "text" to [MsgApp]. Pure, tested. */

@@ -154,6 +154,16 @@ object AccessBridge {
         else "Couldn't go back."
     }
 
+    /** Open the task switcher (recent apps). False when unavailable. */
+    fun recents(): Boolean {
+        val svc = bound ?: return false
+        return try {
+            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** Tap the first node whose content-description matches (used to hit WhatsApp's Send). */
     fun tapDesc(desc: String): Boolean {
         val svc = bound ?: return false

@@ -25,6 +25,8 @@ class ArcHudTest {
         assertEquals("THINKING", coreStateLabel(false, true, false))
         assertEquals("LISTENING", coreStateLabel(true, true, false))
         assertEquals("SPEAKING", coreStateLabel(true, true, true))
+        assertEquals("CONVO LIVE", coreStateLabel(false, false, false, true))
+        assertEquals("LISTENING", coreStateLabel(true, false, false, true))
     }
 
     @Test

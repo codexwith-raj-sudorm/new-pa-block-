@@ -374,9 +374,12 @@ fun clampSpeech(v: Float): Float = v.coerceIn(0.5f, 2.0f)
 /** Persona base x user slider, clamped for the engine. Pure. */
 fun effSpeech(base: Float, user: Float): Float = (base * user).coerceIn(0.25f, 4f)
 
-/** Locale for the recognizer: Hindi when toggled, else system default. */
-fun localeForListen(hindiListen: Boolean): Locale =
-    if (hindiListen) Locale.forLanguageTag("hi-IN") else Locale.getDefault()
+/** Locale for the recognizer: Hindi when toggled, Indian English for English systems, else default. */
+fun localeForListen(hindiListen: Boolean): Locale {
+    if (hindiListen) return Locale.forLanguageTag("hi-IN")
+    return if (Locale.getDefault().language == "en") Locale.forLanguageTag("en-IN")
+    else Locale.getDefault()
+}
 
 /** Day-part greeting for an hour (0-23). Pure. */
 fun daypart(hour: Int): String = when (hour) {
@@ -763,6 +766,13 @@ object Router {
         }
         Regex("""^scroll (up|down)$""").find(low)?.let { return Hit("access_scroll", it.groupValues[1]) }
         if (low == "go back" || low == "press back" || low == "back button") return Hit("access_back", "")
+        if (low == "recent apps" || low == "recents" || low == "show recents" ||
+            low == "show recent apps" || low == "open recent apps"
+        ) return Hit("access_recents", "")
+        Regex("""^(?:open|launch|start)\s+(.+?)\s+from\s+(?:the\s+)?recents?$""").find(low)?.let {
+            val q = it.groupValues[1].trim().trimEnd('?', '.', '!').trim()
+            if (q.isNotEmpty()) return Hit("access_recents_tap", q)
+        }
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1299,13 +1309,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var tts: TextToSpeech? = null
     private var recognizer: SpeechRecognizer? = null
     private var listenTries = 0
-    private var convoActive = false
+    var convoActive by mutableStateOf(false)
+        private set
+    private var convoErrs = 0
+    private var lastSpeakMs = 0L
+    private var speakGen = 0
+    private var liveOnCall = false
     private var convoLastVoiceMs = 0L
     private var utterPeakRms = 0f
     private var convoWatchdog: kotlinx.coroutines.Job? = null
     var batteryFixTick by mutableStateOf(0)
     var batteryStateTick by mutableStateOf(0)
     var lastHeard by mutableStateOf("")
+    var heardFresh by mutableStateOf(false)
+    var voiceNote by mutableStateOf<String?>(null)
     private val focusRequest: AudioFocusRequest by lazy {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).build()
     }
@@ -1365,6 +1382,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             messages.add(ChatMessage("bot", greet()))
         }
         createTts("com.google.android.tts")
+        viewModelScope.launch {
+            CallStateBus.inCall.collect { onCall ->
+                if (onCall) {
+                    liveOnCall = listening || convoActive
+                    stopSpeaking()
+                    if (convoActive) endConvoSession() else stopListening()
+                } else if (liveOnCall) {
+                    liveOnCall = false
+                    if (!showSettings) {
+                        try { startListening() } catch (_: Exception) { }
+                    }
+                }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -1416,8 +1447,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             t.setPitch(0.68f) // fixed
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(id: String?) { SpeechState.speaking = true; HudStateBus.update(speaking = true) }
-                override fun onDone(id: String?) { if (id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if ((continuous || convoActive) && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } } }
-                override fun onError(id: String?) { if (id == null || id == "jarvis" + (speakChunks - 1)) { SpeechState.speaking = false; HudStateBus.update(speaking = false) } }
+                override fun onDone(id: String?) { if (id == lastUtteranceId()) { SpeechState.speaking = false; HudStateBus.update(speaking = false); if ((continuous || convoActive) && ttsOn && !showSettings) Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} } } }
+                override fun onError(id: String?) { if (id == null || id == lastUtteranceId()) { SpeechState.speaking = false; HudStateBus.update(speaking = false) } }
             })
         } catch (_: Exception) {
         }
@@ -1743,8 +1774,19 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun speak(text: String, force: Boolean = false) {
-        if (!ttsOn && !force) return
+    /** Id of the final chunk of the current speak generation. */
+    private fun lastUtteranceId(): String = "jarvis:$speakGen:" + (speakChunks - 1)
+
+    private fun speak(text: String, force: Boolean = false, voiceCmd: Boolean = false) {
+        if (CallStateBus.current && !force) return // never talk over a phone call
+        if ((!ttsOn && !force) || tts == null) {
+            // Nothing will be spoken (voice off / no engine) — a voice command in a
+            // live session still needs its mic back, since no onDone will fire.
+            if (voiceCmd && (continuous || convoActive) && !showSettings) {
+                Handler(Looper.getMainLooper()).post { try { startListening() } catch (_: Exception) {} }
+            }
+            return
+        }
         val t = tts ?: return
         try {
             val clean = cleanForSpeech(text)
@@ -1752,17 +1794,27 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             val chunks = splitSentences(clean)
             if (chunks.isEmpty()) return
             speakChunks = chunks.size
-            t.speak(chunks[0], TextToSpeech.QUEUE_FLUSH, null, "jarvis0")
+            speakGen++
+            lastSpeakMs = System.currentTimeMillis()
+            SpeechState.speaking = true
+            HudStateBus.update(speaking = true)
+            t.speak(chunks[0], TextToSpeech.QUEUE_FLUSH, null, "jarvis:$speakGen:0")
             chunks.drop(1).forEachIndexed { i, c ->
-                t.speak(c, TextToSpeech.QUEUE_ADD, null, "jarvis" + (i + 1))
+                t.speak(c, TextToSpeech.QUEUE_ADD, null, "jarvis:$speakGen:" + (i + 1))
             }
         } catch (_: Exception) {
+            SpeechState.speaking = false
+            HudStateBus.update(speaking = false)
         }
     }
 
     // ---- voice input (in-app, no Google popup, no beeps) ----
 
-    fun startListening() {
+    fun startListening(fromUser: Boolean = false) {
+        if (CallStateBus.current) {
+            if (fromUser) toast("On a call — voice paused")
+            return
+        }
         try {
             destroyRecognizer()
             pauseWakeService()
@@ -1774,6 +1826,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             utterPeakRms = 0f
+            voiceNote = null
+            heardFresh = false
+            clearStuckSpeech()
             commandAudioBegin()
             val r = SpeechRecognizer.createSpeechRecognizer(ctx)
             recognizer = r
@@ -1785,14 +1840,21 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 override fun onResults(results: Bundle?) {
+                    if (r !== recognizer) return // stale callback from a replaced session
                     listening = false
                     HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
-                    val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()?.trim().orEmpty()
-                    if (heard.isNotEmpty()) lastHeard = heard
+                    val heard = bestHeard(
+                        results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION),
+                        results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+                    )
+                    if (heard.isNotEmpty()) {
+                        lastHeard = heard
+                        heardFresh = true
+                    }
                     destroyRecognizer()
                     listenTries = 0
+                    convoErrs = 0
                     if (convoActive) {
                         commandAudioEnd()
                         if (heard.isNotEmpty() && !isNearbyVoice(utterPeakRms)) {
@@ -1815,6 +1877,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 override fun onError(error: Int) {
+                    if (r !== recognizer) return // stale callback from a replaced session
                     listening = false
                     HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
@@ -1828,6 +1891,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         return
                     }
                     listenTries = 0
+                    val msg = voiceErrorText(error)
                     if (convoActive) {
                         commandAudioEnd()
                         if (error == SpeechRecognizer.ERROR_CLIENT) {
@@ -1835,23 +1899,32 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         } else if (error == SpeechRecognizer.ERROR_NO_MATCH ||
                             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         ) {
+                            convoErrs = 0
                             if (convoExpired(System.currentTimeMillis(), convoLastVoiceMs)) {
                                 endConvoSession()
                             } else {
                                 restartConvoListen()
                             }
+                        } else if (++convoErrs < CONVO_MAX_CONSEC_ERRORS) {
+                            // Transient (network/server/busy) — stay in session, retry.
+                            if (msg != null) {
+                                voiceNote = msg
+                                toast(msg)
+                            }
+                            restartConvoListen()
                         } else {
-                            toast("Voice error ($error)")
+                            convoErrs = 0
+                            if (msg != null) {
+                                voiceNote = msg
+                                toast(msg)
+                            }
                             endConvoSession()
                         }
                         return
                     }
-                    if (error == SpeechRecognizer.ERROR_NO_MATCH ||
-                        error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                    ) {
-                        toast("Didn't catch that — try again")
-                    } else if (error != SpeechRecognizer.ERROR_CLIENT) {
-                        toast("Voice error ($error)")
+                    if (msg != null) {
+                        voiceNote = msg
+                        toast(msg)
                     }
                     commandAudioEnd()
                     resumeWakeService()
@@ -1870,7 +1943,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
                 )
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, localeForListen(hindiListen))
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             }
             r.startListening(intent)
         } catch (_: Exception) {
@@ -1953,10 +2026,21 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             recognizer?.stopListening()
         } catch (_: Exception) {
         }
+        destroyRecognizer()
         listening = false
         HudStateBus.update(listening = false)
         BubbleLevelBus.reset()
         commandAudioEnd()
+        if (!convoActive) resumeWakeService()
+    }
+
+    /** Drop a stale speaking flag (kills runaway TTS first) so the mic can reopen. */
+    private fun clearStuckSpeech() {
+        if (!speakingStuck(SpeechState.speaking, System.currentTimeMillis(), lastSpeakMs)) return
+        try { tts?.stop() } catch (_: Exception) { }
+        SpeechState.speaking = false
+        HudStateBus.update(speaking = false)
+        HudStateBus.postTicker("[SPEECH: RESET]")
     }
 
     private fun destroyRecognizer() {
@@ -2110,7 +2194,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun resumeWakeService() {
         try {
             val appCtx = getApplication<Application>()
-            appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_RESUME))
+            if (!WakeService.isRunning && store.wakeEnabled) {
+                // Service died (OEM kill) while armed — revive it, not just resume.
+                appCtx.startForegroundService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_START))
+            } else {
+                appCtx.startService(Intent(appCtx, WakeService::class.java).setAction(WakeService.ACTION_RESUME))
+            }
         } catch (_: Exception) {
         }
     }
@@ -2438,7 +2527,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         else if (hit.tool.startsWith("github")) fetchGithub(hit)
                         else fetchWeather(hit.arg)
                         deliverReply(sendChatId, reply)
-                        if (fromVoice) speak(reply)
+                        if (fromVoice) speak(reply, voiceCmd = true)
                     } catch (e: Exception) {
                         deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service.")
                     } finally {
@@ -2451,7 +2540,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
-            if (fromVoice) speak(reply)
+            if (fromVoice) speak(reply, voiceCmd = true)
             persist()
             return
         }
@@ -2462,7 +2551,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     val reply = fireHook(hook)
                     deliverReply(sendChatId, reply)
-                    if (fromVoice) speak(reply)
+                    if (fromVoice) speak(reply, voiceCmd = true)
                 } catch (e: Exception) {
                     deliverReply(sendChatId, "⚠️ " + hook.name + " failed: " + e.message?.take(120))
                 } finally {
@@ -2477,7 +2566,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             val reply = if (builtinKey.isNotBlank()) "🔑 Install your Master Key to unlock the brain — or add your own Gemini key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             else "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
-            if (fromVoice) speak(reply)
+            if (fromVoice) speak(reply, voiceCmd = true)
             persist()
             return
         }
@@ -2498,7 +2587,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
                 }
                 deliverReply(sendChatId, reply)
-                if (fromVoice) speak(reply)
+                if (fromVoice) speak(reply, voiceCmd = true)
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
             } catch (e: Exception) {
                 deliverReply(sendChatId, "⚠️ ${e.message}")
@@ -2683,27 +2772,79 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun openAppByName(name: String): String {
-        return try {
-            val ctx = getApplication<Application>()
+        directLaunchApp(name)?.let { return it }
+        // Not launchable (e.g. a website shortcut with no app entry) — try recents.
+        return openAppFromRecents(name)
+    }
+
+    /** Launch by label. Null when nothing launchable matches. */
+    private fun directLaunchApp(name: String): String? {
+        val ctx = getApplication<Application>()
+        data class Cand(val label: String, val pkg: String, val open: () -> Boolean)
+        val cands = mutableListOf<Cand>()
+        try {
+            // Tier 1: LauncherApps sees everything the system launcher shows (incl. web apps).
+            val la = ctx.getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+            for (a in la.getActivityList(null, android.os.Process.myUserHandle())) {
+                val label = a.label?.toString().orEmpty()
+                val comp = a.componentName
+                cands.add(
+                    Cand(label, comp.packageName, open = fun(): Boolean {
+                        return try {
+                            ctx.startActivity(
+                                Intent(Intent.ACTION_MAIN).setClassName(comp.packageName, comp.className)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                            true
+                        } catch (_: Exception) { false }
+                    })
+                )
+            }
+        } catch (_: Exception) { }
+        try {
+            // Tier 2: package-manager queries (need the LAUNCHER <queries> entry).
             val pm = ctx.packageManager
             val apps = pm.queryIntentActivities(
                 Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0
-            )
-            val q = name.lowercase().replace(" ", "")
-            val hit = apps.firstOrNull {
-                val l = it.loadLabel(pm)?.toString().orEmpty().lowercase().replace(" ", "")
-                l == q || l.startsWith(q) || (l.isNotEmpty() && q.startsWith(l)) ||
-                    it.activityInfo.packageName.lowercase().contains(q)
-            } ?: apps.firstOrNull {
-                it.loadLabel(pm)?.toString().orEmpty().lowercase().contains(name.lowercase())
+            ).ifEmpty { pm.queryIntentActivities(Intent(Intent.ACTION_MAIN), 0) }
+            for (r in apps) {
+                val label = r.loadLabel(pm)?.toString().orEmpty()
+                val pkg = r.activityInfo.packageName
+                if (cands.none { it.pkg == pkg }) {
+                    cands.add(
+                        Cand(label, pkg, open = fun(): Boolean {
+                            return try {
+                                val li = pm.getLaunchIntentForPackage(pkg) ?: return false
+                                li.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                ctx.startActivity(li)
+                                true
+                            } catch (_: Exception) { false }
+                        })
+                    )
+                }
             }
-            if (hit == null) return "I couldn't find an app called “$name”."
-            val launch = pm.getLaunchIntentForPackage(hit.activityInfo.packageName)
-                ?: return "Found it but couldn't launch it."
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            ctx.startActivity(launch)
-            "Opening ${hit.loadLabel(pm)}."
-        } catch (_: Exception) { "Couldn't open “$name”." }
+        } catch (_: Exception) { }
+        val hit = cands.firstOrNull { isAppMatchStrict(it.label, it.pkg, name) }
+            ?: cands.firstOrNull { isAppMatchLoose(it.label, name) }
+            ?: return null
+        return if (hit.open()) "Opening ${hit.label}." else null
+    }
+
+    /** Recents fallback: open the task switcher and tap the matching card. */
+    private fun openAppFromRecents(name: String): String {
+        if (!isAccessEnabled(getApplication())) return "I couldn't find an app called “$name”."
+        if (!AccessBridge.recents()) return "I couldn't find an app called “$name”."
+        viewModelScope.launch {
+            delay(900)
+            try { AccessBridge.tap(name) } catch (_: Exception) { }
+        }
+        return "“$name” isn't installed as an app — I opened your recent apps to tap it."
+    }
+
+    private fun openRecentsScreen(): String {
+        if (!isAccessEnabled(getApplication())) return needAccess()
+        return if (AccessBridge.recents()) "Recent apps — tap one, or say “open X from recents”."
+        else "Couldn't open recent apps."
     }
 
     private fun setTorch(on: Boolean): String {
@@ -3282,6 +3423,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "access_tap" -> AccessBridge.tap(hit.arg) ?: needAccess()
         "access_scroll" -> AccessBridge.scroll(hit.arg == "down") ?: needAccess()
         "access_back" -> AccessBridge.back() ?: needAccess()
+        "access_recents" -> openRecentsScreen()
+        "access_recents_tap" -> openAppFromRecents(hit.arg)
         "sched_msg" -> scheduleSchedMsg(parseScheduledMessage(hit.arg))
         "sched_list" -> listSchedMsgs()
         "sched_cancel" -> cancelSchedMsg(hit.arg)

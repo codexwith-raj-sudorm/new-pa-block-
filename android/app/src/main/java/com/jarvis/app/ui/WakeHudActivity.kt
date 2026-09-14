@@ -37,7 +37,7 @@ class WakeHudActivity : ComponentActivity() {
                     if (vm.listening) vm.stopListening()
                     else {
                         try {
-                            vm.startListening()
+                            vm.startListening(fromUser = true)
                         } catch (_: Exception) {
                         }
                     }

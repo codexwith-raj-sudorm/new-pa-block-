@@ -42,11 +42,12 @@ fun hudStatusLine(online: Boolean, wakeOn: Boolean): String {
     return if (wakeOn) "$link \u2022 WAKE ARMED" else link
 }
 
-/** Core state label. Priority: speaking > listening > thinking > standby. Pure, tested. */
-fun coreStateLabel(listening: Boolean, thinking: Boolean, speaking: Boolean): String = when {
+/** Core state label. Priority: speaking > listening > thinking > convo > standby. Pure, tested. */
+fun coreStateLabel(listening: Boolean, thinking: Boolean, speaking: Boolean, convo: Boolean = false): String = when {
     speaking -> "SPEAKING"
     listening -> "LISTENING"
     thinking -> "THINKING"
+    convo -> "CONVO LIVE"
     else -> "STANDBY"
 }
 

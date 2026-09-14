@@ -13,7 +13,8 @@ val CHANGELOG = listOf(
             "Screen control: “take a screenshot”, “what's on my screen”, “tap …”",
             "Scheduled messages: “text mom I'll be late tomorrow at 9am”",
             "WhatsApp auto-send via accessibility tap, SMS fully automatic",
-            "“my scheduled messages” lists them, “cancel scheduled message N” drops one"
+            "“my scheduled messages” lists them, “cancel scheduled message N” drops one",
+            "Voice reliability: mic handoff fixed, hands-free commands over any app"
         )
     ),
     ChangelogEntry(

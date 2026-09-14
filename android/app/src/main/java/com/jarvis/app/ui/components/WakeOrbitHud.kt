@@ -266,10 +266,14 @@ fun WakeOrbitHud(
             val panels = listOf(
                 OrbitPanel(
                     "VOICE",
-                    listOf(coreStateLabel(vm.listening, vm.busy, hud.speaking), "LVL ${(level * 100).toInt()}%"),
+                    listOf(coreStateLabel(vm.listening, vm.busy, hud.speaking, vm.convoActive), "LVL ${(level * 100).toInt()}%"),
                     gold = false
                 ),
-                OrbitPanel("HEARD", listOf(vm.lastHeard.take(120)), gold = false),
+                OrbitPanel(
+                    "HEARD",
+                    listOfNotNull(vm.voiceNote, vm.lastHeard.take(120).ifEmpty { null }).ifEmpty { listOf("—") },
+                    gold = false
+                ),
                 OrbitPanel("REPLY", listOf(lastReply.take(160)), gold = true),
                 OrbitPanel("SYS", listOf(now, "PWR $batt"), gold = true),
                 OrbitPanel("NET", listOf("PING " + vm.dashPing, vm.model.take(20)), gold = false)

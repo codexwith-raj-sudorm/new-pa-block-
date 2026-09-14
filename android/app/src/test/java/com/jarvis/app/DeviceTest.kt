@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -113,5 +114,34 @@ class DeviceTest {
         assertNull(parseDeviceCommand("hello there"))
         assertNull(parseDeviceCommand("what time is it"))
         assertNull(parseDeviceCommand("torch"))
+    }
+
+    @Test fun appMatchStrict() {
+        assertTrue(isAppMatchStrict("YouTube", "com.google.android.youtube", "youtube"))
+        assertTrue(isAppMatchStrict("YouTube", "com.google.android.youtube", "you"))
+        assertTrue(isAppMatchStrict("WhatsApp", "com.whatsapp", "launch whatsapp app"))
+        assertTrue(isAppMatchStrict("Files", "com.google.android.documentsui", "documentsui"))
+        assertFalse(isAppMatchStrict("YouTube", "com.google.android.youtube", "tube"))
+        assertFalse(isAppMatchStrict("YouTube", "com.google.android.youtube", ""))
+    }
+
+    @Test fun appMatchLoose() {
+        assertTrue(isAppMatchLoose("YouTube", "tube"))
+        assertFalse(isAppMatchLoose("YouTube", "netflix"))
+        assertFalse(isAppMatchLoose("YouTube", ""))
+    }
+
+    @Test fun recentsRoutes() {
+        assertEquals("access_recents", Router.detect("recent apps")?.tool)
+        assertEquals("access_recents", Router.detect("show recent apps")?.tool)
+        assertEquals("access_recents", Router.detect("open recent apps")?.tool)
+        assertEquals("access_recents_tap", Router.detect("open whatsapp from recents")?.tool)
+        assertEquals("whatsapp", Router.detect("open whatsapp from recents")?.arg)
+        assertEquals("access_recents_tap", Router.detect("launch twitter from the recents")?.tool)
+    }
+
+    @Test fun recentsDoesNotHijack() {
+        assertEquals("device", Router.detect("open youtube")?.tool)
+        assertEquals("device", Router.detect("open mom's chat")?.tool)
     }
 }

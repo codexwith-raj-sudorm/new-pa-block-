@@ -22,6 +22,20 @@ object MicHandoff {
     @Volatile var appActive: Boolean = false
 }
 
+/** Process-wide phone-call flag: every voice stack pauses while a call is live. */
+object CallStateBus {
+    private val _inCall = MutableStateFlow(false)
+    val inCall: StateFlow<Boolean> = _inCall.asStateFlow()
+    @Volatile var current: Boolean = false
+        private set
+
+    fun set(v: Boolean) {
+        if (current == v) return
+        current = v
+        _inCall.value = v
+    }
+}
+
 /** Process-wide HUD bus: the ViewModel + service publish, the bubble observes. */
 object HudStateBus {
     private val _state = MutableStateFlow(HudState())

@@ -71,6 +71,8 @@ class FunTest {
 
     @Test fun listenLocale() {
         assertEquals("hi-IN", localeForListen(true).toLanguageTag())
-        assertEquals(java.util.Locale.getDefault(), localeForListen(false))
+        val got = localeForListen(false)
+        if (java.util.Locale.getDefault().language == "en") assertEquals("en-IN", got.toLanguageTag())
+        else assertEquals(java.util.Locale.getDefault(), got)
     }
 }

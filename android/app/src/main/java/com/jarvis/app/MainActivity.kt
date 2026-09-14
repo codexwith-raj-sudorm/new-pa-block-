@@ -236,6 +236,7 @@ fun JarvisScreen() {
 
     // Permission launchers (set flags only — effects below drive the follow-ups).
     var wakeRequest by remember { mutableStateOf(false) }
+    var wakeChain by remember { mutableStateOf(false) }
     var micGrantedTick by remember { mutableStateOf(0) }
     var notifTick by remember { mutableStateOf(0) }
     var phoneTick by remember { mutableStateOf(0) }
@@ -247,7 +248,7 @@ fun JarvisScreen() {
                 wakeRequest = false
                 micGrantedTick++
             } else {
-                vm.startListening()
+                vm.startListening(fromUser = true)
             }
         } else {
             wakeRequest = false
@@ -332,20 +333,24 @@ fun JarvisScreen() {
             vm.stopListening()
             return
         }
-        if (hasMicPerm()) vm.startListening()
+        if (hasMicPerm()) vm.startListening(fromUser = true)
         else micPerm.launch(Manifest.permission.RECORD_AUDIO)
     }
-    fun onWakeTap() {
+    fun onWakeTap(fromChain: Boolean = false) {
         if (vm.wakeOn) {
+            wakeChain = false
             vm.setWakeEnabled(false)
             return
         }
+        val inChain = fromChain || wakeChain
         if (!hasMicPerm()) {
             wakeRequest = true
+            wakeChain = true
             micPerm.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
         if (!Settings.canDrawOverlays(context)) {
+            wakeChain = true
             Toast.makeText(
                 context,
                 "Allow 'Display over other apps', then tap Wake again",
@@ -363,23 +368,32 @@ fun JarvisScreen() {
             return
         }
         if (!hasNotifPerm()) {
+            wakeChain = true
             notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
         }
         if (!hasPhonePerm()) {
+            wakeChain = true
             phonePerm.launch(Manifest.permission.READ_PHONE_STATE)
+            return
+        }
+        // All access granted. A grant chain must NOT flip wake on by itself —
+        // turning it on always needs its own explicit tap.
+        wakeChain = false
+        if (inChain) {
+            Toast.makeText(context, "Wake access granted — tap Wake to turn it on", Toast.LENGTH_LONG).show()
             return
         }
         vm.setWakeEnabled(true)
     }
     LaunchedEffect(micGrantedTick) {
-        if (micGrantedTick > 0) onWakeTap()
+        if (micGrantedTick > 0 && wakeChain) onWakeTap(fromChain = true)
     }
     LaunchedEffect(notifTick) {
-        if (notifTick > 0) onWakeTap()
+        if (notifTick > 0 && wakeChain) onWakeTap(fromChain = true)
     }
     LaunchedEffect(phoneTick) {
-        if (phoneTick > 0) onWakeTap()
+        if (phoneTick > 0 && wakeChain) onWakeTap(fromChain = true)
     }
     LaunchedEffect(Unit) { vm.checkWhatsNew() }
     LaunchedEffect(Unit) {
@@ -398,7 +412,7 @@ fun JarvisScreen() {
             onMemory = { vm.showMemory = true },
             onList = { vm.showList = true },
             onToggleTts = vm::toggleTts,
-            onWake = ::onWakeTap,
+            onWake = { onWakeTap() },
             onInterrupt = vm::interruptSpeech
         )
         val listState = rememberLazyListState()
@@ -436,7 +450,7 @@ fun JarvisScreen() {
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            coreStateLabel(vm.listening, vm.busy, coreHud.speaking),
+                            coreStateLabel(vm.listening, vm.busy, coreHud.speaking, vm.convoActive),
                             color = HudCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace
                         )
                     }
@@ -472,7 +486,10 @@ fun JarvisScreen() {
             onSend = vm::send,
             onMic = ::onMicTap,
             micVisible = voiceAvailable(context),
-            listening = vm.listening
+            listening = vm.listening,
+            heard = vm.lastHeard,
+            heardFresh = vm.heardFresh,
+            voiceNote = vm.voiceNote
         )
     }
     }
@@ -481,7 +498,7 @@ fun JarvisScreen() {
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
-    if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, ::onWakeTap)
+    if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, { onWakeTap() })
     else if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)
     if (vm.showHooks) HooksDialog(vm)
@@ -686,7 +703,7 @@ private fun StarterChip(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean) {
+fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?) {
     var input by remember { mutableStateOf("") }
     val busLvl by BubbleLevelBus.level.collectAsState()
     val micPulse by animateFloatAsState(if (listening) busLvl else 0f)
@@ -703,6 +720,19 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",
                 color = JarvisRed, fontSize = 13.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
+            )
+        }
+        if (!listening && voiceNote != null) {
+            Text(
+                "⚠ " + voiceNote.orEmpty(),
+                color = Color(0xFFF59E0B), fontSize = 13.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
+            )
+        } else if (!listening && heardFresh && heard.isNotEmpty()) {
+            Text(
+                "Heard: “" + heard.take(120) + "”",
+                color = HudCyan, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
             )
         }
