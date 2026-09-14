@@ -22,6 +22,12 @@ class BootReceiver : BroadcastReceiver() {
         val pending = store.loadReminders().filter { it.at > now }
         store.saveReminders(pending)
         for (r in pending) runCatching { armReminderAlarm(context, r.id, r.at, r.text) }
+        val msgStore = Store(context)
+        val pendingMsgs = msgStore.loadSchedMsgs().filter { it.at > System.currentTimeMillis() }
+        msgStore.saveSchedMsgs(pendingMsgs)
+        for (m in pendingMsgs) runCatching {
+            armSchedMsgAlarm(context, m.id, m.at, m.app, m.label, m.number, m.body)
+        }
         if (store.dailyBriefing) runCatching { armDailyBriefing(context, true) }
         runCatching { armStandbyWatchdog(context, store.wakeEnabled) }
         runCatching { StarkWidgetProvider.refreshAll(context) }

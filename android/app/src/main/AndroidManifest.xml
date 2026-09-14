@@ -74,6 +74,7 @@
             </intent-filter>
         </service>
         <receiver android:name=".BriefingReceiver" android:exported="false" />
+        <receiver android:name=".SchedMsgReceiver" android:exported="false" />
         <receiver android:name=".ReminderReceiver" android:exported="false" />
         <receiver android:name=".StandbyWatchdog" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="false">

@@ -655,6 +655,14 @@ object Router {
     fun detect(raw: String): Hit? {
         val t = raw.trim()
         val low = t.lowercase()
+        // ——— Jarvis v5.9 scheduled messaging (must beat time/device rules) ———
+        parseScheduledMessage(t)?.let { return Hit("sched_msg", t) }
+        if (low == "scheduled messages" || low == "my scheduled messages" ||
+            low == "list scheduled" || low.startsWith("list scheduled ")
+        ) return Hit("sched_list", "")
+        Regex("""\b(cancel|delete|remove) scheduled (?:message )?(\d+)""").find(low)?.let {
+            return Hit("sched_cancel", it.groupValues[2])
+        }
         if (Regex("""\b(time|date|day is it|clock)\b""").containsMatchIn(low)) return Hit("time", "")
         Regex("""calc(?:ulate)?\s+(.+)""", RegexOption.IGNORE_CASE).find(t)?.let {
             return Hit("calc", it.groupValues[1].trim().trimEnd('?'))
@@ -911,6 +919,44 @@ class Store(context: Context) {
     fun nextReminderId(): Int {
         val n = p.getInt("reminder_seq", 1)
         p.edit().putInt("reminder_seq", n + 1).apply()
+        return n
+    }
+
+    fun loadSchedMsgs(): MutableList<SchedMsgItem> {
+        val out = mutableListOf<SchedMsgItem>()
+        try {
+            val arr = JSONArray(p.getString("schedmsgs_v1", "[]") ?: "[]")
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                out.add(
+                    SchedMsgItem(
+                        o.optInt("id", i), o.optLong("at", 0), o.optString("app", "sms"),
+                        o.optString("label", ""), o.optString("number", ""), o.optString("body", "")
+                    )
+                )
+            }
+        } catch (_: Exception) { }
+        return out
+    }
+
+    fun saveSchedMsgs(list: List<SchedMsgItem>) {
+        try {
+            val arr = JSONArray()
+            for (m in list) arr.put(
+                JSONObject().put("id", m.id).put("at", m.at).put("app", m.app)
+                    .put("label", m.label).put("number", m.number).put("body", m.body)
+            )
+            p.edit().putString("schedmsgs_v1", arr.toString()).apply()
+        } catch (_: Exception) { }
+    }
+
+    fun removeSchedMsg(id: Int) {
+        saveSchedMsgs(loadSchedMsgs().filterNot { it.id == id })
+    }
+
+    fun nextSchedMsgId(): Int {
+        val n = p.getInt("schedmsg_seq", 100001)
+        p.edit().putInt("schedmsg_seq", n + 1).apply()
         return n
     }
 
@@ -2813,14 +2859,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             permRequest = Manifest.permission.SEND_SMS
             return "I need SMS permission to text directly — allow it, then say that again."
         }
-        return try {
-            @Suppress("DEPRECATION")
-            val sm = android.telephony.SmsManager.getDefault()
-            val parts = sm.divideMessage(body)
-            if (parts.size <= 1) sm.sendTextMessage(number, null, body, null, null)
-            else sm.sendMultipartTextMessage(number, null, parts, null, null)
+        return if (sendSmsNow(ctx, number, body)) {
             "Texted $label: “${body.take(80)}”"
-        } catch (_: Exception) {
+        } else {
             "Couldn’t send that text."
         }
     }
@@ -2841,6 +2882,65 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) {
             "Couldn’t open WhatsApp."
         }
+    }
+
+    // ——— Scheduled messaging ———
+    private fun scheduleSchedMsg(req: SchedMsgRequest?): String {
+        if (req == null) return "Say it like: “text mom I'll be late tomorrow at 9am”."
+        if (req.app == MsgApp.TELEGRAM) {
+            return "Telegram can't auto-send to a contact — only SMS and WhatsApp can. Try “text …” or “whatsapp …”."
+        }
+        val ctx = getApplication<Application>()
+        val number = when (val r = resolveRecipient(req.contact)) {
+            is Recipient.Found -> r.number
+            Recipient.NeedPermission -> return "I need contacts permission to find “${req.contact}” — allow it, then ask again."
+            Recipient.NotFound -> return "Couldn't find “${req.contact}” in contacts."
+        }
+        if (req.app == MsgApp.SMS && ContextCompat.checkSelfPermission(
+                ctx, Manifest.permission.SEND_SMS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permRequest = Manifest.permission.SEND_SMS
+            return "I need SMS permission to send automatically — allow it, then ask again."
+        }
+        val now = System.currentTimeMillis()
+        val at = when (val w = req.whenAt) {
+            is InMinutes -> now + w.minutes * 60_000L
+            is AtTime -> atToMillis(w.hour, w.minute, w.tomorrow)
+        }
+        if (at <= now) return "That time already passed — pick a future time."
+        val id = store.nextSchedMsgId()
+        val app = if (req.app == MsgApp.WHATSAPP) "wa" else "sms"
+        val list = store.loadSchedMsgs()
+        list.add(SchedMsgItem(id, at, app, req.contact, number, req.body))
+        store.saveSchedMsgs(list)
+        runCatching { armSchedMsgAlarm(ctx, id, at, app, req.contact, number, req.body) }
+        val auto = if (app == "wa" && !isAccessEnabled(ctx)) {
+            " Turn on Accessibility for fully automatic sending — otherwise I'll open the chat so you can tap send."
+        } else ""
+        val kind = if (app == "wa") "WhatsApp to" else "text to"
+        return "Scheduled $kind ${req.contact} ${dueText(at, now)}: “${req.body.take(80)}”.$auto"
+    }
+
+    private fun listSchedMsgs(): String {
+        val now = System.currentTimeMillis()
+        val items = store.loadSchedMsgs().filter { it.at > now }.sortedBy { it.at }
+        store.saveSchedMsgs(items)
+        if (items.isEmpty()) return "No scheduled messages."
+        return "Scheduled messages:\n" + items.mapIndexed { i, m ->
+            val kind = if (m.app == "wa") "WA" else "SMS"
+            "${i + 1}. [$kind → ${m.label}] ${dueText(m.at, now)}: “${m.body.take(60)}”"
+        }.joinToString("\n") + "\nSay “cancel scheduled message N” to drop one."
+    }
+
+    private fun cancelSchedMsg(arg: String): String {
+        val n = arg.trim().toIntOrNull()
+            ?: return "Say “cancel scheduled message N” — see numbers in “my scheduled messages”."
+        val items = store.loadSchedMsgs().filter { it.at > System.currentTimeMillis() }.sortedBy { it.at }
+        val m = items.getOrNull(n - 1) ?: return "No scheduled message #$n."
+        store.removeSchedMsg(m.id)
+        runCatching { cancelSchedMsgAlarm(getApplication(), m.id) }
+        return "Cancelled the scheduled message to ${m.label}."
     }
 
     private fun openTelegramShare(ctx: Context, body: String): Boolean {
@@ -3182,6 +3282,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "access_tap" -> AccessBridge.tap(hit.arg) ?: needAccess()
         "access_scroll" -> AccessBridge.scroll(hit.arg == "down") ?: needAccess()
         "access_back" -> AccessBridge.back() ?: needAccess()
+        "sched_msg" -> scheduleSchedMsg(parseScheduledMessage(hit.arg))
+        "sched_list" -> listSchedMsgs()
+        "sched_cancel" -> cancelSchedMsg(hit.arg)
         else -> "?"
     }
 

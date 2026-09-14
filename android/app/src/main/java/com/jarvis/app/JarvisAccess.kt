@@ -153,4 +153,36 @@ object AccessBridge {
         return if (svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)) "Went back."
         else "Couldn't go back."
     }
+
+    /** Tap the first node whose content-description matches (used to hit WhatsApp's Send). */
+    fun tapDesc(desc: String): Boolean {
+        val svc = bound ?: return false
+        val root = try {
+            svc.rootInActiveWindow
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        var target: AccessibilityNodeInfo? = null
+        fun walk(n: AccessibilityNodeInfo) {
+            if (target != null) return
+            if (desc.equals(n.contentDescription?.toString(), ignoreCase = true)) {
+                target = n
+                return
+            }
+            for (i in 0 until n.childCount) {
+                try {
+                    n.getChild(i)?.let { walk(it) }
+                } catch (_: Exception) {
+                }
+            }
+        }
+        try {
+            walk(root)
+        } catch (_: Exception) {
+        }
+        var n = target
+        var guard = 0
+        while (n != null && !n.isClickable && guard++ < 8) n = n.parent
+        return n?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
+    }
 }
