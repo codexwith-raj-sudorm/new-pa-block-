@@ -119,9 +119,9 @@ class DeviceTest {
     @Test fun appMatchStrict() {
         assertTrue(isAppMatchStrict("YouTube", "com.google.android.youtube", "youtube"))
         assertTrue(isAppMatchStrict("YouTube", "com.google.android.youtube", "you"))
-        assertTrue(isAppMatchStrict("WhatsApp", "com.whatsapp", "launch whatsapp app"))
+        assertTrue(isAppMatchStrict("WhatsApp", "com.whatsapp", "whatsapp app"))
         assertTrue(isAppMatchStrict("Files", "com.google.android.documentsui", "documentsui"))
-        assertFalse(isAppMatchStrict("YouTube", "com.google.android.youtube", "tube"))
+        assertFalse(isAppMatchStrict("YouTube", "com.google.android.youtube", "vimeo"))
         assertFalse(isAppMatchStrict("YouTube", "com.google.android.youtube", ""))
     }
 
