@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        50, "5.9", listOf(
+            "Screen control: “take a screenshot”, “what's on my screen”, “tap …”",
+            "Scheduled messages: “text mom I'll be late tomorrow at 9am”",
+            "WhatsApp auto-send via accessibility tap, SMS fully automatic",
+            "“my scheduled messages” lists them, “cancel scheduled message N” drops one"
+        )
+    ),
+    ChangelogEntry(
         49, "5.8", listOf(
             "HUD design system: all dialogs and fields themed",
             "Chat message actions: speak, copy, retry",
