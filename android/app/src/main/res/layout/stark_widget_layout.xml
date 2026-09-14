@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@android:color/transparent"
+    android:padding="8dp">
+
+    <ImageView
+        android:id="@+id/widget_reactor_icon"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:src="@android:drawable/ic_menu_mylocation"
+        android:contentDescription="Stark Wake Toggle" />
+
+    <TextView
+        android:id="@+id/widget_status_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/widget_reactor_icon"
+        android:layout_centerHorizontal="true"
+        android:text="STANDBY"
+        android:textSize="9sp"
+        android:textColor="#FBBF24"
+        android:fontFamily="monospace" />
+</RelativeLayout>
