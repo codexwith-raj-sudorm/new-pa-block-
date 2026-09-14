@@ -41,7 +41,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.animateItemPlacement
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -411,7 +410,7 @@ fun JarvisScreen() {
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText, Modifier.animateItemPlacement()) }
+            items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
             if (vm.busy) {
                 item { ThinkingRow() }
             }
@@ -589,7 +588,6 @@ fun fmtTime(ts: Long): String {
 }
 
 @Composable
-@Composable
 private fun ThinkingRow() {
     val glow by rememberInfiniteTransition().animateFloat(
         initialValue = 0f, targetValue = 1f,
@@ -610,6 +608,7 @@ private fun ThinkingRow() {
     }
 }
 
+@Composable
 fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modifier: Modifier = Modifier) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
