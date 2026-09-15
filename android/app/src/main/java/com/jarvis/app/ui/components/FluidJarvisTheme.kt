@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -228,7 +229,7 @@ fun FluidInputBar(
                         tint = if (hasText || isListening) Color.White else TextSecondary,
                         modifier = Modifier
                             .size(22.dp)
-                            .drawBehind { scale(buttonScale, buttonScale) }
+                            .graphicsLayer { scaleX = buttonScale; scaleY = buttonScale }
                     )
                 }
             }
