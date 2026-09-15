@@ -78,7 +78,6 @@ data class StoredMsg(val r: String, val t: String, val ts: Long, val img: String
 
 data class ChatData(val id: String, var title: String, val msgs: MutableList<StoredMsg>)
 
-data class TtsVoice(val id: String, val label: String)
 
 /** Chat list title = first user message, truncated. Pure, tested. */
 fun chatTitle(msgs: List<StoredMsg>): String {
@@ -815,10 +814,6 @@ class Store(context: Context) {
         get() = p.getBoolean("tts", true)
         set(v) = p.edit().putBoolean("tts", v).apply()
 
-    var ttsVoice: String
-        get() = p.getString("tts_voice", "") ?: ""
-        set(v) = p.edit().putString("tts_voice", v).apply()
-
     var wakeEnabled: Boolean
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
@@ -846,14 +841,6 @@ class Store(context: Context) {
     var vp_phrase: String
         get() = p.getString("vp_phrase", "") ?: ""
         set(v) = p.edit().putString("vp_phrase", v).apply()
-
-    var ttsRate: Float
-        get() = p.getFloat("tts_rate", 1f)
-        set(v) = p.edit().putFloat("tts_rate", v).apply()
-
-    var ttsPitch: Float
-        get() = p.getFloat("tts_pitch", 1f)
-        set(v) = p.edit().putFloat("tts_pitch", v).apply()
 
     var masterUnlocked: Boolean
         get() = p.getBoolean("master_unlocked", false)
@@ -1377,7 +1364,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var dashTemp by mutableStateOf("\u2014")
     var dashPing by mutableStateOf("\u2014")
     var dashBatt by mutableStateOf(-1)
-    val ttsVoices = mutableStateListOf<TtsVoice>()
     var busy by mutableStateOf(false)
         private set
     var showSettings by mutableStateOf(false)
@@ -1411,11 +1397,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var continuous by mutableStateOf(store.continuous)
     var hindiListen by mutableStateOf(store.hindiListen)
     var voiceGuard by mutableStateOf(store.voiceGuard)
-    var ttsRate by mutableStateOf(store.ttsRate)
-    var ttsPitch by mutableStateOf(store.ttsPitch)
     var dailyBriefing by mutableStateOf(store.dailyBriefing)
         private set
-    var voiceName by mutableStateOf(store.ttsVoice)
     var masterUnlocked by mutableStateOf(store.masterUnlocked)
         private set
     var listening by mutableStateOf(false)
@@ -1543,7 +1526,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             tts = TextToSpeech(getApplication(), { status ->
                 if (status == TextToSpeech.SUCCESS) {
                     applyVoice()
-                    loadVoices()
                 } else if (engine != null) {
                     // Preferred engine failed — fall back to the default engine.
                     createTts(null)
@@ -1558,12 +1540,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val t = tts ?: return
         try {
             val key = "priya" // fixed voice
-            val persona = personaForKey(key)
             val match = resolveEngineVoice(t, key)
             if (match != null) t.voice = match
             else t.language = Locale.getDefault()
-            voiceName = key
-            store.ttsVoice = key // persona key now (legacy engine names auto-heal to jarvis)
             t.setSpeechRate(0.93f) // fixed
             t.setPitch(0.68f) // fixed
             t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -1586,29 +1565,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         return all.firstOrNull { it.name == want.name }
     }
 
-    private fun loadVoices() {
-        try {
-            ttsVoices.clear()
-            ttsVoices.addAll(VOICE_PERSONAS.map { p -> TtsVoice(p.key, "${p.name} — ${p.tagline}") })
-        } catch (_: Exception) {
-        }
-    }
-
     fun setMasterUnlocked() {
         store.masterUnlocked = true
         masterUnlocked = true
-    }
-
-    fun selectVoice(id: String) {
-        store.ttsVoice = id
-        voiceName = id
-        applyVoice()
-        previewVoice()
-    }
-
-    fun previewVoice() {
-        val name = personaForKey(voiceName).name
-        speak("Hello. I am $name, at your service.", force = true)
     }
 
     fun toggleTts() {
@@ -1625,18 +1584,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleHindiListen() {
         hindiListen = !hindiListen
         store.hindiListen = hindiListen
-    }
-
-    fun setRate(v: Float) {
-        ttsRate = clampSpeech(v)
-        store.ttsRate = ttsRate
-        applyVoice()
-    }
-
-    fun setPitch(v: Float) {
-        ttsPitch = clampSpeech(v)
-        store.ttsPitch = ttsPitch
-        applyVoice()
     }
 
     fun toggleDailyBriefing() {
@@ -2688,7 +2635,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     fun openSettings() {
         settingsMsg = ""
         showSettings = true
-        loadVoices()
     }
 
     var githubToken: String = loadGithubToken(getApplication())

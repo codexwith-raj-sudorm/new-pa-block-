@@ -17,9 +17,6 @@ data class VaultMemory(
 
 @Dao
 interface VaultDao {
-    @Query("SELECT * FROM stark_vault ORDER BY timestamp DESC")
-    fun getAllMemories(): List<VaultMemory>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertMemory(memory: VaultMemory)
 

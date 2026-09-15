@@ -5,11 +5,9 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import com.jarvis.app.ui.StarkShareActivity
-import com.jarvis.app.hardware.StarkDeviceController
 import com.jarvis.app.ui.components.AcousticArray
 import com.jarvis.app.ui.components.ArcCoreReactor
 import com.jarvis.app.ui.components.HeaderMiniReactor
-import com.jarvis.app.ui.components.HudBackdrop
 import com.jarvis.app.ui.components.HudCyan
 import com.jarvis.app.ui.components.HudGold
 import com.jarvis.app.ui.components.HudInk
@@ -54,21 +52,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -82,10 +74,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,15 +82,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 
-val Bg = Color(0xFF0B1220)
 val Panel = Color(0xFF121B2E)
 val Accent = Color(0xFFF59E0B)
 val Cyan = Color(0xFF22D3EE)
-val UserBlue = Color(0xFF1F6FEB)
 val BotGray = Color(0xFF182238)
 val Muted = Color(0xFF8B949E)
 val Good = Color(0xFF3FB950)
-val Warn = Color(0xFFD29922)
 val JarvisRed = Color(0xFFE5484D)
 
 class JarvisVmFactory(private val app: Application) : ViewModelProvider.Factory {
