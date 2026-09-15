@@ -99,7 +99,7 @@ class ToolsTest {
 
     @Test fun chatTitleEmpty() {
         assertEquals("New chat", chatTitle(emptyList()))
-        assertEquals("New chat", chatTitle(listOf(Triple("model", "hi", 0L))))
+        assertEquals("New chat", chatTitle(listOf(StoredMsg("model", "hi", 0L))))
     }
 
     @Test fun cleanSpeechStripsEmoji() {
