@@ -632,7 +632,6 @@ private fun ThinkingRow() {
     }
 }
 
-@Composable
 private fun genImageUri(context: Context, path: String): android.net.Uri? = try {
     FileProvider.getUriForFile(context, context.packageName + ".fileprovider", File(path))
 } catch (_: Exception) { null }
@@ -665,6 +664,7 @@ private fun shareGenImage(context: Context, path: String) {
     }
 }
 
+@Composable
 fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modifier: Modifier = Modifier) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
