@@ -15,8 +15,8 @@ val CHANGELOG = listOf(
             "WhatsApp auto-send via accessibility tap, SMS fully automatic",
             "“my scheduled messages” lists them, “cancel scheduled message N” drops one",
             "Voice reliability: mic handoff fixed, hands-free commands over any app",
-            "Master voice guard: locked commands need your name"
-            "Voiceprint: enroll your voice — strangers are ignored"
+            "Master voice guard: locked commands need your name",
+            "Voiceprint: enroll your voice — strangers are ignored",
             "Image generation: “generate an image of …”"
         )
     ),
