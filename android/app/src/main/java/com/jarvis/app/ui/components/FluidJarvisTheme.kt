@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -156,7 +157,8 @@ fun FluidInputBar(
     onTextChanged: (String) -> Unit,
     onSend: (String) -> Unit,
     isListening: Boolean,
-    onMicTap: () -> Unit
+    onMicTap: () -> Unit,
+    micEnabled: Boolean = true
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val hasText = text.isNotBlank()
@@ -212,7 +214,7 @@ fun FluidInputBar(
                             else listOf(GlassPanel, GlassPanel)
                         )
                     )
-                    .clickable {
+                    .clickable(enabled = hasText || micEnabled) {
                         if (hasText) {
                             onSend(text)
                             keyboardController?.hide()

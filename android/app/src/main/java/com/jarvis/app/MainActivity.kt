@@ -16,7 +16,9 @@ import com.jarvis.app.ui.components.HudInk
 import com.jarvis.app.ui.components.coreStateLabel
 import com.jarvis.app.ui.components.hudReadoutLine
 import com.jarvis.app.ui.components.hudStatusLine
-import com.jarvis.app.ui.components.StarkMessageCard
+import com.jarvis.app.ui.components.AnimatedGlassBubble
+import com.jarvis.app.ui.components.FluidAnimatedBackground
+import com.jarvis.app.ui.components.FluidInputBar
 import com.jarvis.app.ui.components.HudDialog
 import com.jarvis.app.ui.components.HudTextField
 import com.jarvis.app.widget.StarkWidgetProvider
@@ -406,7 +408,7 @@ fun JarvisScreen() {
         InterruptBus.requests.collect { vm.interruptSpeech() }
     }
 
-    HudBackdrop {
+    FluidAnimatedBackground {
     Column(Modifier.fillMaxSize()) {
         HudTopBar(
             online = vm.brainOk,
@@ -670,7 +672,6 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val segs = remember(m.text) { splitCodeBlocks(m.text) }
-    val ts = remember(m.time) { fmtTime(m.time) }
     Box(modifier.fillMaxWidth()) {
         Column(
             Modifier.align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
@@ -702,7 +703,7 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
             }
             segs.forEach { s ->
                 if (!s.isCode) {
-                    StarkMessageCard(isUser = isUser, message = s.text, timestamp = ts)
+                    AnimatedGlassBubble(s.text, isUser)
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (!isUser) {
                             TextButton(onClick = { onSpeak(s.text) }) { Text("🔊 Speak", fontSize = 12.sp) }
@@ -766,17 +767,8 @@ private fun StarterChip(label: String, onClick: () -> Unit) {
 @Composable
 fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?) {
     var input by remember { mutableStateOf("") }
-    val busLvl by BubbleLevelBus.level.collectAsState()
-    val micPulse by animateFloatAsState(if (listening) busLvl else 0f)
     val haptic = LocalHapticFeedback.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    fun submit() {
-        if (input.isBlank()) return
-        onSend(input)
-        input = ""
-        keyboard?.hide()
-    }
-    Column(Modifier.fillMaxWidth().background(Color(0xFF0A1424).copy(alpha = 0.92f))) {
+    Column(Modifier.fillMaxWidth()) {
         if (listening) {
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",
@@ -797,56 +789,23 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
             )
         }
-        Row(
-            Modifier.fillMaxWidth().padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (micVisible) {
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onMic()
-                    },
-                    modifier = Modifier.graphicsLayer {
-                        val s = 1f + 0.28f * micPulse; scaleX = s; scaleY = s
-                    }
-                ) {
-                    Icon(
-                        Icons.Filled.Mic,
-                        contentDescription = if (listening) "Stop listening" else "Voice input",
-                        tint = if (listening) JarvisRed else HudCyan
-                    )
-                }
-            }
-            HudTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = { Text(if (listening) "LISTENING…" else "ASK JARVIS…", fontFamily = FontFamily.Monospace) },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { submit() }),
-                modifier = Modifier.weight(1f),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFF0E1930),
-                    unfocusedContainerColor = Color(0xFF0E1930),
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                )
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
+        FluidInputBar(
+            text = input,
+            onTextChanged = { input = it },
+            onSend = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSend(it)
+                input = ""
+            },
+            isListening = listening,
+            onMicTap = {
+                if (micVisible) {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    submit()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = HudCyan.copy(alpha = 0.16f), contentColor = HudCyan),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
-            }
-        }
+                    onMic()
+                }
+            },
+            micEnabled = micVisible
+        )
     }
 }
 
