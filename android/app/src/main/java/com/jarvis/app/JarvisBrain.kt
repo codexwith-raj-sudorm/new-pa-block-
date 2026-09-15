@@ -82,7 +82,7 @@ data class TtsVoice(val id: String, val label: String)
 
 /** Chat list title = first user message, truncated. Pure, tested. */
 fun chatTitle(msgs: List<StoredMsg>): String {
-    val first = msgs.firstOrNull { it.first == "user" }?.second?.trim().orEmpty()
+    val first = msgs.firstOrNull { it.r == "user" }?.t?.trim().orEmpty()
     if (first.isEmpty()) return "New chat"
     return if (first.length <= 32) first else first.take(32).trimEnd() + "…"
 }
@@ -1497,7 +1497,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         activeChatId = if (loaded.any { it.id == savedId }) savedId else loaded[0].id
         val active = loaded.first { it.id == activeChatId }
         for ((r, t, ts, img) in active.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
         }
         if (messages.isEmpty()) {
             messages.add(ChatMessage("bot", greet()))
@@ -2491,7 +2491,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         activeChatId = id
         messages.clear()
         for ((r, t, ts, img) in c.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
         }
         if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         showChats = false
@@ -2563,7 +2563,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             activeChatId = chats[0].id
             messages.clear()
             for ((r, t, ts, img) in chats[0].msgs) {
-                messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
+                messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
             }
             if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         }

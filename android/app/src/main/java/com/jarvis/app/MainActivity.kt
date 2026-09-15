@@ -677,10 +677,11 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                 .widthIn(max = 300.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (!isUser && m.imagePath != null) {
-                val art = remember(m.imagePath) {
+            val genPath = m.imagePath
+            if (!isUser && genPath != null) {
+                val art = remember(genPath) {
                     try {
-                        BitmapFactory.decodeFile(m.imagePath)?.asImageBitmap()
+                        BitmapFactory.decodeFile(genPath)?.asImageBitmap()
                     } catch (_: Exception) {
                         null
                     }
@@ -691,10 +692,10 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                             art, "Generated image",
                             modifier = Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .clickable { openGenImage(context, m.imagePath) }
+                                .clickable { openGenImage(context, genPath) }
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            TextButton(onClick = { shareGenImage(context, m.imagePath) }) { Text("Share", fontSize = 12.sp) }
+                            TextButton(onClick = { shareGenImage(context, genPath) }) { Text("Share", fontSize = 12.sp) }
                         }
                     }
                 }
@@ -1171,7 +1172,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                         maxLines = 1
                                     )
                                     Text(
-                                        "${c.msgs.count { it.first == "user" }} messages" +
+                                        "${c.msgs.count { it.r == "user" }} messages" +
                                             if (active) " • open" else "",
                                         fontSize = 12.sp, color = Muted
                                     )

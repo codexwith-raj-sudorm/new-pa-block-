@@ -84,17 +84,17 @@ class ToolsTest {
     @Test fun chatTitleFromFirstUser() {
         assertEquals(
             "hello world",
-            chatTitle(listOf(Triple("user", "hello world", 0L), Triple("model", "hi", 0L)))
+            chatTitle(listOf(StoredMsg("user", "hello world", 0L), StoredMsg("model", "hi", 0L)))
         )
     }
 
     @Test fun chatTitleSkipsBotFirst() {
-        assertEquals("abc", chatTitle(listOf(Triple("model", "greet", 0L), Triple("user", "abc", 0L))))
+        assertEquals("abc", chatTitle(listOf(StoredMsg("model", "greet", 0L), StoredMsg("user", "abc", 0L))))
     }
 
     @Test fun chatTitleLong() {
         val long = "this is a very long first message indeed yes"
-        assertEquals(long.take(32).trimEnd() + "…", chatTitle(listOf(Triple("user", long, 0L))))
+        assertEquals(long.take(32).trimEnd() + "…", chatTitle(listOf(StoredMsg("user", long, 0L))))
     }
 
     @Test fun chatTitleEmpty() {

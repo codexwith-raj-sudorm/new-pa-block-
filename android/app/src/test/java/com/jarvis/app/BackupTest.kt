@@ -8,7 +8,7 @@ class BackupTest {
         val chats = listOf(
             ChatData(
                 "c1", "Hello",
-                mutableListOf(Triple("user", "hi", 100L), Triple("model", "hey", 200L))
+                mutableListOf(StoredMsg("user", "hi", 100L), StoredMsg("model", "hey", 200L))
             )
         )
         val json = buildBackup(
@@ -39,7 +39,7 @@ class BackupTest {
     }
 
     @Test fun capsMsgsPerChat() {
-        val big = ChatData("c9", "Big", MutableList(600) { i -> Triple("user", "m$i", i.toLong()) })
+        val big = ChatData("c9", "Big", MutableList(600) { i -> StoredMsg("user", "m$i", i.toLong()) })
         val o = org.json.JSONObject(buildBackup(listOf(big), emptyList(), emptyList(), emptyList(), emptyList(), emptyList()))
         val msgs = o.getJSONArray("chats").getJSONObject(0).getJSONArray("msgs")
         assertEquals(500, msgs.length())
