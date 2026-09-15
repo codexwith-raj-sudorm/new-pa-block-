@@ -95,6 +95,7 @@ class WakeService : Service() {
     private var wakeRecognizer: SpeechRecognizer? = null
     private var pausedByApp = false
     private var cmdRecognizer: SpeechRecognizer? = null
+    private var vpCapture: VoiceCapture? = null
     private var cmdRetries = 0
     private var tts: TextToSpeech? = null
     private var bubbleView: ComposeView? = null
@@ -330,6 +331,8 @@ class WakeService : Service() {
             if (!SpeechRecognizer.isRecognitionAvailable(this)) return
             val r = SpeechRecognizer.createSpeechRecognizer(this)
             cmdRecognizer = r
+            try { vpCapture?.stop() } catch (_: Exception) { }
+            vpCapture = if (vpWanted()) VoiceCapture().let { if (it.start()) it else null } else null
             HudStateBus.postTicker("[CMD: LISTENING]")
             pingNotification()
             r.setRecognitionListener(object : RecognitionListener {
@@ -339,6 +342,8 @@ class WakeService : Service() {
 
                 override fun onResults(results: Bundle?) {
                     if (r !== cmdRecognizer) return
+                    val pcm = try { vpCapture?.stop() } catch (_: Exception) { null }
+                    vpCapture = null
                     destroyCmdRecognizer()
                     HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
@@ -356,16 +361,35 @@ class WakeService : Service() {
                     }
                     restarts = 0
                     HudStateBus.postTicker("[CMD: HEARD]")
-                    main.post {
-                        try {
-                            val vm = sharedJarvisVm(application)
-                            vm.lastHeard = heard
-                            vm.heardFresh = true
-                            vm.send(heard, true)
+                    Thread({
+                        val guard = store.masterKey.isNotBlank() && store.voiceGuard
+                        val enrolled = store.vp_base > 0f &&
+                            (templatesFromString(store.vp_templates)?.size ?: 0) == 3
+                        val verdict = try {
+                            if (guard && enrolled) verifyVoiceprint(
+                                pcm ?: ShortArray(0),
+                                templatesFromString(store.vp_templates) ?: emptyList(),
+                                vpThresholdFor(store.vp_base, store.vp_mult)
+                            ) else VpVerdict.UNKNOWN
                         } catch (_: Exception) {
+                            VpVerdict.UNKNOWN
                         }
-                    }
-                    resumeLoopAfterCmd()
+                        main.post {
+                            try {
+                                val vm = sharedJarvisVm(application)
+                                vm.lastHeard = heard
+                                vm.heardFresh = true
+                                val d = voiceGateDecision(heard, guard, deviceLocked(), store.masterName, enrolled, verdict)
+                                if (d.send) vm.send(d.cleaned, fromVoice = true, idChecked = d.bypassGuard)
+                                else if (d.note != null) {
+                                    vm.voiceNote = d.note
+                                    HudStateBus.postTicker("[VOICE: REJECTED]")
+                                }
+                            } catch (_: Exception) {
+                            }
+                            resumeLoopAfterCmd()
+                        }
+                    }, "VpVerify").also { it.isDaemon = true; it.start() }
                 }
 
                 override fun onError(error: Int) {
@@ -511,7 +535,17 @@ class WakeService : Service() {
         destroyCmdRecognizer()
     }
 
+    /** Voiceprint active for headless commands: guard on + valid enrollment. */
+    private fun vpWanted(): Boolean {
+        if (!started) return false
+        if (store.masterKey.isBlank() || !store.voiceGuard) return false
+        if (store.vp_base <= 0f) return false
+        return (templatesFromString(store.vp_templates)?.size ?: 0) == 3
+    }
+
     private fun destroyCmdRecognizer() {
+        try { vpCapture?.stop() } catch (_: Exception) { }
+        vpCapture = null
         try {
             cmdRecognizer?.destroy()
         } catch (_: Exception) {
@@ -539,8 +573,22 @@ class WakeService : Service() {
         }
     }
 
+    private fun deviceLocked(): Boolean = try {
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        km.isKeyguardLocked
+    } catch (_: Exception) {
+        false
+    }
+
     private fun speakWakeGreeting() {
         if (!store.ttsEnabled) return
+        if (store.masterKey.isNotBlank() && store.voiceGuard && deviceLocked()) {
+            try {
+                tts?.speak("State your name.", TextToSpeech.QUEUE_FLUSH, null, "wake")
+            } catch (_: Exception) {
+            }
+            return
+        }
         try {
             val now = java.time.LocalDateTime.now()
             val stamp = wakeGreetStamp(now.toLocalDate().toString(), wakeBucket(now.hour))

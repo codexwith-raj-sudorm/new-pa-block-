@@ -58,3 +58,25 @@ fun bestHeard(results: List<String>?, scores: FloatArray?): String {
 /** True when the speaking flag is stale (mic idle far too long). Pure, tested. */
 fun speakingStuck(speaking: Boolean, nowMs: Long, lastSpeakMs: Long): Boolean =
     speaking && nowMs - lastSpeakMs > SPEAKING_STUCK_MS
+
+/** Voice-guard verdict: allowed + command with the name stripped. Pure, tested. */
+data class GuardResult(val allowed: Boolean, val cleaned: String)
+
+/**
+ * Master voice guard: when on and the device is locked, a voice command must
+ * contain the master name (word-boundary match), which is stripped before use.
+ * Honest limits: this is a spoken-name check, NOT biometric voice recognition —
+ * anyone who knows the name passes, and an unlocked device stays fully open.
+ * Fails open when no master name is stored (never lock the owner out).
+ */
+fun guardCommand(heard: String, guardOn: Boolean, locked: Boolean, masterName: String): GuardResult {
+    val text = heard.trim()
+    if (!guardOn || !locked) return GuardResult(true, text)
+    val name = masterName.trim()
+    if (name.isEmpty()) return GuardResult(true, text)
+    val rx = Regex("\\b" + Regex.escape(name) + "\\b", RegexOption.IGNORE_CASE)
+    if (!rx.containsMatchIn(text)) return GuardResult(false, text)
+    val cleaned = rx.replaceFirst(text, "").replace(Regex("\\s+"), " ").trim()
+        .trimStart(',', '.', '!', '?').trim()
+    return GuardResult(true, cleaned)
+}

@@ -10,6 +10,7 @@ import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
 import android.content.pm.PackageManager
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -23,10 +24,12 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
+import android.os.ResultReceiver
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -37,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.room.Room
 import androidx.lifecycle.AndroidViewModel
@@ -44,10 +48,12 @@ import androidx.lifecycle.viewModelScope
 import com.jarvis.app.local.StarkVaultDb
 import com.jarvis.app.widget.StarkWidgetProvider
 import com.jarvis.app.hardware.StarkDeviceController
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -707,6 +713,8 @@ object Router {
         if (low.contains("backup") || low.contains("back up")) return Hit("backup", t)
         if (low.contains("battery")) return Hit("battery", t)
         if (low.contains("autostart") || low.contains("auto-start") || low.contains("auto start")) return Hit("autostart", t)
+        if (low.contains("voice guard") || low.contains("voiceguard")) return Hit("voiceguard", t)
+        if (low.contains("voiceprint") || low.contains("voice print")) return Hit("voiceprint", t)
         if (low.contains("what's new") || low.contains("whats new") || low.contains("changelog") || low.contains("change log")) return Hit("whatsnew", t)
         if (low.contains("what can you do") || Regex("""^help[?.!]*$""").matches(low)) return Hit("help", t)
         // GitHub (read-only): repos, status, builds, issues, files.
@@ -751,15 +759,18 @@ object Router {
         Regex("""^show (?:the )?readme (?:of|from|in) (.+)$""").find(low)?.let { m ->
             repoName(m.groupValues[1])?.let { return Hit("github_read", "README|$it") }
         }
-        // Screen: screenshots + accessibility control.
+        // Screen: screenshots + vision watch + accessibility control.
         if (low == "screenshot" || low == "take screenshot" || low.startsWith("screenshot ") ||
             low.contains("take a screenshot") || low.contains("capture screen") ||
             low.contains("share my screen")
         ) return Hit("shot", "")
         if (low.contains("accessibility")) return Hit("access_setup", "")
         if (low.contains("on my screen") || low == "read screen" || low == "read my screen" ||
-            low.contains("what is on my screen") || low.contains("what's on my screen")
-        ) return Hit("access_read", "")
+            low.contains("what is on my screen") || low.contains("what's on my screen") ||
+            low.contains("look at my screen") || low.contains("see my screen") ||
+            low.contains("watch my screen") || low.contains("describe my screen") ||
+            low.contains("read this screen") || low.contains("what am i looking at")
+        ) return Hit("screen_watch", t)
         Regex("""^tap (.+)$""").find(low)?.let {
             val q = it.groupValues[1].trim().trimEnd('?', '.', '!').trim()
             if (q.isNotEmpty()) return Hit("access_tap", q)
@@ -808,6 +819,26 @@ class Store(context: Context) {
     var hindiListen: Boolean
         get() = p.getBoolean("listen_hi", false)
         set(v) = p.edit().putBoolean("listen_hi", v).apply()
+
+    var voiceGuard: Boolean
+        get() = p.getBoolean("voice_guard", true)
+        set(v) = p.edit().putBoolean("voice_guard", v).apply()
+
+    var vp_templates: String
+        get() = p.getString("vp_templates", "") ?: ""
+        set(v) = p.edit().putString("vp_templates", v).apply()
+
+    var vp_base: Float
+        get() = p.getFloat("vp_base", -1f)
+        set(v) = p.edit().putFloat("vp_base", v).apply()
+
+    var vp_mult: Float
+        get() = p.getFloat("vp_mult", 1.8f)
+        set(v) = p.edit().putFloat("vp_mult", v).apply()
+
+    var vp_phrase: String
+        get() = p.getString("vp_phrase", "") ?: ""
+        set(v) = p.edit().putString("vp_phrase", v).apply()
 
     var ttsRate: Float
         get() = p.getFloat("tts_rate", 1f)
@@ -1221,6 +1252,51 @@ object GeminiApi {
         throw JarvisError("All ${models.size} models failed:\n" + errs.joinToString("\n") { "• $it" })
     }
 
+    /** Single-turn vision call: user text + one JPEG, same model fallback. */
+    suspend fun chatWithImage(
+        apiKey: String,
+        models: List<String>,
+        system: String,
+        user: String,
+        imageBase64: String
+    ): Pair<String, String> = withContext(Dispatchers.IO) {
+        val body = JSONObject()
+            .put(
+                "system_instruction",
+                JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system)))
+            )
+            .put(
+                "contents",
+                JSONArray().put(
+                    JSONObject().put("role", "user").put(
+                        "parts",
+                        JSONArray()
+                            .put(JSONObject().put("text", user))
+                            .put(
+                                JSONObject().put(
+                                    "inline_data",
+                                    JSONObject().put("mime_type", "image/jpeg").put("data", imageBase64)
+                                )
+                            )
+                    )
+                )
+            )
+            .put("generationConfig", JSONObject().put("maxOutputTokens", 512))
+            .toString()
+        val errs = mutableListOf<String>()
+        for (m in models) {
+            val res = try {
+                callOnce(m, apiKey, body)
+            } catch (e: Exception) {
+                Triple(false, "", "Network error: ${e.message?.take(100)}")
+            }
+            if (res.first) return@withContext res.second to m
+            if (res.third.startsWith("KEY:")) throw JarvisError(res.third.removePrefix("KEY:"))
+            errs.add("$m -> ${res.third.take(150)}")
+        }
+        throw JarvisError("Vision failed on all ${models.size} models:\n" + errs.joinToString("\n") { "\u2022 $it" })
+    }
+
     private fun callOnce(model: String, apiKey: String, body: String): Triple<Boolean, String, String> {
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
@@ -1293,6 +1369,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var ttsOn by mutableStateOf(store.ttsEnabled)
     var continuous by mutableStateOf(store.continuous)
     var hindiListen by mutableStateOf(store.hindiListen)
+    var voiceGuard by mutableStateOf(store.voiceGuard)
     var ttsRate by mutableStateOf(store.ttsRate)
     var ttsPitch by mutableStateOf(store.ttsPitch)
     var dailyBriefing by mutableStateOf(store.dailyBriefing)
@@ -1309,6 +1386,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var tts: TextToSpeech? = null
     private var recognizer: SpeechRecognizer? = null
     private var listenTries = 0
+    private var vpCapture: VoiceCapture? = null
+    private var vpCache: List<List<FloatArray>>? = null
+    private var enrollingVp = false
     var convoActive by mutableStateOf(false)
         private set
     private var convoErrs = 0
@@ -1691,12 +1771,146 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- screen watch (vision): capture a frame, describe it ----
+
+    private var lastWatchErr: String? = null
+    private var lastWatchUsedCache = false
+
+    /** Async vision answer for "what's on my screen". Falls back to text read. */
+    private suspend fun watchScreen(question: String): String {
+        if (!brainOk) return AccessBridge.read() ?: needAccess()
+        val img = captureScreenForWatch()
+        if (img == null) {
+            val t = AccessBridge.read()
+            return if (t != null) "Couldn't capture the screen for vision — here's the text I can read:\n$t"
+            else needAccess()
+        }
+        return try {
+            val system = "You are Jarvis describing the user's phone screen.\n" + buildSystem(store.facts())
+            val prompt = visionPromptFor(question)
+            val (reply, _) = try {
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(false), system, prompt, img)
+            } catch (e: GeminiApi.JarvisError) {
+                if (!e.message.orEmpty().contains("404")) throw e
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(true), system, prompt, img)
+            }
+            reply
+        } catch (e: Exception) {
+            "Couldn't analyze the screen (${e.message?.take(120)})." +
+                (AccessBridge.read()?.let { "\n\nHere's the text I can read:\n$it" } ?: "")
+        }
+    }
+
+    /** Capture one JPEG for vision (cached consent, else prompt). Base64 or null. */
+    private suspend fun captureScreenForWatch(): String? {
+        var path = awaitWatchCapture()
+        if (path == null && lastWatchUsedCache && lastWatchErr != null && watchErrorNeedsReprompt(lastWatchErr!!)) {
+            ScreenConsent.code = 0
+            ScreenConsent.data = null
+            path = awaitWatchCapture()
+        }
+        if (path == null) return null
+        val b64 = withContext(Dispatchers.IO) {
+            try {
+                val bytes = java.io.File(path).readBytes()
+                if (bytes.isEmpty()) null else android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        try {
+            java.io.File(path).delete()
+        } catch (_: Exception) {
+        }
+        return b64
+    }
+
+    /** One capture attempt: returns the JPEG path or null (sets lastWatchErr). */
+    private suspend fun awaitWatchCapture(): String? {
+        val app = getApplication<Application>()
+        val done = CompletableDeferred<String?>()
+        val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+            override fun onReceiveResult(code: Int, data: Bundle?) {
+                cancelCaptureNotif()
+                if (code == 0) done.complete(data?.getString("path"))
+                else {
+                    lastWatchErr = data?.getString("error") ?: "failed"
+                    done.complete(null)
+                }
+            }
+        }
+        lastWatchErr = null
+        lastWatchUsedCache = ScreenConsent.code != 0 && ScreenConsent.data != null
+        try {
+            if (lastWatchUsedCache) {
+                app.startForegroundService(
+                    Intent(app, ScreenshotService::class.java)
+                        .putExtra("code", ScreenConsent.code).putExtra("data", ScreenConsent.data)
+                        .putExtra("mode", "watch").putExtra("receiver", receiver)
+                )
+            } else {
+                launchCapturePrompt("watch", receiver)
+            }
+        } catch (e: Exception) {
+            lastWatchUsedCache = false
+            if (lastWatchErr == null) lastWatchErr = e.message ?: "background start blocked"
+            try {
+                launchCapturePrompt("watch", receiver)
+            } catch (_: Exception) {
+                done.complete(null)
+            }
+        }
+        return withTimeoutOrNull(120000) { done.await() }
+    }
+
+    /** System consent prompt + backup notification (covers background-launch blocks). */
+    private fun launchCapturePrompt(mode: String, receiver: ResultReceiver?) {
+        val app = getApplication<Application>()
+        if (receiver != null) voiceNote = "Approve the screen capture prompt…"
+        try {
+            app.startActivity(
+                Intent(app, ShotActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra("mode", mode).putExtra("receiver", receiver)
+            )
+        } catch (_: Exception) {
+        }
+        try {
+            val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= 26) {
+                runCatching {
+                    nm.createNotificationChannel(
+                        NotificationChannel("jarvis_shot", "Jarvis screenshots", NotificationManager.IMPORTANCE_HIGH)
+                    )
+                }
+            }
+            val tap = PendingIntent.getActivity(
+                app, 7702,
+                Intent(app, ShotActivity::class.java)
+                    .putExtra("mode", mode).putExtra("receiver", receiver),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            nm.notify(
+                7702, NotificationCompat.Builder(app, "jarvis_shot")
+                    .setSmallIcon(R.drawable.ic_stat_jarvis)
+                    .setContentTitle("Jarvis needs one tap")
+                    .setContentText("Tap to approve screen capture")
+                    .setContentIntent(tap).setAutoCancel(true).build()
+            )
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun cancelCaptureNotif() {
+        try {
+            (getApplication<Application>().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(7702)
+        } catch (_: Exception) {
+        }
+        voiceNote = null
+    }
+
     fun takeScreenshot() {
         try {
-            getApplication<Application>().startActivity(
-                Intent(getApplication(), ShotActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
+            launchCapturePrompt("share", null)
         } catch (_: Exception) {
             toast("Couldn't open screen capture")
         }
@@ -1715,6 +1929,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun needAccess(): String {
         openAccessSettings()
         return "Turn on Jarvis in Accessibility settings first \u2014 opening it now."
+    }
+
+    /** Accessibility result, or the right guidance (don't re-open settings if already on). */
+    private fun accessOrNeed(call: () -> String?): String {
+        call()?.let { return it }
+        if (isAccessEnabled(getApplication())) return "Screen service is starting — try again in a moment."
+        return needAccess()
     }
 
     fun exportChat() {
@@ -1830,6 +2051,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             heardFresh = false
             clearStuckSpeech()
             commandAudioBegin()
+            stopVpCapture()
+            vpCapture = if (guardOn && hasVoiceprint()) VoiceCapture().let { if (it.start()) it else null } else null
             val r = SpeechRecognizer.createSpeechRecognizer(ctx)
             recognizer = r
             r.setRecognitionListener(object : RecognitionListener {
@@ -1852,28 +2075,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         lastHeard = heard
                         heardFresh = true
                     }
+                    val pcm = stopVpCapture()
                     destroyRecognizer()
                     listenTries = 0
                     convoErrs = 0
-                    if (convoActive) {
-                        commandAudioEnd()
-                        if (heard.isNotEmpty() && !isNearbyVoice(utterPeakRms)) {
-                            // Far-field/background chatter — ignore, stay in session.
-                            HudStateBus.postTicker("[NOISE: IGNORED]")
-                            restartConvoListen()
-                            return
-                        }
-                        if (heard.isNotEmpty()) {
-                            convoLastVoiceMs = System.currentTimeMillis()
-                            send(heard, true)
-                        } else {
-                            restartConvoListen()
-                        }
-                        return // session owns the mic until the 10s timeout
+                    viewModelScope.launch(Dispatchers.Default) {
+                        val verdict = verifyPcm(pcm)
+                        withContext(Dispatchers.Main) { handleCommandResult(heard, verdict) }
                     }
-                    commandAudioEnd()
-                    if (heard.isNotEmpty()) send(heard, true)
-                    resumeWakeService()
                 }
 
                 override fun onError(error: Int) {
@@ -1881,6 +2090,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     listening = false
                     HudStateBus.update(listening = false)
                     BubbleLevelBus.reset()
+                    stopVpCapture()
                     destroyRecognizer()
                     if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && ++listenTries <= 3) {
                         // Mic still held (e.g. by the wake loop shutting down) — retry.
@@ -2012,6 +2222,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         convoActive = false
         convoWatchdog?.cancel()
         convoWatchdog = null
+        stopVpCapture()
         destroyRecognizer()
         listening = false
         HudStateBus.update(listening = false)
@@ -2026,6 +2237,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             recognizer?.stopListening()
         } catch (_: Exception) {
         }
+        stopVpCapture()
         destroyRecognizer()
         listening = false
         HudStateBus.update(listening = false)
@@ -2509,40 +2721,219 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun send(raw: String, fromVoice: Boolean = false) {
-        val text = raw.trim()
+    // ---- voiceprint (text-dependent speaker check, fully offline) ----
+
+    private fun stopVpCapture(): ShortArray? {
+        val c = vpCapture
+        vpCapture = null
+        return try {
+            c?.stop()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun voiceprintTemplates(): List<List<FloatArray>>? {
+        vpCache?.let { return it }
+        if (store.vp_templates.isBlank() || store.vp_base <= 0f) return null
+        val t = templatesFromString(store.vp_templates)
+        if (t == null || t.size != 3) return null
+        vpCache = t
+        return t
+    }
+
+    private fun hasVoiceprint(): Boolean = voiceprintTemplates() != null
+
+    private fun verifyPcm(pcm: ShortArray?): VpVerdict {
+        if (pcm == null || !guardOn) return VpVerdict.UNKNOWN
+        val templates = voiceprintTemplates() ?: return VpVerdict.UNKNOWN
+        return try {
+            verifyVoiceprint(pcm, templates, vpThresholdFor(store.vp_base, store.vp_mult))
+        } catch (_: Exception) {
+            VpVerdict.UNKNOWN
+        }
+    }
+
+    /** Continue onResults on main once the voiceprint verdict is in. */
+    private fun handleCommandResult(heard: String, verdict: VpVerdict) {
+        if (convoActive) {
+            commandAudioEnd()
+            if (heard.isNotEmpty() && !isNearbyVoice(utterPeakRms)) {
+                // Far-field/background chatter — ignore, stay in session.
+                HudStateBus.postTicker("[NOISE: IGNORED]")
+                restartConvoListen()
+                return
+            }
+            if (heard.isNotEmpty() && sendGated(heard, verdict)) {
+                convoLastVoiceMs = System.currentTimeMillis()
+            } else {
+                restartConvoListen()
+            }
+            return // session owns the mic until the 10s timeout
+        }
+        commandAudioEnd()
+        if (heard.isNotEmpty()) sendGated(heard, verdict)
+        resumeWakeService()
+    }
+
+    /** Voice-gated send: voiceprint first, name fallback, typed fallback. */
+    private fun sendGated(heard: String, verdict: VpVerdict): Boolean {
+        val d = voiceGateDecision(heard, guardOn, isDeviceLocked(), store.masterName, hasVoiceprint(), verdict)
+        if (!d.send) {
+            if (d.note != null) {
+                voiceNote = d.note
+                HudStateBus.postTicker("[VOICE: REJECTED]")
+            }
+            return false
+        }
+        return send(d.cleaned, fromVoice = true, idChecked = d.bypassGuard)
+    }
+
+    private fun enrollVoiceprint(): String {
+        val name = store.masterName.trim()
+        if (name.isEmpty()) return "Install your Master Key first — I need your name for the phrase."
+        if (enrollingVp) return "Enrollment already running."
+        val ctx = getApplication<Application>()
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permRequest = Manifest.permission.RECORD_AUDIO
+            return "I need mic permission to enroll — allow it, then say that again."
+        }
+        if (convoActive) endConvoSession() else stopListening()
+        enrollingVp = true
+        pauseWakeService()
+        MicHandoff.appActive = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val phrase = "Jarvis, it's $name"
+                val takes = mutableListOf<List<FloatArray>>()
+                for (i in 1..3) {
+                    withContext(Dispatchers.Main) {
+                        voiceNote = "Enrollment $i of 3: say \u201c$phrase\u201d"
+                        speak("Say: $phrase", force = true)
+                    }
+                    var waits = 0
+                    while (SpeechState.speaking && waits < 40) {
+                        delay(200)
+                        waits++
+                    }
+                    delay(400)
+                    val pcm = VoiceCapture.recordFixedMs(3200) ?: break
+                    val mf = withContext(Dispatchers.Default) { mfccOfTake(pcm) }
+                    if (mf == null) {
+                        withContext(Dispatchers.Main) {
+                            voiceNote = "Too quiet — enrollment stopped. Try again in a quiet room."
+                        }
+                        return@launch
+                    }
+                    takes.add(mf)
+                    withContext(Dispatchers.Main) { HudStateBus.postTicker("[VOICEPRINT: TAKE $i/3]") }
+                    delay(700)
+                }
+                if (takes.size != 3) {
+                    withContext(Dispatchers.Main) { voiceNote = "Enrollment failed — couldn't capture audio." }
+                    return@launch
+                }
+                val spread = withContext(Dispatchers.Default) {
+                    maxOf(dtwDistance(takes[0], takes[1]), dtwDistance(takes[0], takes[2]), dtwDistance(takes[1], takes[2]))
+                }
+                withContext(Dispatchers.Main) {
+                    if (spread > VP_ENROLL_MAX_SPREAD) {
+                        voiceNote = "Takes differed too much — say the same phrase 3 times."
+                    } else {
+                        store.vp_templates = templatesToString(takes)
+                        store.vp_base = spread.toFloat()
+                        store.vp_phrase = phrase
+                        vpCache = null
+                        voiceNote = "Voiceprint saved."
+                        speak("Voiceprint saved. Only your voice will command me now.", force = true)
+                        HudStateBus.postTicker("[VOICEPRINT: SAVED]")
+                    }
+                }
+            } finally {
+                withContext(Dispatchers.Main) {
+                    enrollingVp = false
+                    MicHandoff.appActive = false
+                    resumeWakeService()
+                }
+            }
+        }
+        return "Starting enrollment — say the phrase 3 times."
+    }
+
+    private fun removeVoiceprint(): String {
+        store.vp_templates = ""
+        store.vp_base = -1f
+        store.vp_phrase = ""
+        vpCache = null
+        return "Voiceprint removed — name check only from now on."
+    }
+
+    private fun setVpSensitivity(mult: Float, label: String): String {
+        store.vp_mult = mult
+        return if (hasVoiceprint()) "Voiceprint sensitivity: $label." else "Sensitivity set to $label (enroll your voice first)."
+    }
+
+    private fun vpStatus(): String {
+        val g = if (guardOn) "Voice guard on" else "Voice guard off"
+        if (!hasVoiceprint()) return "$g. No voiceprint — say \u201cenroll my voice\u201d to add one."
+        return "$g. Voiceprint enrolled (\u201c${store.vp_phrase}\u201d). Only your voice commands me" +
+            (if (isDeviceLocked()) " — your name works as backup." else ".")
+    }
+
+    /** Master voice guard: automatic once a Master Key is installed (toggle by voice). */
+    private val guardOn: Boolean get() = masterInstalled && voiceGuard
+
+    private fun isDeviceLocked(): Boolean = try {
+        val km = getApplication<Application>().getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        km.isKeyguardLocked
+    } catch (_: Exception) {
+        false
+    }
+
+    fun send(raw: String, fromVoice: Boolean = false, idChecked: Boolean = false): Boolean {
+        var text = raw.trim()
+        if (fromVoice && guardOn && !idChecked) {
+            val g = guardCommand(text, guardOn = true, locked = isDeviceLocked(), masterName = store.masterName)
+            if (!g.allowed) {
+                voiceNote = "Master voice guard: include your name"
+                HudStateBus.postTicker("[GUARD: NEED NAME]")
+                return false
+            }
+            text = g.cleaned
+        }
         val sendChatId = activeChatId
-        if (text.isEmpty()) return
-        if (busy) { toast("Still thinking — one sec"); return }
+        if (text.isEmpty()) return false
+        if (busy) { toast("Still thinking — one sec"); return false }
         messages.add(ChatMessage("user", text))
         persist()
         HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
-            if (hit.tool == "weather" || hit.tool == "fx" || hit.tool.startsWith("github")) {
+            if (hit.tool == "weather" || hit.tool == "fx" || hit.tool.startsWith("github") || hit.tool == "screen_watch") {
                 busy = true
                 HudStateBus.update(thinking = true)
                 viewModelScope.launch {
                     try {
                         val reply = if (hit.tool == "fx") fetchFx(hit.arg)
                         else if (hit.tool.startsWith("github")) fetchGithub(hit)
+                        else if (hit.tool == "screen_watch") watchScreen(hit.arg)
                         else fetchWeather(hit.arg)
                         deliverReply(sendChatId, reply)
                         if (fromVoice) speak(reply, voiceCmd = true)
                     } catch (e: Exception) {
-                        deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else "Couldn't reach the weather service.")
+                        deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else if (hit.tool == "screen_watch") "Couldn't watch the screen." else "Couldn't reach the weather service.")
                     } finally {
                         busy = false
                         HudStateBus.update(thinking = false)
                         persist()
                     }
                 }
-                return
+                return true
             }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
-            return
+            return true
         }
         matchHook(text, store.loadHooks())?.let { hook ->
             busy = true
@@ -2560,7 +2951,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     persist()
                 }
             }
-            return
+            return true
         }
         if (!brainOk) {
             val reply = if (builtinKey.isNotBlank()) "🔑 Install your Master Key to unlock the brain — or add your own Gemini key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
@@ -2568,7 +2959,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
-            return
+            return true
         }
         busy = true
         HudStateBus.update(thinking = true)
@@ -2597,6 +2988,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 persist()
             }
         }
+        return true
     }
 
     /** Route an async reply to the chat it was sent from (user may have switched). */
@@ -3288,7 +3680,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "\u2022 \"Hands-free on\" / \"Daily briefing on\"\n" +
         "\u2022 \"Smart actions\" / \"List smart actions\"\n" +
         "\u2022 \"Back up my data\" / \"Battery status\"\n" +
-        "\u2022 \"What\u0027s new\" / \"Help\""
+        "\u2022 \"What\u0027s new\" / \"Help\"\n" +
+        "\u2022 \"What\u0027s on my screen\" / \"Tap ...\""
 
     private fun runTool(hit: Router.Hit): String = when (hit.tool) {
         "time" -> {
@@ -3380,6 +3773,31 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 if (wantHindi) "Mic set to Hindi." else "Mic set to Auto."
             }
         }
+        "voiceguard" -> {
+            val a = hit.arg.lowercase()
+            val off = a.contains("off") || a.contains("disable")
+            val on = a.contains("on") || a.contains("enable")
+            if (on == off) {
+                "Voice guard is " + (if (voiceGuard) "on — locked commands need your name." else "off.") +
+                    " Say “voice guard on” or “voice guard off”."
+            } else {
+                voiceGuard = on
+                store.voiceGuard = on
+                if (on) "Voice guard on — when locked, I'll only take commands with your name."
+                else "Voice guard off."
+            }
+        }
+        "voiceprint" -> {
+            val a = hit.arg.lowercase()
+            when {
+                a.contains("enroll") || a.contains("register") || a.contains("set up") || a.contains("setup") || a.contains("add my") -> enrollVoiceprint()
+                a.contains("remove") || a.contains("delete") || a.contains("clear") || a.contains("forget") -> removeVoiceprint()
+                a.contains("strict") -> setVpSensitivity(1.4f, "strict")
+                a.contains("loose") -> setVpSensitivity(2.4f, "loose")
+                a.contains("normal") || a.contains("medium") -> setVpSensitivity(1.8f, "normal")
+                else -> vpStatus()
+            }
+        }
         "reminders_ui" -> {
             showReminders = true
             "Opening reminders."
@@ -3419,10 +3837,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             openAccessSettings()
             "Opening Accessibility settings \u2014 turn on Jarvis screen control."
         }
-        "access_read" -> AccessBridge.read() ?: needAccess()
-        "access_tap" -> AccessBridge.tap(hit.arg) ?: needAccess()
-        "access_scroll" -> AccessBridge.scroll(hit.arg == "down") ?: needAccess()
-        "access_back" -> AccessBridge.back() ?: needAccess()
+        "access_tap" -> accessOrNeed { AccessBridge.tap(hit.arg) }
+        "access_scroll" -> accessOrNeed { AccessBridge.scroll(hit.arg == "down") }
+        "access_back" -> accessOrNeed { AccessBridge.back() }
         "access_recents" -> openRecentsScreen()
         "access_recents_tap" -> openAppFromRecents(hit.arg)
         "sched_msg" -> scheduleSchedMsg(parseScheduledMessage(hit.arg))

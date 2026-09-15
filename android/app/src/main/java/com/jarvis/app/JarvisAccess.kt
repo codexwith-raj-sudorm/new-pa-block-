@@ -13,8 +13,8 @@ fun isAccessEnabled(ctx: Context): Boolean {
         val flat = Settings.Secure.getString(
             ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ).orEmpty()
-        flat.contains(ctx.packageName + "/.JarvisAccess") ||
-            flat.contains(ctx.packageName + "/com.jarvis.app.JarvisAccess")
+        flat.contains(ctx.packageName + "/.JarvisAccessService") ||
+            flat.contains(ctx.packageName + "/com.jarvis.app.JarvisAccessService")
     } catch (_: Exception) {
         false
     }
@@ -63,6 +63,12 @@ object AccessBridge {
         fun walk(n: AccessibilityNodeInfo) {
             val t = n.text?.toString()?.trim().orEmpty()
             if (t.length > 1 && out.size < 60 && t !in out) out.add(t)
+            val d = n.contentDescription?.toString()?.trim().orEmpty()
+            if (d.length > 1 && out.size < 60 && d !in out && d != t) out.add(d)
+            if (t.isEmpty() && d.isEmpty()) {
+                val h = try { n.hintText?.toString()?.trim().orEmpty() } catch (_: Exception) { "" }
+                if (h.length > 1 && out.size < 60 && h !in out) out.add(h)
+            }
             for (i in 0 until n.childCount) {
                 try {
                     n.getChild(i)?.let { walk(it) }
@@ -91,6 +97,11 @@ object AccessBridge {
             val t = n.text?.toString()?.trim().orEmpty()
             if (t.length > 1 && texts.size < 200) {
                 texts.add(t)
+                nodes.add(n)
+            }
+            val d = n.contentDescription?.toString()?.trim().orEmpty()
+            if (d.length > 1 && d != t && texts.size < 200) {
+                texts.add(d)
                 nodes.add(n)
             }
             for (i in 0 until n.childCount) {

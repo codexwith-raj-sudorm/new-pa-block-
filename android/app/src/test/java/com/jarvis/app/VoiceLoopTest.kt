@@ -45,6 +45,30 @@ class VoiceLoopTest {
     }
 
     @Test
+    fun guardPassThrough() {
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("text mom hi", false, true, "Raj"))
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("text mom hi", true, false, "Raj"))
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("text mom hi", true, true, ""))
+    }
+
+    @Test
+    fun guardNeedsName() {
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("Raj text mom hi", true, true, "Raj"))
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("text mom hi Raj", true, true, "Raj"))
+        assertEquals(GuardResult(true, "text mom hi"), guardCommand("Raj, text mom hi", true, true, "Raj"))
+        assertEquals(GuardResult(false, "text mom hi"), guardCommand("text mom hi", true, true, "Raj"))
+        assertEquals(GuardResult(false, "show courage"), guardCommand("show courage", true, true, "Raj"))
+        assertEquals(GuardResult(true, ""), guardCommand("Raj", true, true, "Raj"))
+    }
+
+    @Test
+    fun voiceGuardRoutes() {
+        assertEquals("voiceguard", Router.detect("voice guard on")?.tool)
+        assertEquals("voiceguard", Router.detect("turn voice guard off")?.tool)
+        assertEquals("device", Router.detect("text mom hi")?.tool)
+    }
+
+    @Test
     fun stuckSpeech() {
         assertTrue(speakingStuck(true, 100_000L, 0L))
         assertFalse(speakingStuck(true, 10_000L, 0L))
