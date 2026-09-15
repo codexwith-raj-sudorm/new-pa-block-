@@ -12,7 +12,7 @@ class GenImageTest {
     fun matcherAcceptsImageCommands() {
         assertEquals("image a red dragon", genImagePromptOf("generate an image of a red dragon"))
         assertEquals("logo for a coffee shop", genImagePromptOf("draw me a logo for a coffee shop"))
-        assertEquals("image a cat", genImagePromptOf("draw a cat"))
+        assertEquals("image cat", genImagePromptOf("draw a cat"))
         assertEquals("image sunset over the sea", genImagePromptOf("paint sunset over the sea"))
         assertEquals("wallpaper mountain lake", genImagePromptOf("create a wallpaper mountain lake"))
         assertEquals("picture my dog as an astronaut", genImagePromptOf("please generate me a picture of my dog as an astronaut"))

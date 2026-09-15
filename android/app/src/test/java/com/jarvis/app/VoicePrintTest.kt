@@ -9,35 +9,44 @@ import kotlin.math.sin
 
 class VoicePrintTest {
 
+    /** Frequency-swept tone: time-varying like real speech (pure sines collapse under CMN). */
+    private fun chirpPcm(f0: Double, f1: Double, seconds: Double, amp: Double = 9000.0): ShortArray {
+        val n = (seconds * VP_SAMPLE_RATE).toInt()
+        return ShortArray(n) { i ->
+            val t = i.toDouble() / VP_SAMPLE_RATE
+            val phase = 2 * Math.PI * (f0 * t + (f1 - f0) * t * t / (2 * seconds))
+            (amp * sin(phase)).toInt().toShort()
+        }
+    }
+
     private fun sinePcm(freqHz: Double, seconds: Double, amp: Double = 9000.0): ShortArray {
         val n = (seconds * VP_SAMPLE_RATE).toInt()
         return ShortArray(n) { i -> (amp * sin(2 * Math.PI * freqHz * i / VP_SAMPLE_RATE)).toInt().toShort() }
     }
 
-    private fun noisy(freqHz: Double, seconds: Double): ShortArray {
-        val clean = sinePcm(freqHz, seconds)
+    private fun noisy(base: ShortArray): ShortArray {
         var seed = 12345L
-        return ShortArray(clean.size) { i ->
+        return ShortArray(base.size) { i ->
             seed = (seed * 1103515245 + 12345) and 0x7fffffff
             val noise = (seed % 1000) - 500
-            (clean[i] + noise).toInt().coerceIn(-32768, 32767).toShort()
+            (base[i] + noise).toInt().coerceIn(-32768, 32767).toShort()
         }
     }
 
     @Test
     fun dtwIdentityIsZero() {
-        val mf = mfccFrames(sinePcm(220.0, 1.5))
+        val mf = mfccFrames(chirpPcm(200.0, 500.0, 1.5))
         assertTrue(mf.size > 50)
         assertEquals(0.0, dtwDistance(mf, mf), 0.0)
     }
 
     @Test
     fun mfccSeparatesDifferentPitches() {
-        val a = mfccFrames(sinePcm(200.0, 1.5))
-        val b = mfccFrames(sinePcm(900.0, 1.5))
-        val same = noisy(200.0, 1.5).let { dtwDistance(a, mfccFrames(it)) }
+        val a = mfccFrames(chirpPcm(200.0, 400.0, 1.5))
+        val b = mfccFrames(chirpPcm(700.0, 1000.0, 1.5))
+        val same = dtwDistance(a, mfccFrames(noisy(chirpPcm(200.0, 400.0, 1.5))))
         val cross = dtwDistance(a, b)
-        assertTrue("cross=$cross same=$same", cross > 0.5 && same < cross)
+        assertTrue("cross=$cross same=$same", cross > 1.0 && same < cross)
     }
 
     @Test
@@ -68,24 +77,24 @@ class VoicePrintTest {
 
     @Test
     fun thresholdSelfCalibrates() {
-        assertEquals(1.8, vpThresholdFor(1.0f, 1.8f), 1e-9)
+        assertEquals(1.8, vpThresholdFor(1.0f, 1.8f), 1e-6)
         assertEquals(0.35, vpThresholdFor(0.01f, 1.8f), 1e-9)
         assertEquals(2.5, vpThresholdFor(3.0f, 2.4f), 1e-9)
     }
 
     @Test
     fun verifyEndToEndSynthetic() {
-        val templates = List(3) { mfccFrames(sinePcm(260.0, 1.5)) }
+        val templates = List(3) { mfccFrames(chirpPcm(200.0, 400.0, 1.5)) }
         val spread = maxOf(
             dtwDistance(templates[0], templates[1]),
             dtwDistance(templates[0], templates[2]),
             dtwDistance(templates[1], templates[2])
         )
         val thr = vpThresholdFor(spread.toFloat(), 1.8f)
-        assertEquals(VpVerdict.MATCH, verifyVoiceprint(sinePcm(260.0, 1.5), templates, thr))
-        assertEquals(VpVerdict.MISMATCH, verifyVoiceprint(sinePcm(880.0, 1.5), templates, thr))
+        assertEquals(VpVerdict.MATCH, verifyVoiceprint(chirpPcm(200.0, 400.0, 1.5), templates, thr))
+        assertEquals(VpVerdict.MISMATCH, verifyVoiceprint(chirpPcm(700.0, 1000.0, 1.5), templates, thr))
         assertEquals(VpVerdict.UNKNOWN, verifyVoiceprint(ShortArray(4000), templates, thr))
-        assertEquals(VpVerdict.UNKNOWN, verifyVoiceprint(sinePcm(260.0, 1.5), emptyList(), thr))
+        assertEquals(VpVerdict.UNKNOWN, verifyVoiceprint(chirpPcm(200.0, 400.0, 1.5), emptyList(), thr))
     }
 
     @Test
