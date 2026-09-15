@@ -17,6 +17,7 @@ val CHANGELOG = listOf(
             "Voice reliability: mic handoff fixed, hands-free commands over any app",
             "Master voice guard: locked commands need your name"
             "Voiceprint: enroll your voice — strangers are ignored"
+            "Image generation: “generate an image of …”"
         )
     ),
     ChangelogEntry(

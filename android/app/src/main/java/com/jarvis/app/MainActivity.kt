@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import android.Manifest
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import com.jarvis.app.ui.StarkShareActivity
 import com.jarvis.app.hardware.StarkDeviceController
@@ -36,10 +37,15 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -627,6 +633,38 @@ private fun ThinkingRow() {
 }
 
 @Composable
+private fun genImageUri(context: Context, path: String): android.net.Uri? = try {
+    FileProvider.getUriForFile(context, context.packageName + ".fileprovider", File(path))
+} catch (_: Exception) { null }
+
+private fun openGenImage(context: Context, path: String) {
+    try {
+        val uri = genImageUri(context, path) ?: return
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "image/*")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        )
+    } catch (_: Exception) {
+        Toast.makeText(context, "Couldn't open the image", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun shareGenImage(context: Context, path: String) {
+    try {
+        val uri = genImageUri(context, path) ?: return
+        context.startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("image/*")
+                    .putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                "Share image"
+            )
+        )
+    } catch (_: Exception) {
+        Toast.makeText(context, "Couldn't share the image", Toast.LENGTH_SHORT).show()
+    }
+}
+
 fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modifier: Modifier = Modifier) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
@@ -639,6 +677,28 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                 .widthIn(max = 300.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            if (!isUser && m.imagePath != null) {
+                val art = remember(m.imagePath) {
+                    try {
+                        BitmapFactory.decodeFile(m.imagePath)?.asImageBitmap()
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                if (art != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Image(
+                            art, "Generated image",
+                            modifier = Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { openGenImage(context, m.imagePath) }
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            TextButton(onClick = { shareGenImage(context, m.imagePath) }) { Text("Share", fontSize = 12.sp) }
+                        }
+                    }
+                }
+            }
             segs.forEach { s ->
                 if (!s.isCode) {
                     StarkMessageCard(isUser = isUser, message = s.text, timestamp = ts)

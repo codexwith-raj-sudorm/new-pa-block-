@@ -8,6 +8,7 @@ import android.provider.AlarmClock
 import android.app.ActivityManager
 import android.app.Application
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.app.NotificationChannel
@@ -15,6 +16,7 @@ import android.app.NotificationManager
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.provider.ContactsContract
+import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
 import android.content.Intent
@@ -69,14 +71,17 @@ import java.util.concurrent.TimeUnit
 
 // ---------- models ----------
 
-data class ChatMessage(val role: String, val text: String, val time: Long = System.currentTimeMillis()) // role: user | bot
+data class ChatMessage(val role: String, val text: String, val time: Long = System.currentTimeMillis(), val imagePath: String? = null) // role: user | bot
 
-data class ChatData(val id: String, var title: String, val msgs: MutableList<Triple<String, String, Long>>)
+/** Persisted message; img is a filesDir path for generated images ("" = none). */
+data class StoredMsg(val r: String, val t: String, val ts: Long, val img: String = "")
+
+data class ChatData(val id: String, var title: String, val msgs: MutableList<StoredMsg>)
 
 data class TtsVoice(val id: String, val label: String)
 
 /** Chat list title = first user message, truncated. Pure, tested. */
-fun chatTitle(msgs: List<Triple<String, String, Long>>): String {
+fun chatTitle(msgs: List<StoredMsg>): String {
     val first = msgs.firstOrNull { it.first == "user" }?.second?.trim().orEmpty()
     if (first.isEmpty()) return "New chat"
     return if (first.length <= 32) first else first.take(32).trimEnd() + "…"
@@ -664,6 +669,8 @@ object Router {
     fun detect(raw: String): Hit? {
         val t = raw.trim()
         val low = t.lowercase()
+        // Image generation first: strict verb-led match, never steals other commands.
+        genImagePromptOf(low)?.let { return Hit("gen_image", it) }
         // ——— Jarvis v5.9 scheduled messaging (must beat time/device rules) ———
         parseScheduledMessage(t)?.let { return Hit("sched_msg", t) }
         if (low == "scheduled messages" || low == "my scheduled messages" ||
@@ -1085,10 +1092,10 @@ class Store(context: Context) {
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
                 val marr = o.optJSONArray("msgs") ?: JSONArray()
-                val msgs = mutableListOf<Triple<String, String, Long>>()
+                val msgs = mutableListOf<StoredMsg>()
                 for (j in 0 until marr.length()) {
                     val m = marr.getJSONObject(j)
-                    msgs.add(Triple(m.getString("r"), m.getString("t"), m.optLong("ts", 0)))
+                    msgs.add(StoredMsg(m.getString("r"), m.getString("t"), m.optLong("ts", 0), m.optString("img", "")))
                 }
                 out.add(ChatData(o.getString("id"), o.optString("title", "Chat"), msgs))
             }
@@ -1102,8 +1109,10 @@ class Store(context: Context) {
             val arr = JSONArray()
             for (c in chats.take(30)) {
                 val marr = JSONArray()
-                for ((r, t, ts) in c.msgs.takeLast(40)) {
-                    marr.put(JSONObject().put("r", r).put("t", t.take(2000)).put("ts", ts))
+                for ((r, t, ts, img) in c.msgs.takeLast(40)) {
+                    val mo = JSONObject().put("r", r).put("t", t.take(2000)).put("ts", ts)
+                    if (img.isNotEmpty()) mo.put("img", img)
+                    marr.put(mo)
                 }
                 arr.put(JSONObject().put("id", c.id).put("title", c.title.take(60)).put("msgs", marr))
             }
@@ -1140,6 +1149,7 @@ object GeminiApi {
     class JarvisError(msg: String) : Exception(msg)
 
     private val client = OkHttpClient.Builder().callTimeout(60, TimeUnit.SECONDS).build()
+    private val imgClient by lazy { client.newBuilder().callTimeout(120, TimeUnit.SECONDS).build() }
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     /** Names (no "models/" prefix) of models supporting generateContent. Pure, tested. */
@@ -1297,6 +1307,37 @@ object GeminiApi {
         throw JarvisError("Vision failed on all ${models.size} models:\n" + errs.joinToString("\n") { "\u2022 $it" })
     }
 
+    /** Image generation: tries image models first, returns (mime, bytes). */
+    suspend fun generateImage(apiKey: String, models: List<String>, prompt: String): Pair<String, ByteArray> =
+        withContext(Dispatchers.IO) {
+            val body = genImageRequestBody(prompt)
+            val errs = mutableListOf<String>()
+            for (m in models) {
+                try {
+                    val req = Request.Builder()
+                        .url("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$apiKey")
+                        .post(body.toRequestBody(JSON)).build()
+                    imgClient.newCall(req).execute().use { resp ->
+                        val txt = resp.body?.string() ?: ""
+                        if (!resp.isSuccessful) {
+                            if (resp.code == 400 && ("API key" in txt || "API_KEY" in txt))
+                                throw JarvisError("API key rejected. Open Settings (\u2699\ufe0f) and check the key.")
+                            errs.add("$m -> HTTP ${resp.code}: ${txt.take(150)}")
+                            return@use
+                        }
+                        val got = parseGenImageData(txt)
+                        if (got != null) return@withContext got
+                        errs.add("$m -> no image in reply (blocked or unsupported)")
+                    }
+                } catch (e: JarvisError) {
+                    throw e
+                } catch (e: Exception) {
+                    errs.add("$m -> Network error: ${e.message?.take(100)}")
+                }
+            }
+            throw JarvisError("Image generation failed:\n" + errs.joinToString("\n") { "\u2022 $it" })
+        }
+
     private fun callOnce(model: String, apiKey: String, body: String): Triple<Boolean, String, String> {
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
@@ -1445,7 +1486,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (loaded.isEmpty()) {
             val legacy = store.loadHistory()
             if (legacy.isNotEmpty()) {
-                loaded.add(ChatData("c1", chatTitle(legacy.map { Triple(it.first, it.second, 0L) }), legacy.map { Triple(it.first, it.second, 0L) }.toMutableList()))
+                loaded.add(ChatData("c1", chatTitle(legacy.map { StoredMsg(it.first, it.second, 0L) }), legacy.map { StoredMsg(it.first, it.second, 0L) }.toMutableList()))
             } else {
                 loaded.add(ChatData("c1", "New chat", mutableListOf()))
             }
@@ -1455,8 +1496,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val savedId = store.loadActiveId()
         activeChatId = if (loaded.any { it.id == savedId }) savedId else loaded[0].id
         val active = loaded.first { it.id == activeChatId }
-        for ((r, t, ts) in active.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
+        for ((r, t, ts, img) in active.msgs) {
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
         }
         if (messages.isEmpty()) {
             messages.add(ChatMessage("bot", greet()))
@@ -2449,8 +2490,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val c = chats.firstOrNull { it.id == id } ?: return
         activeChatId = id
         messages.clear()
-        for ((r, t, ts) in c.msgs) {
-            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
+        for ((r, t, ts, img) in c.msgs) {
+            messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
         }
         if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         showChats = false
@@ -2521,8 +2562,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             stopSpeaking()
             activeChatId = chats[0].id
             messages.clear()
-            for ((r, t, ts) in chats[0].msgs) {
-                messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts))
+            for ((r, t, ts, img) in chats[0].msgs) {
+                messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, img.ifEmpty { null }))
             }
             if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
         }
@@ -2929,6 +2970,26 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 return true
             }
+            if (hit.tool == "gen_image") {
+                busy = true
+                HudStateBus.update(thinking = true)
+                voiceNote = "Painting your image…"
+                viewModelScope.launch {
+                    try {
+                        val (caption, path) = generateImageFull(hit.arg)
+                        deliverImageReply(sendChatId, caption, path)
+                        if (fromVoice) speak(caption, voiceCmd = true)
+                    } catch (e: Exception) {
+                        deliverReply(sendChatId, "\u26a0\ufe0f " + (e.message?.take(200) ?: "Couldn't generate the image."))
+                    } finally {
+                        busy = false
+                        HudStateBus.update(thinking = false)
+                        voiceNote = null
+                        persist()
+                    }
+                }
+                return true
+            }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
@@ -2992,12 +3053,62 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Route an async reply to the chat it was sent from (user may have switched). */
+    /** Generate, save (files + gallery), return caption + filesDir path. */
+    private suspend fun generateImageFull(arg: String): Pair<String, String?> {
+        if (!brainOk) throw GeminiApi.JarvisError("I need a Gemini API key for image generation (free from aistudio.google.com — add it in Settings \u2699\ufe0f).")
+        val models = genImageModels(resolveModels(false))
+        val (mime, bytes) = GeminiApi.generateImage(effectiveKey, models, arg)
+        val ext = if (mime.contains("jpeg") || mime.contains("jpg")) "jpg" else "png"
+        val dir = java.io.File(getApplication<Application>().filesDir, "gen").apply { mkdirs() }
+        val f = java.io.File(dir, "img-" + System.currentTimeMillis() + "." + ext)
+        withContext(Dispatchers.IO) { f.writeBytes(bytes) }
+        val gallery = saveImageToGallery(bytes, f.name, mime)
+        val caption = "Here's what I painted" + (if (gallery) " — saved to your gallery." else ".")
+        return caption to f.absolutePath
+    }
+
+    private fun deliverImageReply(sendChatId: String, caption: String, path: String?) {
+        if (activeChatId == sendChatId) {
+            messages.add(ChatMessage("bot", caption, imagePath = path))
+        } else {
+            chats.find { it.id == sendChatId }?.let {
+                it.msgs.add(StoredMsg("model", caption, System.currentTimeMillis(), path ?: ""))
+                store.saveChats(chats)
+            }
+        }
+    }
+
+    /** Best-effort copy into Pictures/Jarvis. Never throws. */
+    private fun saveImageToGallery(bytes: ByteArray, name: String, mime: String): Boolean {
+        return try {
+            val app = getApplication<Application>()
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(MediaStore.Images.Media.MIME_TYPE, mime)
+                if (Build.VERSION.SDK_INT >= 29) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Jarvis")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+            val uri = app.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return false
+            app.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: return false
+            if (Build.VERSION.SDK_INT >= 29) {
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                app.contentResolver.update(uri, values, null, null)
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun deliverReply(sendChatId: String, reply: String) {
         if (activeChatId == sendChatId) {
             messages.add(ChatMessage("bot", reply))
         } else {
             chats.find { it.id == sendChatId }?.let {
-                it.msgs.add(Triple("model", reply, System.currentTimeMillis()))
+                it.msgs.add(StoredMsg("model", reply, System.currentTimeMillis()))
                 store.saveChats(chats)
             }
         }
@@ -3681,7 +3792,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "\u2022 \"Smart actions\" / \"List smart actions\"\n" +
         "\u2022 \"Back up my data\" / \"Battery status\"\n" +
         "\u2022 \"What\u0027s new\" / \"Help\"\n" +
-        "\u2022 \"What\u0027s on my screen\" / \"Tap ...\""
+        "\u2022 \"What\u0027s on my screen\" / \"Tap ...\"\n" +
+        "\u2022 \"Generate an image of ...\""
 
     private fun runTool(hit: Router.Hit): String = when (hit.tool) {
         "time" -> {
@@ -3859,7 +3971,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun persist() {
         val c = chats.firstOrNull { it.id == activeChatId } ?: return
         c.msgs.clear()
-        c.msgs.addAll(messages.map { Triple(if (it.role == "user") "user" else "model", it.text, it.time) })
+        c.msgs.addAll(messages.map { StoredMsg(if (it.role == "user") "user" else "model", it.text, it.time, it.imagePath ?: "") })
         if (c.title.isBlank() || c.title == "New chat") c.title = chatTitle(c.msgs)
         store.saveChats(chats)
         store.saveActiveId(activeChatId)
