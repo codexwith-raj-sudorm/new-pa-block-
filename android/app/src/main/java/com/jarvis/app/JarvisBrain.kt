@@ -814,6 +814,10 @@ class Store(context: Context) {
         get() = p.getBoolean("tts", true)
         set(v) = p.edit().putBoolean("tts", v).apply()
 
+    var cyberMode: Boolean
+        get() = p.getBoolean("cyber_mode", false)
+        set(v) = p.edit().putBoolean("cyber_mode", v).apply()
+
     var wakeEnabled: Boolean
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
@@ -1394,6 +1398,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var listTick by mutableStateOf(0)
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
+    var cyberMode by mutableStateOf(store.cyberMode)
     var continuous by mutableStateOf(store.continuous)
     var hindiListen by mutableStateOf(store.hindiListen)
     var voiceGuard by mutableStateOf(store.voiceGuard)
@@ -1574,6 +1579,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         ttsOn = !ttsOn
         store.ttsEnabled = ttsOn
         if (!ttsOn) stopSpeaking()
+    }
+
+    fun toggleCyberMode() {
+        cyberMode = !cyberMode
+        store.cyberMode = cyberMode
     }
 
     fun toggleContinuous() {

@@ -15,8 +15,15 @@ import com.jarvis.app.ui.components.coreStateLabel
 import com.jarvis.app.ui.components.hudReadoutLine
 import com.jarvis.app.ui.components.hudStatusLine
 import com.jarvis.app.ui.components.AnimatedGlassBubble
+import com.jarvis.app.ui.components.CyberBootBanner
+import com.jarvis.app.ui.components.CyberDim
+import com.jarvis.app.ui.components.CyberGreen
+import com.jarvis.app.ui.components.CyberInputBar
+import com.jarvis.app.ui.components.CyberMessageLine
+import com.jarvis.app.ui.components.CyberPanel
 import com.jarvis.app.ui.components.FluidAnimatedBackground
 import com.jarvis.app.ui.components.FluidInputBar
+import com.jarvis.app.ui.components.ThemedBackground
 import com.jarvis.app.ui.components.HudDialog
 import com.jarvis.app.ui.components.HudTextField
 import com.jarvis.app.widget.StarkWidgetProvider
@@ -394,12 +401,13 @@ fun JarvisScreen() {
         InterruptBus.requests.collect { vm.interruptSpeech() }
     }
 
-    FluidAnimatedBackground {
+    ThemedBackground(vm.cyberMode) {
     Column(Modifier.fillMaxSize()) {
         HudTopBar(
             online = vm.brainOk,
             wakeOn = vm.wakeOn,
             ttsOn = vm.ttsOn,
+            cyber = vm.cyberMode,
             onSettings = vm::openSettings,
             onNewChat = vm::newChat,
             onChats = { vm.showChats = true },
@@ -419,33 +427,34 @@ fun JarvisScreen() {
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
+            items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText, cyber = vm.cyberMode) }
             if (vm.busy) {
-                item { ThinkingRow() }
+                item { ThinkingRow(vm.cyberMode) }
             }
         }
         if (vm.messages.size <= 1 && !vm.busy) {
             LaunchedEffect(Unit) { vm.refreshDashboard() }
             val coreLvl by BubbleLevelBus.level.collectAsState()
             val coreHud by HudStateBus.state.collectAsState()
+            if (vm.cyberMode) CyberBootBanner()
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                         .padding(horizontal = 12.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF0D1526).copy(alpha = 0.85f))
-                        .border(1.dp, HudGold.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                        .background((if (vm.cyberMode) CyberPanel else Color(0xFF0D1526)).copy(alpha = 0.85f))
+                        .border(1.dp, (if (vm.cyberMode) CyberDim else HudGold).copy(alpha = 0.25f), RoundedCornerShape(16.dp))
                         .padding(12.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(
-                            "MATRIX // ARC CORE", color = HudGold, fontSize = 10.sp,
+                            "MATRIX // ARC CORE", color = if (vm.cyberMode) CyberGreen else HudGold, fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
                             coreStateLabel(vm.listening, vm.busy, coreHud.speaking, vm.convoActive),
-                            color = HudCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace
+                            color = if (vm.cyberMode) CyberDim else HudCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace
                         )
                     }
                     ArcCoreReactor(
@@ -460,7 +469,7 @@ fun JarvisScreen() {
                     }
                     Text(
                         hudReadoutLine(vm.dashTemp, vm.dashPing, vm.dashBatt),
-                        color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                        color = if (vm.cyberMode) CyberDim else Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                         modifier = Modifier.clickable { vm.refreshDashboard() }.padding(4.dp)
                     )
                 }
@@ -471,9 +480,9 @@ fun JarvisScreen() {
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StarterChip("What can you do?") { vm.send("What can you do?") }
-                StarterChip("Calculate 15% of 240") { vm.send("Calculate 15% of 240") }
-                StarterChip("Motivate me") { vm.send("Motivate me in one line") }
+                StarterChip("What can you do?", vm.cyberMode) { vm.send("What can you do?") }
+                StarterChip("Calculate 15% of 240", vm.cyberMode) { vm.send("Calculate 15% of 240") }
+                StarterChip("Motivate me", vm.cyberMode) { vm.send("Motivate me in one line") }
             }
         }
         InputRow(
@@ -483,7 +492,8 @@ fun JarvisScreen() {
             listening = vm.listening,
             heard = vm.lastHeard,
             heardFresh = vm.heardFresh,
-            voiceNote = vm.voiceNote
+            voiceNote = vm.voiceNote,
+            cyber = vm.cyberMode
         )
     }
     }
@@ -519,52 +529,55 @@ fun HudTopBar(
     onList: () -> Unit,
     onToggleTts: () -> Unit,
     onWake: () -> Unit,
-    onInterrupt: () -> Unit
+    onInterrupt: () -> Unit,
+    cyber: Boolean = false
 ) {
+    val accent = if (cyber) CyberGreen else HudCyan
+    val ink = if (cyber) CyberGreen else HudInk
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(Color(0xFF0A1424))) {
+    Column(Modifier.fillMaxWidth().background(if (cyber) Color.Black else Color(0xFF0A1424))) {
         Box {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = HudCyan)
+                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = accent)
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "J.A.R.V.I.S", color = HudInk, fontSize = 15.sp,
+                        "J.A.R.V.I.S", color = ink, fontSize = 15.sp,
                         fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
                     )
                     Text(
                         hudStatusLine(online, wakeOn),
-                        color = if (online) HudCyan else JarvisRed,
+                        color = if (online) accent else JarvisRed,
                         fontSize = 10.sp, fontFamily = FontFamily.Monospace
                     )
                 }
                 HeaderMiniReactor(isSpeaking = hud.speaking, onInterrupt = onInterrupt)
                 IconButton(onClick = onSettings) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = HudCyan)
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = accent)
                 }
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
-                    text = { Text("\uFF0B New chat", color = HudCyan) },
+                    text = { Text("\uFF0B New chat", color = accent) },
                     onClick = { menuOpen = false; onNewChat() }
                 )
                 DropdownMenuItem(
-                    text = { Text("🧠 Memory", color = HudCyan) },
+                    text = { Text("🧠 Memory", color = accent) },
                     onClick = { menuOpen = false; onMemory() }
                 )
                 DropdownMenuItem(
-                    text = { Text("📝 Lists", color = HudCyan) },
+                    text = { Text("📝 Lists", color = accent) },
                     onClick = { menuOpen = false; onList() }
                 )
                 DropdownMenuItem(
-                    text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off", color = HudCyan) },
+                    text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off", color = accent) },
                     onClick = { menuOpen = false; onToggleTts() }
                 )
             }
@@ -574,13 +587,13 @@ fun HudTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = onChats) {
-                Text("\u25A4 CHATS", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = HudCyan)
+                Text("\u25A4 CHATS", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = accent)
             }
             TextButton(onClick = onWake) {
                 Text(
                     if (wakeOn) "\u25C9 WAKE ON" else "\u25CE WAKE",
                     fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                    color = if (wakeOn) JarvisRed else HudCyan,
+                    color = if (wakeOn) JarvisRed else accent,
                     modifier = Modifier.graphicsLayer { val sc = 1f + 0.18f * wakePulse; scaleX = sc; scaleY = sc }
                 )
             }
@@ -600,7 +613,7 @@ fun fmtTime(ts: Long): String {
 }
 
 @Composable
-private fun ThinkingRow() {
+private fun ThinkingRow(cyber: Boolean = false) {
     val glow by rememberInfiniteTransition().animateFloat(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900), repeatMode = RepeatMode.Reverse),
@@ -608,13 +621,13 @@ private fun ThinkingRow() {
     )
     Box(Modifier.fillMaxWidth()) {
         Text(
-            "● Jarvis is thinking…",
-            color = HudCyan.copy(alpha = 0.45f + 0.55f * glow),
+            if (cyber) "> working…" else "● Jarvis is thinking…",
+            color = (if (cyber) CyberGreen else HudCyan).copy(alpha = 0.45f + 0.55f * glow),
             fontSize = 14.sp, fontFamily = FontFamily.Monospace,
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .clip(RoundedCornerShape(14.dp))
-                .background(BotGray)
+                .background(if (cyber) CyberPanel else BotGray)
                 .padding(12.dp)
         )
     }
@@ -653,15 +666,15 @@ private fun shareGenImage(context: Context, path: String) {
 }
 
 @Composable
-fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modifier: Modifier = Modifier) {
+fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modifier: Modifier = Modifier, cyber: Boolean = false) {
     val isUser = m.role == "user"
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val segs = remember(m.text) { splitCodeBlocks(m.text) }
     Box(modifier.fillMaxWidth()) {
         Column(
-            Modifier.align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
-                .widthIn(max = 300.dp),
+            Modifier.align(if (cyber || !isUser) Alignment.CenterStart else Alignment.CenterEnd)
+                .then(if (cyber) Modifier.fillMaxWidth() else Modifier.widthIn(max = 300.dp)),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             val genPath = m.imagePath
@@ -682,43 +695,43 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                                 .clickable { openGenImage(context, genPath) }
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            TextButton(onClick = { shareGenImage(context, genPath) }) { Text("Share", fontSize = 12.sp) }
+                            TextButton(onClick = { shareGenImage(context, genPath) }) { Text("Share", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                         }
                     }
                 }
             }
             segs.forEach { s ->
                 if (!s.isCode) {
-                    AnimatedGlassBubble(s.text, isUser)
+                    if (cyber) CyberMessageLine(s.text, isUser) else AnimatedGlassBubble(s.text, isUser)
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         if (!isUser) {
-                            TextButton(onClick = { onSpeak(s.text) }) { Text("🔊 Speak", fontSize = 12.sp) }
+                            TextButton(onClick = { onSpeak(s.text) }) { Text("🔊 Speak", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                         }
                         TextButton(onClick = {
                             clipboard.setText(AnnotatedString(s.text))
                             Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-                        }) { Text("Copy", fontSize = 12.sp) }
+                        }) { Text("Copy", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                         if (!isUser && s.text.startsWith("⚠")) {
-                            TextButton(onClick = onRetry) { Text("↻ Retry", fontSize = 12.sp) }
+                            TextButton(onClick = onRetry) { Text("↻ Retry", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                         }
                     }
                 } else {
                     Column(
                         Modifier.clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFF0B1220))
+                            .background(if (cyber) CyberPanel else Color(0xFF0B1220))
                     ) {
                         Row(
                             Modifier.fillMaxWidth().padding(start = 10.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "TERMINAL // " + s.lang, color = Cyan, fontSize = 12.sp,
+                                "TERMINAL // " + s.lang, color = if (cyber) CyberGreen else Cyan, fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
                             )
                             TextButton(onClick = {
                                 clipboard.setText(AnnotatedString(s.text))
                                 Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()
-                            }) { Text("Copy", fontSize = 12.sp) }
+                            }) { Text("Copy", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                             TextButton(onClick = {
                                 try {
                                     val send = Intent(Intent.ACTION_SEND).setType("text/plain")
@@ -726,7 +739,7 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                                     context.startActivity(Intent.createChooser(send, "Share code"))
                                 } catch (_: Exception) {
                                 }
-                            }) { Text("Share", fontSize = 12.sp) }
+                            }) { Text("Share", fontSize = 12.sp, color = if (cyber) CyberGreen else Color.Unspecified) }
                         }
                         SelectionContainer {
                             Text(
@@ -746,12 +759,17 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
 }
 
 @Composable
-private fun StarterChip(label: String, onClick: () -> Unit) {
-    AssistChip(onClick = onClick, label = { Text(label, fontSize = 12.sp) })
+private fun StarterChip(label: String, cyber: Boolean = false, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label, fontSize = 12.sp) },
+        colors = if (cyber) AssistChipDefaults.assistChipColors(containerColor = Color.Black, labelColor = CyberGreen)
+            else AssistChipDefaults.assistChipColors()
+    )
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?) {
+fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?, cyber: Boolean = false) {
     var input by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     Column(Modifier.fillMaxWidth()) {
@@ -771,11 +789,12 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
         } else if (!listening && heardFresh && heard.isNotEmpty()) {
             Text(
                 "Heard: “" + heard.take(120) + "”",
-                color = HudCyan, fontSize = 13.sp,
+                color = if (cyber) CyberGreen else HudCyan, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
             )
         }
-        FluidInputBar(
+        if (cyber) {
+            CyberInputBar(
             text = input,
             onTextChanged = { input = it },
             onSend = {
@@ -791,7 +810,26 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
                 }
             },
             micEnabled = micVisible
-        )
+            )
+        } else {
+            FluidInputBar(
+            text = input,
+            onTextChanged = { input = it },
+            onSend = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSend(it)
+                input = ""
+            },
+            isListening = listening,
+            onMicTap = {
+                if (micVisible) {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onMic()
+                }
+            },
+            micEnabled = micVisible
+            )
+        }
     }
 }
 
@@ -804,6 +842,9 @@ private fun MoreRow(label: String, onClick: () -> Unit) {
 
 @Composable
 fun SettingsDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
+    val acc = if (cyber) CyberGreen else Accent
     var key by remember { mutableStateOf(vm.apiKey) }
     var gh by remember { mutableStateOf(vm.githubToken) }
     val setCtx = LocalContext.current
@@ -813,7 +854,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
     LaunchedEffect(models.joinToString()) {
         if (model !in models && models.isNotEmpty()) model = models[0]
     }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showSettings = false },
         title = {
             Text(
@@ -836,13 +877,13 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (vm.masterUnlocked) MasterKeySection(vm)
+                if (vm.masterUnlocked) MasterKeySection(vm, cyber)
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Only needed if you want to use your own key.",
-                    fontSize = 13.sp, color = Muted
+                    fontSize = 13.sp, color = mut
                 )
-                HudTextField(
+                HudTextField(cyber = cyber,
                     value = key,
                     onValueChange = { key = it.trim() },
                     placeholder = { Text("Paste your key (AIza…)") },
@@ -853,9 +894,9 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 Text("GitHub token (for repo access)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Fine-grained, read-only is enough. Stored encrypted on this phone.",
-                    fontSize = 13.sp, color = Muted
+                    fontSize = 13.sp, color = mut
                 )
-                HudTextField(
+                HudTextField(cyber = cyber,
                     value = gh,
                     onValueChange = { gh = it.trim() },
                     placeholder = { Text("github_pat_…") },
@@ -864,10 +905,23 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (vm.githubStatus().isNotBlank()) {
-                    Text(vm.githubStatus(), fontSize = 13.sp, color = Accent)
+                    Text(vm.githubStatus(), fontSize = 13.sp, color = acc)
                 }
                 if (vm.settingsMsg.isNotBlank()) {
-                    Text(vm.settingsMsg, fontSize = 13.sp, color = Accent)
+                    Text(vm.settingsMsg, fontSize = 13.sp, color = acc)
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("💻 Cyber Mode", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(
+                            "Linux terminal theme for the chat screen.",
+                            fontSize = 13.sp, color = mut
+                        )
+                    }
+                    Switch(checked = vm.cyberMode, onCheckedChange = { vm.toggleCyberMode() })
                 }
                 // Models stay hidden on the built-in key — only shown with your own key.
                 if (key.isNotBlank()) {
@@ -878,7 +932,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                             Text("Refresh models")
                         }
                     }
-                    Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = Muted)
+                    Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = mut)
                     LazyColumn(Modifier.heightIn(max = 140.dp)) {
                         items(models) { m ->
                             Row(
@@ -907,21 +961,23 @@ fun SettingsDialog(vm: JarvisViewModel) {
 
 @Composable
 fun HooksDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var post by remember { mutableStateOf(false) }
     val hooks = remember(vm.hookTick) { vm.hooks() }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showHooks = false },
         title = { Text("🔌 Smart actions") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Name it, paste a URL (Home Assistant, IFTTT, ESP…), then say turn on ....",
-                    fontSize = 13.sp, color = Muted
+                    fontSize = 13.sp, color = mut
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = name,
                         onValueChange = { name = it },
                         placeholder = { Text("Name: bedroom light") },
@@ -932,7 +988,7 @@ fun HooksDialog(vm: JarvisViewModel) {
                     Button(onClick = { post = !post }) { Text(if (post) "POST" else "GET") }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = url,
                         onValueChange = { url = it.trim() },
                         placeholder = { Text("https://...") },
@@ -947,7 +1003,7 @@ fun HooksDialog(vm: JarvisViewModel) {
                     }) { Text("Add") }
                 }
                 if (hooks.isEmpty()) {
-                    Text("No actions yet.", color = Muted, fontSize = 14.sp)
+                    Text("No actions yet.", color = mut, fontSize = 14.sp)
                 } else {
                     LazyColumn(Modifier.heightIn(max = 220.dp)) {
                         items(hooks) { h ->
@@ -957,13 +1013,13 @@ fun HooksDialog(vm: JarvisViewModel) {
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text("• " + h.name, fontSize = 14.sp)
-                                    Text(h.method + " " + h.url.take(48), fontSize = 11.sp, color = Muted)
+                                    Text(h.method + " " + h.url.take(48), fontSize = 11.sp, color = mut)
                                 }
                                 IconButton(onClick = { vm.removeHook(h.name) }) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = "Delete",
-                                        tint = Muted,
+                                        tint = mut,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -981,21 +1037,23 @@ fun HooksDialog(vm: JarvisViewModel) {
 
 @Composable
 fun BriefingDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     val rows = remember { formatBriefing(vm.collectBriefing()) }
     val now = remember {
         java.time.LocalDateTime.now().format(
             java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM - h:mm a")
         )
     }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showBriefing = false },
         title = { Text("⚡ Briefing") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(now, fontSize = 13.sp, color = Muted)
+                Text(now, fontSize = 13.sp, color = mut)
                 rows.forEach { (k, v) ->
                     Row(Modifier.fillMaxWidth()) {
-                        Text(k, fontSize = 14.sp, color = Muted, modifier = Modifier.weight(1f))
+                        Text(k, fontSize = 14.sp, color = mut, modifier = Modifier.weight(1f))
                         Text(v, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -1010,7 +1068,9 @@ fun BriefingDialog(vm: JarvisViewModel) {
 
 
 @Composable
-fun MasterKeySection(vm: JarvisViewModel) {
+fun MasterKeySection(vm: JarvisViewModel, cyber: Boolean = false) {
+    val mut = if (cyber) CyberDim else Muted
+    val acc = if (cyber) CyberGreen else Accent
     var mkey by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var imp by remember { mutableStateOf("") }
@@ -1018,9 +1078,9 @@ fun MasterKeySection(vm: JarvisViewModel) {
     if (!vm.masterInstalled) {
         Text(
             "Enter your master key — identity loads automatically.",
-            fontSize = 13.sp, color = Muted
+            fontSize = 13.sp, color = mut
         )
-        HudTextField(
+        HudTextField(cyber = cyber,
             value = mkey,
             onValueChange = { mkey = it.trim() },
             placeholder = { Text("Choose a master key (4+ chars)") },
@@ -1031,7 +1091,7 @@ fun MasterKeySection(vm: JarvisViewModel) {
         Button(onClick = { vm.installMaster(mkey, MASTER_SELF_NAME, ""); mkey = "" }) {
             Text("Install master key")
         }
-        HudTextField(
+        HudTextField(cyber = cyber,
             value = imp,
             onValueChange = { imp = it.trim() },
             placeholder = { Text("...or paste a master card to import") },
@@ -1045,9 +1105,9 @@ fun MasterKeySection(vm: JarvisViewModel) {
     } else {
         Text(
             "Master mode active — recognized as " + vm.masterName.ifBlank { "Master" } + ".",
-            fontSize = 13.sp, color = Accent
+            fontSize = 13.sp, color = acc
         )
-        HudTextField(
+        HudTextField(cyber = cyber,
             value = confirm,
             onValueChange = { confirm = it.trim() },
             placeholder = { Text("Current key to remove") },
@@ -1066,18 +1126,20 @@ fun MasterKeySection(vm: JarvisViewModel) {
 
 @Composable
 fun ChatsDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     var q by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<ChatData?>(null) }
     var renameText by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
     var armDelete by remember { mutableStateOf<String?>(null) }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showChats = false },
         title = { Text("💬 Chats") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (vm.chats.size > 1) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = q,
                         onValueChange = { q = it },
                         placeholder = { Text("Search chats...") },
@@ -1095,7 +1157,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
                 if (shown.isEmpty()) {
                     Text(
                         if (vm.chats.isEmpty()) "No chats yet." else "No matches.",
-                        color = Muted, fontSize = 14.sp
+                        color = mut, fontSize = 14.sp
                     )
                 } else {
                     LazyColumn(Modifier.heightIn(max = 320.dp)) {
@@ -1105,7 +1167,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                 Modifier.fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { vm.switchChat(c.id) }
-                                    .background(if (active) BotGray else Color.Transparent)
+                                    .background(if (active) (if (cyber) CyberPanel else BotGray) else Color.Transparent)
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1119,11 +1181,11 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                     Text(
                                         "${c.msgs.count { it.r == "user" }} messages" +
                                             if (active) " • open" else "",
-                                        fontSize = 12.sp, color = Muted
+                                        fontSize = 12.sp, color = mut
                                     )
                                 }
                                 IconButton(onClick = { renameTarget = c; renameText = c.title }) {
-                                    Text("✎", fontSize = 18.sp, color = Muted)
+                                    Text("✎", fontSize = 18.sp, color = mut)
                                 }
                                 IconButton(onClick = {
                                     if (armDelete == c.id) { vm.deleteChat(c.id); armDelete = null }
@@ -1132,7 +1194,7 @@ fun ChatsDialog(vm: JarvisViewModel) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = if (armDelete == c.id) "Tap again to delete" else "Delete chat",
-                                        tint = if (armDelete == c.id) Color.Red else Muted
+                                        tint = if (armDelete == c.id) Color.Red else mut
                                     )
                                 }
                             }
@@ -1156,11 +1218,11 @@ fun ChatsDialog(vm: JarvisViewModel) {
     )
 
     if (renameTarget != null) {
-        HudDialog(
+        HudDialog(cyber = cyber,
             onDismissRequest = { renameTarget = null },
             title = { Text("Rename chat") },
             text = {
-                HudTextField(
+                HudTextField(cyber = cyber,
                     value = renameText,
                     onValueChange = { renameText = it },
                     singleLine = true,
@@ -1182,27 +1244,27 @@ fun ChatsDialog(vm: JarvisViewModel) {
 
 @Composable
 fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     val context = LocalContext.current
     fun hasMic(): Boolean {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
     }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.finishOnboard() },
         title = { Text("👋 Welcome to Jarvis") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Three quick steps to wake me up:", fontSize = 14.sp)
-                OnboardRow(done = hasMic(), label = "Microphone for voice input", btn = "Allow", onBtn = onMic)
-                OnboardRow(done = vm.wakeOn, label = "Hey Jarvis wake word + HUD bubble", btn = "Enable", onBtn = onWake)
-                OnboardRow(
-                    done = vm.batteryUnrestricted(),
+                OnboardRow(cyber = cyber, done = hasMic(), label = "Microphone for voice input", btn = "Allow", onBtn = onMic)
+                OnboardRow(cyber = cyber, done = vm.wakeOn, label = "Hey Jarvis wake word + HUD bubble", btn = "Enable", onBtn = onWake)
+                OnboardRow(cyber = cyber, done = vm.batteryUnrestricted(),
                     label = "Unrestricted battery (survive reboot)",
                     btn = "Fix",
                     onBtn = vm::requestBatteryUnrestricted
                 )
-                OnboardRow(
-                    done = remember { isAccessEnabled(context) },
+                OnboardRow(cyber = cyber, done = remember { isAccessEnabled(context) },
                     label = "Screen control (read, tap, scroll)",
                     btn = "Enable",
                     onBtn = {
@@ -1215,7 +1277,7 @@ fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
                         }
                     }
                 )
-                Text("Then just talk to me. Try a starter chip below.", fontSize = 13.sp, color = Muted)
+                Text("Then just talk to me. Try a starter chip below.", fontSize = 13.sp, color = mut)
             }
         },
         confirmButton = { TextButton(onClick = { vm.finishOnboard() }) { Text("Start") } }
@@ -1223,11 +1285,11 @@ fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
 }
 
 @Composable
-private fun OnboardRow(done: Boolean, label: String, btn: String, onBtn: () -> Unit) {
+private fun OnboardRow(cyber: Boolean = false, done: Boolean, label: String, btn: String, onBtn: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             if (done) "✓" else "○",
-            color = if (done) Good else Muted,
+            color = if (done) (if (cyber) CyberGreen else Good) else (if (cyber) CyberDim else Muted),
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.width(8.dp))
@@ -1238,18 +1300,21 @@ private fun OnboardRow(done: Boolean, label: String, btn: String, onBtn: () -> U
 
 @Composable
 fun RemindersDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
+    val acc = if (cyber) CyberGreen else Accent
     val items = remember(vm.remTick) { vm.reminderItems() }
     val now = remember { System.currentTimeMillis() }
     var newRem by remember { mutableStateOf("") }
     var remMsg by remember { mutableStateOf("") }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showReminders = false },
         title = { Text("⏰ Reminders") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Or say: remind me in 10 minutes to stretch.", fontSize = 13.sp, color = Muted)
+                Text("Or say: remind me in 10 minutes to stretch.", fontSize = 13.sp, color = mut)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = newRem,
                         onValueChange = { newRem = it },
                         placeholder = { Text("in 10 minutes to stretch") },
@@ -1262,9 +1327,9 @@ fun RemindersDialog(vm: JarvisViewModel) {
                         if (remMsg.startsWith("I\'ll remind")) newRem = ""
                     }) { Text("Add") }
                 }
-                if (remMsg.isNotBlank()) Text(remMsg, fontSize = 12.sp, color = Accent)
+                if (remMsg.isNotBlank()) Text(remMsg, fontSize = 12.sp, color = acc)
                 if (items.isEmpty()) {
-                    Text("No reminders set.", color = Muted, fontSize = 14.sp)
+                    Text("No reminders set.", color = mut, fontSize = 14.sp)
                 } else {
                     LazyColumn(Modifier.heightIn(max = 260.dp)) {
                         items(items) { r ->
@@ -1274,13 +1339,13 @@ fun RemindersDialog(vm: JarvisViewModel) {
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(r.text, fontSize = 14.sp)
-                                    Text(dueText(r.at, now), fontSize = 12.sp, color = Accent)
+                                    Text(dueText(r.at, now), fontSize = 12.sp, color = acc)
                                 }
                                 IconButton(onClick = { vm.deleteReminder(r.id) }) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = "Cancel",
-                                        tint = Muted,
+                                        tint = mut,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -1298,7 +1363,9 @@ fun RemindersDialog(vm: JarvisViewModel) {
 
 @Composable
 fun WhatsNewDialog(vm: JarvisViewModel) {
-    HudDialog(
+    val cyber = vm.cyberMode
+    val acc = if (cyber) CyberGreen else Accent
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showWhatsNew = false },
         title = { Text(if (vm.whatsNewFresh) "Welcome to Jarvis" else "What's new") },
         text = {
@@ -1307,7 +1374,7 @@ fun WhatsNewDialog(vm: JarvisViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 vm.whatsNewItems.forEach { e ->
-                    Text("v${e.name}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Accent)
+                    Text("v${e.name}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = acc)
                     e.features.forEach { f -> Text("• $f", fontSize = 14.sp) }
                 }
             }
@@ -1320,11 +1387,13 @@ fun WhatsNewDialog(vm: JarvisViewModel) {
 
 @Composable
 fun ListDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     var todoInput by remember { mutableStateOf("") }
     var noteInput by remember { mutableStateOf("") }
     val todos = remember(vm.listTick) { vm.todoItems() }
     val notes = remember(vm.listTick) { vm.noteItems() }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showList = false },
         title = { Text("📝 Lists") },
         text = {
@@ -1332,9 +1401,9 @@ fun ListDialog(vm: JarvisViewModel) {
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Todos (or say “add … to my list”):", fontSize = 13.sp, color = Muted)
+                Text("Todos (or say “add … to my list”):", fontSize = 13.sp, color = mut)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = todoInput,
                         onValueChange = { todoInput = it },
                         placeholder = { Text("Add a todo…") },
@@ -1345,29 +1414,29 @@ fun ListDialog(vm: JarvisViewModel) {
                     Button(onClick = { vm.addTodo(todoInput); todoInput = "" }) { Text("Add") }
                 }
                 if (todos.isEmpty()) {
-                    Text("List is empty.", color = Muted, fontSize = 14.sp)
+                    Text("List is empty.", color = mut, fontSize = 14.sp)
                 } else {
                     todos.forEachIndexed { i, x ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = x.done, onCheckedChange = { vm.toggleTodo(i) })
                             Text(
                                 x.text, fontSize = 14.sp, modifier = Modifier.weight(1f),
-                                color = if (x.done) Muted else Color.Unspecified
+                                color = if (x.done) mut else Color.Unspecified
                             )
                             IconButton(onClick = { vm.removeTodo(i) }) {
                                 Icon(
                                     Icons.Filled.Delete,
                                     contentDescription = "Delete",
-                                    tint = Muted,
+                                    tint = mut,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
                 }
-                Text("Notes (or say “note …”):", fontSize = 13.sp, color = Muted)
+                Text("Notes (or say “note …”):", fontSize = 13.sp, color = mut)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = noteInput,
                         onValueChange = { noteInput = it },
                         placeholder = { Text("Add a note…") },
@@ -1378,7 +1447,7 @@ fun ListDialog(vm: JarvisViewModel) {
                     Button(onClick = { vm.addNote(noteInput); noteInput = "" }) { Text("Add") }
                 }
                 if (notes.isEmpty()) {
-                    Text("No notes yet.", color = Muted, fontSize = 14.sp)
+                    Text("No notes yet.", color = mut, fontSize = 14.sp)
                 } else {
                     notes.forEach { n ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1387,7 +1456,7 @@ fun ListDialog(vm: JarvisViewModel) {
                                 Icon(
                                     Icons.Filled.Delete,
                                     contentDescription = "Delete",
-                                    tint = Muted,
+                                    tint = mut,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -1404,19 +1473,21 @@ fun ListDialog(vm: JarvisViewModel) {
 
 @Composable
 fun MemoryDialog(vm: JarvisViewModel) {
+    val cyber = vm.cyberMode
+    val mut = if (cyber) CyberDim else Muted
     var input by remember { mutableStateOf("") }
     val mems = remember(vm.memTick) { vm.memories() }
-    HudDialog(
+    HudDialog(cyber = cyber,
         onDismissRequest = { vm.showMemory = false },
         title = { Text("🧠 Memory") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "Things Jarvis remembers about you (also via “remember …” in chat):",
-                    fontSize = 13.sp, color = Muted
+                    fontSize = 13.sp, color = mut
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    HudTextField(
+                    HudTextField(cyber = cyber,
                         value = input,
                         onValueChange = { input = it },
                         placeholder = { Text("Add a memory…") },
@@ -1430,7 +1501,7 @@ fun MemoryDialog(vm: JarvisViewModel) {
                     }) { Text("Add") }
                 }
                 if (mems.isEmpty()) {
-                    Text("No memories yet.", color = Muted, fontSize = 14.sp)
+                    Text("No memories yet.", color = mut, fontSize = 14.sp)
                 } else {
                     LazyColumn(Modifier.heightIn(max = 260.dp)) {
                         items(mems) { m ->
@@ -1443,7 +1514,7 @@ fun MemoryDialog(vm: JarvisViewModel) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = "Forget",
-                                        tint = Muted,
+                                        tint = mut,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
