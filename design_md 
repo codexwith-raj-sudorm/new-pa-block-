@@ -1,0 +1,76 @@
+Visual Design Specification (Design.md)
+1. Visual Identity & Aesthetic Direction
+The visual identity is modeled directly on the Stark Industries Holographic Neural Matrix (as seen in Avengers: Age of Ultron). The interface avoids conventional flat 2D cards, scrolling feeds, or boxed containers in favor of an ephemeral 3D volumetric hologram suspended in an infinite dark viewport.
+Core Visual Principles
+ * Pure Volumetric Space: Visual elements exist as projected points, vector rings, and glowing synaptic filaments suspended in 3D coordinate space.
+ * OLED Depth & Contrast: Deep space tones maximize optical contrast while conserving battery on mobile OLED displays.
+ * Audio-Kinetic Motion: Every graphic component reacts organically to audio dynamics (microphone input levels and TTS synthesis energy).
+2. Color Palette & Token Specifications
+The color system uses an energy-tiered amber-gold spectrum. Brighter, hotter colors signify proximity, high activity, and core focus; deeper, lower-saturation ambers denote background depth and ambient structure.
+| Token Name | Hex Code | RGB | Purpose / Usage |
+|---|---|---|---|
+| MatrixHotWhite | #FFF6D6 | (255, 246, 214) | Core node ignition, foreground synaptic sparks, active focal points |
+| MatrixBrightAmber | #FFD166 | (255, 209, 102) | Primary synaptic links, foreground latitude lines, active status readout |
+| MatrixDeepGold | #FF9E00 | (255, 158, 0) | Base orbital rings, mid-ground nodes, standard vector strokes |
+| MatrixSynapseFaint | #44FFAA00 | (255, 170, 0, 27%) | Distant synaptic web connections, ambient field lines |
+| MatrixCoreGlow | #22FF9E00 | (255, 158, 0, 13%) | Radial ambient volumetric fog behind the sphere core |
+| MatrixBackdrop | #030710 | (3, 7, 16, 92%) | Translucent overlay curtain dimming the underlying Android apps |
+3. Typography System
+The interface uses minimal, monospaced typography designed to emulate military/tactical telemetry displays. Text is strictly auxiliary and does not compete with the 3D hologram.
+ * Primary Font Family: System Monospace (FontFamily.Monospace / JetBrains Mono)
+ * Font Weights: FontWeight.Medium (readouts) and FontWeight.Bold (state headers)
+Text Styles
+ * State Label (HeaderTelemetry):
+   * Size: 12.sp
+   * Weight: FontWeight.Bold
+   * Letter Spacing: 2.5.sp
+   * Transform: ALL CAPS
+   * Color: MatrixBrightAmber
+ * Transcribed Query / Voice Echo (SubReadout):
+   * Size: 15.sp
+   * Weight: FontWeight.Normal
+   * Letter Spacing: 0.5.sp
+   * Max Lines: 2 (ellipsized)
+   * Color: MatrixHotWhite
+ * System Metrics / Latency (DataTag):
+   * Size: 10.sp
+   * Weight: FontWeight.Medium
+   * Letter Spacing: 1.5.sp
+   * Color: MatrixDeepGold
+4. 3D Holographic Matrix Geometry
+The central neural matrix is built using 3D isometric projection onto a 2D Jetpack Compose hardware-accelerated Canvas:
+               [ Y-Axis Revolution ]
+                        ▲
+                        │  / 22° Pitch (X-Tilt)
+                  .----─┼─----.
+               .-/   \  │  /   \-.
+              /   \   \ │ /   /   \
+             │     \   \│/   /     │ ─── Latitude Rings (Dashed Ovals)
+             │───────\──┼──/───────│
+              \   /   / │ \   \   /
+               .-\   /  │  \   /-.
+                  '----─┼─----'
+                        │  \ -15° Roll (Z-Tilt)
+
+Component Geometry Specifications
+ * Spherical Point Cloud: 90 equidistant neural nodes distributed across a sphere using the Fibonacci Spiral (Golden Ratio) algorithm.
+ * Perspective Camera:
+   * Virtual camera distance: 800f.
+   * Projection scale factor: k = \frac{d_{\text{camera}}}{d_{\text{camera}} - z_{\text{projected}}}.
+ * Depth Fog & Occlusion:
+   * Nodes located at positive Z (facing user) scale up to 1.3\times, shifting color toward MatrixHotWhite.
+   * Nodes located at negative Z (rear) scale down to 0.7\times, shifting color toward MatrixDeepGold with lowered alpha (0.2 to 0.4).
+ * Synaptic Filaments: Dynamic vector lines connecting node pairs within a squared proximity threshold (\le 0.55 \cdot r_{\text{sphere}}). Stroke width dynamically scales with node depth (1.0 \cdot k\text{ dp}).
+ * Planetary Latitude Rings: Three concentric elliptical rings positioned at latitude levels y \in \{-0.55, 0.0, 0.55\}. Dashed paths (dashPathEffect([15f, 25f, 40f, 15f])) rotate counter-clockwise to the core spin.
+5. Visual State Machine & Motion Physics
+| State | Revolution Speed (Y-Axis) | Radial Pulse & Scale | Core Color Dominance | Synaptic Web Density |
+|---|---|---|---|---|
+| LISTENING | Slow, graceful (7000ms per cycle) | Scales dynamically with microphone RMS amplitude (1.0\times to 1.45\times) | MatrixDeepGold + MatrixBrightAmber | Moderate; links brighten near active nodes |
+| THINKING | High-speed acceleration (2500ms per cycle) | Tightened core radius (0.85\times base), rapid oscillation | Shifts toward incandescent MatrixBrightAmber | High; connections flash in rapid succession |
+| SPEAKING | Medium speed (4500ms per cycle) | Rhythmic shockwave pulses matched to TTS output buffer | Core bursts into MatrixHotWhite | Dynamic expanding waves rippling outward |
+| DISMISS | Decelerating spin | Exponential scale-down (1.0\times \rightarrow 0.0\times) with spring damping | Rapid alpha fade to 0.0 | Collapses inwards into single point |
+6. Layout Composition & Safe Insets
+ * Container Model: Zero-margin full-screen overlay managed directly via VoiceInteractionSession.
+ * Center Anchor: The JarvisNeuralMatrix is positioned dead center (Alignment.Center), with an allocation bounding box of 360\text{ dp} \times 360\text{ dp}.
+ * Bottom Telemetry Deck: Anchored at Alignment.BottomCenter with a fixed padding of 64.dp from the navigation bar, ensuring visibility above gestures and system soft keys.
+ * Background Dimming: Modifier.background(MatrixBackdrop) applies a 92\% dark tint over the foreground app, retaining visual context while ensuring holographic legibility.
