@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 venv/
 *.db
-data/
+/data/
 
 # Android
 .gradle/
