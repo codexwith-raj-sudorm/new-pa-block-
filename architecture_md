@@ -1,0 +1,58 @@
+Architecture Document
+1. High-Level System Architecture
+The Jarvis Assistant Client (new-pa-block) relies heavily on Android's native Assist API rather than standard Activities or background overlays. The system is decoupled into three primary operational layers:
+A. The System Hook Layer
+This layer is responsible for intercepting OS-level commands, hardware button presses, and persistent background processes without interrupting the user's active task.
+ * JarvisVoiceInteractionService: The persistent background service that Android binds to when the app is set as the default assistant. It stays alive to listen for hotwords (via AlwaysOnHotwordDetector) and system-level invocations.
+ * JarvisVoiceSessionService: The factory that instantiates the active UI session when an invocation occurs.
+B. The Orchestration & Inference Layer (Core Engine)
+This layer manages the state machine, audio buffering, and communication with the free-tier or local LLM.
+ * Context Extractor: Parses the AssistState (which includes AssistStructure and AssistContent) to extract on-screen text and active URLs.
+ * Audio Pipeline: Captures PCM audio streams from the microphone via AudioRecord, pushes it through local Speech-to-Text (STT), and feeds the output to the LLM.
+ * LLM Dispatcher: Sends the final prompt (Context + Transcribed User Input) to a zero-cost API (e.g., Arena AI) or local inference model.
+C. The Presentation Layer (UI)
+ * JarvisVoiceSession: An implementation of VoiceInteractionSession that provides a floating system window.
+ * 3D Jetpack Compose Canvas: The JarvisNeuralMatrix rendering engine that tracks audio amplitude and execution state to animate the holographic HUD dynamically.
+2. Directory & Folder Structure
+The project will follow a clean architectural pattern, separating system-level services from UI components.
+com.jarvis.app/
+├── 📁 assist/                 # Screen context extraction and AssistState parsing
+│   ├── ScreenContext.kt
+│   └── ScreenContentExtractor.kt
+├── 📁 audio/                  # Audio input (STT) and output (TTS) handling
+│   ├── AudioCaptureManager.kt
+│   └── TtsSynthesizer.kt
+├── 📁 engine/                 # LLM networking, prompt building, and zero-cost API clients
+│   ├── LlmDispatcher.kt
+│   └── ArenaApiClient.kt
+├── 📁 service/                # Android VoiceInteraction implementations
+│   ├── JarvisVoiceInteractionService.kt
+│   ├── JarvisVoiceSessionService.kt
+│   └── JarvisVoiceSession.kt
+├── 📁 ui/                     # Jetpack Compose UI and 3D rendering
+│   ├── theme/
+│   │   └── JarvisColors.kt
+│   └── voice/
+│       ├── JarvisNeuralMatrix.kt
+│       └── VoiceHudOverlay.kt
+└── 📁 viewmodel/              # State management and unidirectional data flow
+    ├── AssistantState.kt
+    └── VoiceSessionViewModel.kt
+
+3. Technology Stack
+To strictly adhere to the rule of utilizing local processing or zero-cost services, the technology stack is configured as follows:
+ * Language: Kotlin.
+ * UI Framework: Jetpack Compose (Material 3), relying heavily on hardware-accelerated Canvas operations for 3D coordinate projection.
+ * System Integration: Android VoiceInteractionService (API 29+).
+ * Architecture Pattern: MVVM (Model-View-ViewModel) with Kotlin StateFlow for unidirectional state streaming.
+ * Speech-to-Text (STT): Android's native SpeechRecognizer or an embedded local Vosk model for offline wake-word and transcription.
+ * Text-to-Speech (TTS): Android's native TextToSpeech engine.
+ * LLM Engine: Free-tier inference via open-source endpoints (e.g., Arena AI) or local execution using lightweight models via ONNX/Termux bridging.
+ * Networking: Retrofit and OkHttp for remote LLM requests.
+4. Execution Data Flow
+ * Invocation: The user holds the power button. The Android OS triggers onShow() inside JarvisVoiceSession.
+ * Context Capture: The OS passes the AssistState bundle. The ScreenContentExtractor traverses the view nodes to scrape visible text and foreground URLs.
+ * UI Initialization: The session inflates the Compose view. The JarvisNeuralMatrix renders the 3D hologram in the "Listening" state.
+ * Audio Capture: AudioCaptureManager begins recording. As the user speaks, the RMS amplitude of the audio buffer is calculated and streamed to the UI to drive the hologram's pulse animations.
+ * Inference: The STT transcription + Screen Context is dispatched to the LlmDispatcher. The UI transitions to the "Thinking" state (rapid rotation).
+ * Playback & Teardown: The LLM streams text back, which is immediately piped into the TtsSynthesizer. The UI transitions to the "Speaking" state. Once the TTS engine fires the completion callback, the UI automatically triggers the "Dismiss" animation and the session is destroyed via hide().
