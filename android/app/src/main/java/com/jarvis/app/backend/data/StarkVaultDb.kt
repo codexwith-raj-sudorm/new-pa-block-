@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 @Database(entities = [VaultMemory::class], version = 1, exportSchema = false)
 abstract class StarkVaultDb : RoomDatabase() {
-    abstract fun vaultDao(): VaultDao
+    abstract fun vaultDao(): StarkVaultDao
 
     companion object {
         @Volatile private var inst: StarkVaultDb? = null

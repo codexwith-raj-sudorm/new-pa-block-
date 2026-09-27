@@ -16,7 +16,7 @@ data class VaultMemory(
 )
 
 @Dao
-interface VaultDao {
+interface StarkVaultDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertMemory(memory: VaultMemory)
 
