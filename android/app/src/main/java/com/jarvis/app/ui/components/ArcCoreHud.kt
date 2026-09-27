@@ -7,10 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -180,47 +177,6 @@ fun ArcCoreReactor(
                 style = Stroke(width = 6f)
             )
         }
-    }
-}
-
-/** Dark HUD backdrop: gradient + faint grid + corner brackets. */
-@Composable
-fun HudBackdrop(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color(0xFF05090F))) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawRect(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF0A1626), Color(0xFF05090F), Color(0xFF0A0F1A))
-                )
-            )
-            val step = 48.dp.toPx()
-            val grid = HudBlue.copy(alpha = 0.05f)
-            var x = 0f
-            while (x < size.width) {
-                drawLine(grid, Offset(x, 0f), Offset(x, size.height), 1f)
-                x += step
-            }
-            var y = 0f
-            while (y < size.height) {
-                drawLine(grid, Offset(0f, y), Offset(size.width, y), 1f)
-                y += step
-            }
-            val len = 30f
-            val m = 12f
-            val bc = HudCyan.copy(alpha = 0.4f)
-            val w = 3f
-            val sw = size.width
-            val sh = size.height
-            drawLine(bc, Offset(m, m + len), Offset(m, m), w)
-            drawLine(bc, Offset(m, m), Offset(m + len, m), w)
-            drawLine(bc, Offset(sw - m, m + len), Offset(sw - m, m), w)
-            drawLine(bc, Offset(sw - m, m), Offset(sw - m - len, m), w)
-            drawLine(bc, Offset(m, sh - m - len), Offset(m, sh - m), w)
-            drawLine(bc, Offset(m, sh - m), Offset(m + len, sh - m), w)
-            drawLine(bc, Offset(sw - m, sh - m - len), Offset(sw - m, sh - m), w)
-            drawLine(bc, Offset(sw - m, sh - m), Offset(sw - m - len, sh - m), w)
-        }
-        content()
     }
 }
 

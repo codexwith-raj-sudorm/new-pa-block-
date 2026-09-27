@@ -11,7 +11,7 @@ import androidx.compose.runtime.getValue
 import com.jarvis.app.HudStateBus
 import com.jarvis.app.MainActivity
 import com.jarvis.app.sharedJarvisVm
-import com.jarvis.app.ui.components.WakeOrbitHud
+import com.jarvis.app.ui.components.NeuralHologramHud
 import kotlinx.coroutines.delay
 
 /** Full-screen wake-mode interface: orbiting HUD over the shared ViewModel. */
@@ -31,7 +31,7 @@ class WakeHudActivity : ComponentActivity() {
                 vm.refreshDashboard()
                 vm.startConvoSession()
             }
-            WakeOrbitHud(
+            NeuralHologramHud(
                 vm,
                 onMic = {
                     if (vm.listening) vm.stopListening()
