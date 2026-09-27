@@ -113,11 +113,6 @@
             android:label="Stark Hub"
             android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity
-            android:name=".frontend.screens.StarkLockActivity"
-            android:exported="false"
-            android:label="Stark ID Gate"
-            android:theme="@android:style/Theme.Material.NoActionBar" />
-        <activity
             android:name=".frontend.screens.WakeHudActivity"
             android:exported="false"
             android:label="Jarvis Wake"
