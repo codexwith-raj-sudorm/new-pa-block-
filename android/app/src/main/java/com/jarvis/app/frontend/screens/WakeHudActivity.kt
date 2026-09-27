@@ -31,6 +31,14 @@ class WakeHudActivity : ComponentActivity() {
                 vm.refreshDashboard()
                 vm.startConvoSession()
             }
+            LaunchedEffect(vm.captureHideTick) {
+                if (vm.captureHideTick > 0) {
+                    try {
+                        moveTaskToBack(true)
+                    } catch (_: Exception) {
+                    }
+                }
+            }
             NeuralHologramHud(
                 vm,
                 onMic = {

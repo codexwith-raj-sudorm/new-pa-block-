@@ -152,6 +152,7 @@ import com.jarvis.app.backend.system.HudStateBus
 import com.jarvis.app.backend.system.MicHandoff
 import com.jarvis.app.backend.system.NotifReader
 import com.jarvis.app.backend.system.ScreenConsent
+import com.jarvis.app.backend.system.assistCaptureSettleMs
 import com.jarvis.app.backend.system.WakeService
 import com.jarvis.app.backend.system.armReminderAlarm
 import com.jarvis.app.backend.system.armSchedMsgAlarm
@@ -1608,6 +1609,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var lastHeard by mutableStateOf("")
     var heardFresh by mutableStateOf(false)
     var voiceNote by mutableStateOf<String?>(null)
+
+    /** Bumped to tell the foreground activity to move aside before a screen capture. */
+    var captureHideTick by mutableStateOf(0)
+        private set
+
+    fun requestCaptureHide() {
+        captureHideTick++
+    }
     private val focusRequest: AudioFocusRequest by lazy {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).build()
     }
@@ -1981,6 +1990,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             if (busy) return@launch
             busy = true
             voiceNote = "Looking at your screen…"
+            requestCaptureHide()
+            delay(assistCaptureSettleMs())
             try {
                 val ans = watchScreen(question.ifBlank { "What's on my screen?" })
                 voiceNote = ans
@@ -2131,6 +2142,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun takeScreenshot() {
+        requestCaptureHide()
         try {
             launchCapturePrompt("share", null)
         } catch (_: Exception) {
@@ -3173,7 +3185,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     try {
                         val reply = if (hit.tool == "fx") fetchFx(hit.arg)
                         else if (hit.tool.startsWith("github")) fetchGithub(hit)
-                        else if (hit.tool == "screen_watch") watchScreen(hit.arg)
+                        else if (hit.tool == "screen_watch") {
+                            requestCaptureHide()
+                            delay(assistCaptureSettleMs())
+                            watchScreen(hit.arg)
+                        }
                         else fetchWeather(hit.arg)
                         deliverReply(sendChatId, reply)
                         if (fromVoice) speak(reply, voiceCmd = true)

@@ -35,3 +35,6 @@ fun defaultAssistantPkg(ctx: Context): String? = try {
 /** System screen where the user picks the default assistant app. */
 fun defaultAssistantSettingsIntent(): Intent =
     Intent(Settings.ACTION_VOICE_INPUT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+/** Settle delay so our own window is gone before a screen capture (no selfies). Pure, tested. */
+fun assistCaptureSettleMs(): Long = 800L

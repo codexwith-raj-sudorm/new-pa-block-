@@ -1,6 +1,7 @@
 package com.jarvis.app
 
 import com.jarvis.app.backend.brain.shareSummarySystem
+import com.jarvis.app.backend.system.assistCaptureSettleMs
 import com.jarvis.app.backend.system.assistantPkgOf
 import com.jarvis.app.frontend.screens.sharedImageQuestion
 import org.junit.Assert.*
@@ -25,6 +26,10 @@ class AssistModeTest {
         assertEquals("com.foo", assistantPkgOf("  com.foo/.A  "))
         assertEquals("com.foo", assistantPkgOf("ComponentInfo{com.foo/.A}"))
         assertEquals("com.foo", assistantPkgOf("com.foo"))
+    }
+
+    @Test fun captureSettleIsPositive() {
+        assertTrue(assistCaptureSettleMs() > 0)
     }
 
     @Test fun imageQuestions() {

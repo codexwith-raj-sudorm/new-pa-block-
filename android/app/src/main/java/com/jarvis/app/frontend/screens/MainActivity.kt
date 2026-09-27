@@ -325,6 +325,14 @@ fun JarvisScreen() {
     LaunchedEffect(vm.permRequest) {
         vm.permRequest?.let { devicePerm.launch(it); vm.permRequest = null }
     }
+    LaunchedEffect(vm.captureHideTick) {
+        if (vm.captureHideTick > 0) {
+            try {
+                (context as? android.app.Activity)?.moveTaskToBack(true)
+            } catch (_: Exception) {
+            }
+        }
+    }
     val batteryFix = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
