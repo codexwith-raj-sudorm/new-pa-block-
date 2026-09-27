@@ -9,7 +9,7 @@
         <intent
             android:action="com.jarvis.app.NEW_CHAT"
             android:targetPackage="com.jarvis.app"
-            android:targetClass="com.jarvis.app.MainActivity" />
+            android:targetClass="com.jarvis.app.frontend.screens.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="briefing"
@@ -20,6 +20,6 @@
         <intent
             android:action="com.jarvis.app.BRIEFING"
             android:targetPackage="com.jarvis.app"
-            android:targetClass="com.jarvis.app.MainActivity" />
+            android:targetClass="com.jarvis.app.frontend.screens.MainActivity" />
     </shortcut>
 </shortcuts>

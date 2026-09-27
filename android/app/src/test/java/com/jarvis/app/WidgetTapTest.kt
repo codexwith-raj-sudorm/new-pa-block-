@@ -2,6 +2,8 @@ package com.jarvis.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.jarvis.app.frontend.widgets.TapAction
+import com.jarvis.app.frontend.widgets.widgetTapAction
 
 class WidgetTapTest {
     @Test fun speechAlwaysWins() {

@@ -6,6 +6,16 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.sin
+import com.jarvis.app.backend.voice.VP_SAMPLE_RATE
+import com.jarvis.app.backend.voice.VpVerdict
+import com.jarvis.app.backend.voice.dtwDistance
+import com.jarvis.app.backend.voice.mfccFrames
+import com.jarvis.app.backend.voice.templatesFromString
+import com.jarvis.app.backend.voice.templatesToString
+import com.jarvis.app.backend.voice.trimSilencePcm
+import com.jarvis.app.backend.voice.verifyVoiceprint
+import com.jarvis.app.backend.voice.voiceGateDecision
+import com.jarvis.app.backend.voice.vpThresholdFor
 
 class VoicePrintTest {
 

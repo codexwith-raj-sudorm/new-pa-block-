@@ -3,6 +3,11 @@ package com.jarvis.app
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.jarvis.app.backend.brain.Router
+import com.jarvis.app.backend.data.AtTime
+import com.jarvis.app.backend.data.InMinutes
+import com.jarvis.app.backend.data.parseScheduledMessage
+import com.jarvis.app.backend.device.MsgApp
 
 class SchedMsgTest {
     @Test

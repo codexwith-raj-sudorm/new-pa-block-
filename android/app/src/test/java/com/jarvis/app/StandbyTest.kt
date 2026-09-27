@@ -5,6 +5,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.system.autoStartTarget
+import com.jarvis.app.backend.system.shouldRevive
+import com.jarvis.app.backend.system.shouldStandbyToast
+import com.jarvis.app.backend.system.standbyBackoffMs
 
 class StandbyTest {
     @Test

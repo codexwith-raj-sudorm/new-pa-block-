@@ -1,11 +1,11 @@
 package com.jarvis.app
 
-import com.jarvis.app.ui.components.acousticBarCyan
-import com.jarvis.app.ui.components.acousticBarHeight
-import com.jarvis.app.ui.components.arcSpinMs
-import com.jarvis.app.ui.components.coreStateLabel
-import com.jarvis.app.ui.components.hudReadoutLine
-import com.jarvis.app.ui.components.hudStatusLine
+import com.jarvis.app.frontend.design.acousticBarCyan
+import com.jarvis.app.frontend.design.acousticBarHeight
+import com.jarvis.app.frontend.design.arcSpinMs
+import com.jarvis.app.frontend.design.coreStateLabel
+import com.jarvis.app.frontend.design.hudReadoutLine
+import com.jarvis.app.frontend.design.hudStatusLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

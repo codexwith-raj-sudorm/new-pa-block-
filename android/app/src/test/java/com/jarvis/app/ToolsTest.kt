@@ -2,6 +2,14 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.Calculator
+import com.jarvis.app.backend.brain.GeminiApi
+import com.jarvis.app.backend.brain.Router
+import com.jarvis.app.backend.brain.StoredMsg
+import com.jarvis.app.backend.brain.chatTitle
+import com.jarvis.app.backend.brain.cleanForSpeech
+import com.jarvis.app.backend.brain.hearsWakeWord
+import com.jarvis.app.backend.brain.splitSentences
 
 class ToolsTest {
     @Test fun calcBasic() = assertEquals(8.0, Calculator.evaluate("2+2*3"), 1e-9)

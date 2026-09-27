@@ -5,6 +5,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.ai.genImageModels
+import com.jarvis.app.backend.ai.genImagePromptOf
+import com.jarvis.app.backend.ai.genImageRequestBody
+import com.jarvis.app.backend.ai.parseGenImageData
 
 class GenImageTest {
 

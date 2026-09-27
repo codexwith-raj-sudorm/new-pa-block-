@@ -4,6 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.data.AtTime
+import com.jarvis.app.backend.data.InMinutes
+import com.jarvis.app.backend.data.dueText
+import com.jarvis.app.backend.data.parseReminder
+import com.jarvis.app.backend.data.reminderInput
 
 class ReminderTest {
     @Test fun inMinutesParse() {

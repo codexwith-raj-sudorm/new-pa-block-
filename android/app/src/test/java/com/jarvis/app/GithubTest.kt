@@ -4,6 +4,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.brain.Router
+import com.jarvis.app.backend.brain.unobscureKey
+import com.jarvis.app.backend.net.RepoBrief
+import com.jarvis.app.backend.net.RunBrief
+import com.jarvis.app.backend.net.agoShort
+import com.jarvis.app.backend.net.formatFile
+import com.jarvis.app.backend.net.formatIssues
+import com.jarvis.app.backend.net.formatRepoBrief
+import com.jarvis.app.backend.net.formatRepoList
+import com.jarvis.app.backend.net.formatRuns
+import com.jarvis.app.backend.net.repoName
+import com.jarvis.app.backend.net.resolveMatch
 
 class GithubTest {
     @Test

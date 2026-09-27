@@ -3,6 +3,8 @@ package com.jarvis.app
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.system.visionPromptFor
+import com.jarvis.app.backend.system.watchErrorNeedsReprompt
 
 class ScreenWatchTest {
 

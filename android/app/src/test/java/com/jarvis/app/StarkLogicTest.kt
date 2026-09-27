@@ -1,8 +1,8 @@
 package com.jarvis.app
 
-import com.jarvis.app.local.vaultContent
-import com.jarvis.app.ui.starkSharedPreview
-import com.jarvis.app.widget.starkWidgetLabel
+import com.jarvis.app.backend.data.vaultContent
+import com.jarvis.app.frontend.screens.starkSharedPreview
+import com.jarvis.app.frontend.widgets.starkWidgetLabel
 import org.junit.Assert.*
 import org.junit.Test
 

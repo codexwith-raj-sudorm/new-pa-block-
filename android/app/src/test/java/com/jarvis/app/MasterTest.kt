@@ -2,6 +2,14 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.masterCardJson
+import com.jarvis.app.backend.brain.masterIdentity
+import com.jarvis.app.backend.brain.parseMasterCardJson
+import com.jarvis.app.backend.data.firstName
+import com.jarvis.app.backend.data.masterGreet
+import com.jarvis.app.backend.data.wakeBucket
+import com.jarvis.app.backend.data.wakeGreet
+import com.jarvis.app.backend.data.wakeGreetStamp
 
 class MasterTest {
     @Test fun identityNamesMaster() {

@@ -5,6 +5,10 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import com.jarvis.app.backend.device.genChimePcm
+import com.jarvis.app.backend.device.genClickPcm
+import com.jarvis.app.backend.system.hudAccentArgb
+import com.jarvis.app.backend.system.waveBarEnergy
 
 class HudTest {
     @Test fun accentStates() {

@@ -42,7 +42,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
-            android:name=".MainActivity"
+            android:name=".frontend.screens.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize">
@@ -58,7 +58,7 @@
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <service
-            android:name=".WakeTile"
+            android:name=".backend.system.WakeTile"
             android:exported="true"
             android:icon="@drawable/ic_stat_jarvis"
             android:label="Jarvis wake"
@@ -68,11 +68,11 @@
             </intent-filter>
         </service>
         <service
-            android:name=".WakeService"
+            android:name=".backend.system.WakeService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
         <service
-            android:name=".NotifReader"
+            android:name=".backend.system.NotifReader"
             android:exported="true"
             android:label="Jarvis notifications"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
@@ -80,60 +80,60 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
-        <receiver android:name=".BriefingReceiver" android:exported="false" />
-        <receiver android:name=".SchedMsgReceiver" android:exported="false" />
-        <receiver android:name=".ReminderReceiver" android:exported="false" />
-        <receiver android:name=".StandbyWatchdog" android:exported="false" />
-        <receiver android:name=".BootReceiver" android:exported="false">
+        <receiver android:name=".backend.system.BriefingReceiver" android:exported="false" />
+        <receiver android:name=".backend.system.SchedMsgReceiver" android:exported="false" />
+        <receiver android:name=".backend.system.ReminderReceiver" android:exported="false" />
+        <receiver android:name=".backend.system.StandbyWatchdog" android:exported="false" />
+        <receiver android:name=".backend.system.BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <receiver android:name=".BriefingWidget" android:exported="false">
+        <receiver android:name=".frontend.widgets.BriefingWidget" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/briefing_widget_info" />
         </receiver>
-        <receiver android:name=".ReactorWidget" android:exported="false">
+        <receiver android:name=".frontend.widgets.ReactorWidget" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/reactor_widget_info" />
         </receiver>
-        <receiver android:name=".widget.StarkWidgetProvider" android:exported="false">
+        <receiver android:name=".frontend.widgets.StarkWidgetProvider" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/stark_widget_info" />
         </receiver>
         <activity
-            android:name=".ui.StarkShareActivity"
+            android:name=".frontend.screens.StarkShareActivity"
             android:exported="false"
             android:label="Stark Hub"
             android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity
-            android:name=".ui.StarkLockActivity"
+            android:name=".frontend.screens.StarkLockActivity"
             android:exported="false"
             android:label="Stark ID Gate"
             android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity
-            android:name=".ui.WakeHudActivity"
+            android:name=".frontend.screens.WakeHudActivity"
             android:exported="false"
             android:label="Jarvis Wake"
             android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity
-            android:name=".ui.ShotActivity"
+            android:name=".frontend.screens.ShotActivity"
             android:exported="false"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <service
-            android:name=".ScreenshotService"
+            android:name=".backend.system.ScreenshotService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
         <service
-            android:name=".JarvisAccessService"
+            android:name=".backend.system.JarvisAccessService"
             android:exported="true"
             android:label="Jarvis screen control"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">

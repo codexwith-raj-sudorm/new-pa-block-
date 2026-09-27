@@ -2,6 +2,8 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.HookAction
+import com.jarvis.app.backend.brain.matchHook
 
 class HookTest {
     private val hooks = listOf(

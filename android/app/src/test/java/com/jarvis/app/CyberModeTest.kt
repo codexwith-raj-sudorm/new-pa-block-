@@ -1,10 +1,10 @@
 package com.jarvis.app
 
 import androidx.compose.ui.graphics.Color
-import com.jarvis.app.ui.components.CyberGreen
-import com.jarvis.app.ui.components.cyberBootLines
-import com.jarvis.app.ui.components.cyberPrompt
-import com.jarvis.app.ui.components.cyberScheme
+import com.jarvis.app.frontend.design.CyberGreen
+import com.jarvis.app.frontend.design.cyberBootLines
+import com.jarvis.app.frontend.design.cyberPrompt
+import com.jarvis.app.frontend.design.cyberScheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

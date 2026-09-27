@@ -2,6 +2,16 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.coinFace
+import com.jarvis.app.backend.brain.convertUnits
+import com.jarvis.app.backend.brain.daypart
+import com.jarvis.app.backend.brain.daypartHit
+import com.jarvis.app.backend.brain.fmtDur
+import com.jarvis.app.backend.brain.jokeAt
+import com.jarvis.app.backend.brain.localeForListen
+import com.jarvis.app.backend.brain.parseDice
+import com.jarvis.app.backend.brain.rollDie
+import com.jarvis.app.frontend.screens.fmtTime
 
 class FunTest {
     @Test fun convertLength() {

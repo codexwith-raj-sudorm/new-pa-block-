@@ -2,6 +2,9 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.Briefing
+import com.jarvis.app.backend.brain.formatBriefing
+import com.jarvis.app.backend.system.briefingText
 
 class BriefingTest {
     @Test fun rowsFormat() {

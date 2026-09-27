@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.codeShareText
 
 class ShareTest {
     @Test fun wrapsWithLang() {

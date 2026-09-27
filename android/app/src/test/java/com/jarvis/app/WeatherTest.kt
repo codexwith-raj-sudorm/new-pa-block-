@@ -2,6 +2,9 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.formatWeather
+import com.jarvis.app.backend.brain.parseWeatherCity
+import com.jarvis.app.backend.brain.parseWttr
 
 class WeatherTest {
     private val sample = """{"current_condition":[{"temp_C":"31","FeelsLikeC":"34","humidity":"62","windspeedKmph":"12","weatherDesc":[{"value":"Partly cloudy"}]}],"nearest_area":[{"areaName":[{"value":"Mumbai"}],"country":[{"value":"India"}]}]}"""

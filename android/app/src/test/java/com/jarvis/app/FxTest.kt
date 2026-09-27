@@ -2,6 +2,10 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.Calculator
+import com.jarvis.app.backend.brain.formatFx
+import com.jarvis.app.backend.brain.parseCurrency
+import com.jarvis.app.backend.brain.parseFxRate
 
 class FxTest {
     @Test fun parsesPairs() {

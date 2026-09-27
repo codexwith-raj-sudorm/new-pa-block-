@@ -4,6 +4,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.data.AddNote
+import com.jarvis.app.backend.data.AddTodo
+import com.jarvis.app.backend.data.DoneTodo
+import com.jarvis.app.backend.data.RemoveNote
+import com.jarvis.app.backend.data.RemoveTodo
+import com.jarvis.app.backend.data.ShowNotes
+import com.jarvis.app.backend.data.ShowTodos
+import com.jarvis.app.backend.data.TodoItem
+import com.jarvis.app.backend.data.parseListCommand
 
 class ListsTest {
     @Test fun addTodoParse() {

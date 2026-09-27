@@ -1,8 +1,10 @@
 package com.jarvis.app
 
-import com.jarvis.app.local.starkVaultCutoff
+import com.jarvis.app.backend.data.starkVaultCutoff
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.data.migrateLegacyFacts
+import com.jarvis.app.backend.data.vaultCutoff
 
 class VaultTest {
     @Test fun cutoffIs30Days() {

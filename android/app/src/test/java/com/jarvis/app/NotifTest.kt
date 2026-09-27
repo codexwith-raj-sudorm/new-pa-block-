@@ -2,6 +2,8 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.system.NotifItem
+import com.jarvis.app.backend.system.formatNotifs
 
 class NotifTest {
     @Test fun emptyIsQuiet() {

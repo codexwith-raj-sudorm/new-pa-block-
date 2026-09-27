@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.jarvis.app.backend.system.normalizeRms
 
 class AudioReactiveTest {
     @Test fun silenceRmsStaysAtZero() {

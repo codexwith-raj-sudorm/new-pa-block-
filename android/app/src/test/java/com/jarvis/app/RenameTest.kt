@@ -2,6 +2,7 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.cleanTitle
 
 class RenameTest {
     @Test fun trims() {

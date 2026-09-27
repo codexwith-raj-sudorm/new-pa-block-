@@ -3,6 +3,15 @@ package com.jarvis.app
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.ai.EngineVoiceInfo
+import com.jarvis.app.backend.ai.PersonaGender
+import com.jarvis.app.backend.ai.genderOfVoice
+import com.jarvis.app.backend.ai.personaForKey
+import com.jarvis.app.backend.ai.personaKeyOrDefault
+import com.jarvis.app.backend.ai.resolvePersonaVoices
+import com.jarvis.app.backend.ai.scoreVoice
+import com.jarvis.app.backend.brain.clampSpeech
+import com.jarvis.app.backend.brain.effSpeech
 
 class PersonaTest {
     private fun info(name: String, lang: String = "en", country: String = "US", net: Boolean = false) =

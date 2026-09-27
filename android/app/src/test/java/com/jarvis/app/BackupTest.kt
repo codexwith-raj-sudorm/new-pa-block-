@@ -2,6 +2,12 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.ChatData
+import com.jarvis.app.backend.brain.HookAction
+import com.jarvis.app.backend.brain.StoredMsg
+import com.jarvis.app.backend.brain.buildBackup
+import com.jarvis.app.backend.data.ReminderItem
+import com.jarvis.app.backend.data.TodoItem
 
 class BackupTest {
     @Test fun roundTrip() {

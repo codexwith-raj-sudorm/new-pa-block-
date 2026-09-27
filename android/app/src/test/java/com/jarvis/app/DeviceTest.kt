@@ -5,6 +5,32 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.brain.Router
+import com.jarvis.app.backend.device.AnswerCall
+import com.jarvis.app.backend.device.CallContact
+import com.jarvis.app.backend.device.EndCall
+import com.jarvis.app.backend.device.MsgApp
+import com.jarvis.app.backend.device.NavigateTo
+import com.jarvis.app.backend.device.OpenApp
+import com.jarvis.app.backend.device.OpenChat
+import com.jarvis.app.backend.device.PlayMedia
+import com.jarvis.app.backend.device.SetAlarm
+import com.jarvis.app.backend.device.SetTimer
+import com.jarvis.app.backend.device.Silence
+import com.jarvis.app.backend.device.Speaker
+import com.jarvis.app.backend.device.SysSettings
+import com.jarvis.app.backend.device.TextMessage
+import com.jarvis.app.backend.device.Torch
+import com.jarvis.app.backend.device.Unsilence
+import com.jarvis.app.backend.device.WebSearch
+import com.jarvis.app.backend.device.WifiPanel
+import com.jarvis.app.backend.device.isAppMatchLoose
+import com.jarvis.app.backend.device.isAppMatchStrict
+import com.jarvis.app.backend.device.parseAlarmTime
+import com.jarvis.app.backend.device.parseDeviceCommand
+import com.jarvis.app.backend.device.parseDuration
+import com.jarvis.app.backend.device.parseMsgApp
+import com.jarvis.app.backend.device.waDigits
 
 class DeviceTest {
     @Test fun openParse() {

@@ -2,6 +2,10 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.ChatMessage
+import com.jarvis.app.backend.brain.chatTranscript
+import com.jarvis.app.backend.brain.zwBits
+import com.jarvis.app.backend.brain.zwRead
 
 class ExportTest {
     @Test fun transcriptFormats() {

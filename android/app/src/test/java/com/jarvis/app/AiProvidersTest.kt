@@ -3,6 +3,9 @@ package com.jarvis.app
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.ai.jsonEscape
+import com.jarvis.app.backend.ai.openAiChatBody
+import com.jarvis.app.backend.ai.openAiEndpoint
 
 class AiProvidersTest {
     @Test fun endpointDefaultsToOpenAi() {

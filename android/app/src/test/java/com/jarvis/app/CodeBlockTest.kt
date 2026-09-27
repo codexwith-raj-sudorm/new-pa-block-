@@ -2,6 +2,8 @@ package com.jarvis.app
 
 import org.junit.Assert.*
 import org.junit.Test
+import com.jarvis.app.backend.brain.cleanForSpeech
+import com.jarvis.app.backend.brain.splitCodeBlocks
 
 class CodeBlockTest {
     @Test fun plainTextIsOneSeg() {
