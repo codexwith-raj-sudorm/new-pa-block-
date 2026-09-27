@@ -1269,6 +1269,14 @@ class Store(context: Context) {
 
 // ---------- Gemini REST API (direct, no SDK) ----------
 
+/** Short no-key reply for one-shot actions (share sheet, assist overlay). */
+const val NO_KEY_SHORT = "🔑 I need an AI API key for that — add one in Settings ⚙️."
+
+/** System prompt for the share-sheet summarizer. Pure, tested. */
+fun shareSummarySystem(): String =
+    "You are Jarvis. Summarize the user's shared content in 3-6 short bullets. " +
+        "Lead with the key point. No preamble, no follow-up questions."
+
 object GeminiApi {
     class JarvisError(msg: String) : Exception(msg)
 
@@ -1961,6 +1969,54 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             "Couldn't analyze the screen (${e.message?.take(120)})." +
                 (AccessBridge.read()?.let { "\n\nHere's the text I can read:\n$it" } ?: "")
+        }
+    }
+
+    /** One-tap "ask about screen" for the assist overlay: captures, answers, speaks. */
+    fun askAboutScreen(question: String = "What's on my screen?") {
+        viewModelScope.launch {
+            if (busy) return@launch
+            busy = true
+            voiceNote = "Looking at your screen…"
+            try {
+                val ans = watchScreen(question.ifBlank { "What's on my screen?" })
+                voiceNote = ans
+                speakText(ans)
+            } catch (e: Exception) {
+                voiceNote = "Couldn't analyze the screen (${e.message?.take(100)})."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    /** Summarize shared text (share-sheet action). */
+    suspend fun summarizeShared(text: String): String {
+        val t = text.trim()
+        if (t.isEmpty()) return "Nothing to summarize."
+        if (!brainOk) return NO_KEY_SHORT
+        return try {
+            chatSmart(shareSummarySystem(), emptyList(), t.take(12000))
+        } catch (e: Exception) {
+            "Couldn't summarize (${e.message?.take(120)})."
+        }
+    }
+
+    /** Describe/answer about a shared image (base64 JPEG/PNG). */
+    suspend fun describeSharedImage(imageB64: String, question: String): String {
+        if (!brainOk) return NO_KEY_SHORT
+        if (imageB64.isEmpty()) return "Couldn't read that image."
+        return try {
+            val system = "You are Jarvis describing a shared image.\n" + buildSystem(store.facts())
+            val prompt = visionPromptFor(question)
+            try {
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(false), system, prompt, imageB64).first
+            } catch (e: GeminiApi.JarvisError) {
+                if (!e.message.orEmpty().contains("404")) throw e
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(true), system, prompt, imageB64).first
+            }
+        } catch (e: Exception) {
+            "Couldn't analyze the image (${e.message?.take(120)})."
         }
     }
 

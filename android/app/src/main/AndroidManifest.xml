@@ -123,6 +123,22 @@
             android:label="Jarvis Wake"
             android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity
+            android:name=".frontend.screens.AssistActivity"
+            android:exported="true"
+            android:label="Jarvis Assist"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".frontend.screens.ShotActivity"
             android:exported="false"
             android:excludeFromRecents="true"

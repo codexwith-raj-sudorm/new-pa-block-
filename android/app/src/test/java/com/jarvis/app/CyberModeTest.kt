@@ -31,6 +31,6 @@ class CyberModeTest {
         assertTrue(lines.size >= 3)
         assertTrue(lines.all { it.isNotBlank() })
         assertTrue(lines[0].contains("JARVIS"))
-        assertTrue(lines[0].contains("v5.9"))
+        assertTrue(lines[0].contains("v6.0"))
     }
 }

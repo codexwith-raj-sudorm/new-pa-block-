@@ -9,7 +9,7 @@ fun cyberPrompt(user: String): String {
 }
 
 /** Login banner shown when Cyber Mode is on and the chat is empty. Pure. */
-fun cyberBootLines(version: String = "v5.9"): List<String> = listOf(
+fun cyberBootLines(version: String = "v6.0"): List<String> = listOf(
     "JARVIS SECURE SHELL -- $version",
     "Encrypted channel established. All systems nominal.",
     "Type below to issue a command."

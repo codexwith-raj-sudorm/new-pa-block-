@@ -101,6 +101,9 @@ import com.jarvis.app.backend.data.MASTER_SELF_NAME
 import com.jarvis.app.backend.data.dueText
 import com.jarvis.app.backend.device.StarkSounds
 import com.jarvis.app.backend.system.BubbleLevelBus
+import com.jarvis.app.backend.system.defaultAssistantPkg
+import com.jarvis.app.backend.system.defaultAssistantSettingsIntent
+import com.jarvis.app.backend.system.isJarvisDefaultAssistant
 import com.jarvis.app.backend.system.HudStateBus
 import com.jarvis.app.backend.system.InterruptBus
 import com.jarvis.app.backend.system.WakeService
@@ -178,6 +181,28 @@ class MainActivity : ComponentActivity() {
                                     .putExtra(Intent.EXTRA_TEXT, shared)
                             )
                         }
+                } catch (_: Exception) {
+                }
+            }
+        }
+        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
+            val stream: android.net.Uri? = try {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                }
+            } catch (_: Exception) {
+                null
+            }
+            intent.action = null // consume
+            setIntent(intent)
+            if (stream != null) {
+                try {
+                    startActivity(
+                        Intent(this, StarkShareActivity::class.java)
+                            .putExtra(Intent.EXTRA_STREAM, stream)
+                    )
                 } catch (_: Exception) {
                 }
             }
