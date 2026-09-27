@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
@@ -134,6 +135,19 @@ fun modelTag(model: String): String =
 /** Voice-language tag. Pure, tested. */
 fun voiceTag(hindi: Boolean): String = if (hindi) "VOICE • HI" else "VOICE • EN"
 
+/** Tilted-ellipse ring points (center-relative). Pure, tested. */
+fun holoRingPoints(rx: Float, ry: Float, tiltDeg: Float, segments: Int = 72): List<Pair<Float, Float>> {
+    val a = tiltDeg * PI.toFloat() / 180f
+    val c = cos(a)
+    val s = sin(a)
+    return List(segments) { i ->
+        val t = i * 2f * PI.toFloat() / segments
+        val x = rx * cos(t)
+        val y = ry * sin(t)
+        (x * c - y * s) to (x * s + y * c)
+    }
+}
+
 /** Static dotted grid + corner brackets (skips recomposition — no params). */
 @Composable
 private fun HoloBackdrop() {
@@ -211,22 +225,24 @@ private fun NeuralSphere(
             drawCircle(NeuralGold.copy(alpha = 0.22f), ringR, c, style = Stroke(1.5f))
             // Tilted dashed latitude rings.
             val dash = PathEffect.dashPathEffect(floatArrayOf(15f, 25f, 40f, 15f))
-            rotate(-15f, c) {
-                scale(1f, 0.32f, c) {
-                    drawCircle(
-                        NeuralAmber.copy(alpha = 0.35f), r * 1.04f, c,
-                        style = Stroke(1.5f, pathEffect = dash)
-                    )
+            fun ring(rx: Float, ry: Float, tilt: Float): Path {
+                val pts = holoRingPoints(rx, ry, tilt)
+                return Path().apply {
+                    moveTo(c.x + pts[0].first, c.y + pts[0].second)
+                    for (k in 1 until pts.size) lineTo(c.x + pts[k].first, c.y + pts[k].second)
+                    close()
                 }
             }
-            rotate(12f, c) {
-                scale(1f, 0.5f, c) {
-                    drawCircle(
-                        NeuralGold.copy(alpha = 0.3f), r * 0.82f, c,
-                        style = Stroke(1.2f, pathEffect = dash)
-                    )
-                }
-            }
+            drawPath(
+                ring(r * 1.04f, r * 1.04f * 0.32f, -15f),
+                NeuralAmber.copy(alpha = 0.35f),
+                style = Stroke(1.5f, pathEffect = dash)
+            )
+            drawPath(
+                ring(r * 0.82f, r * 0.82f * 0.5f, 12f),
+                NeuralGold.copy(alpha = 0.3f),
+                style = Stroke(1.2f, pathEffect = dash)
+            )
             // Projected nodes.
             val proj = pts3.map { p ->
                 val spun = rotX(rotY(p, spin), 22f)

@@ -3,6 +3,7 @@ package com.jarvis.app
 import com.jarvis.app.ui.components.fibSphere
 import com.jarvis.app.ui.components.fmtFreq
 import com.jarvis.app.ui.components.fmtPingTag
+import com.jarvis.app.ui.components.holoRingPoints
 import com.jarvis.app.ui.components.holoSpinMs
 import com.jarvis.app.ui.components.modelTag
 import com.jarvis.app.ui.components.projectScale
@@ -63,6 +64,17 @@ class NeuralHologramTest {
         assertEquals(2500, holoSpinMs(false, true, false))
         assertEquals(4500, holoSpinMs(false, false, true))
         assertEquals(7000, holoSpinMs(false, false, false))
+    }
+
+    @Test fun ringPointsAreFiniteAndTilted() {
+        val pts = holoRingPoints(100f, 32f, 0f)
+        assertEquals(72, pts.size)
+        assertTrue(pts.all { (x, y) -> x.isFinite() && y.isFinite() })
+        assertEquals(100f, pts[0].first, 0.01f)
+        assertEquals(0f, pts[0].second, 0.01f)
+        val tilted = holoRingPoints(100f, 32f, 90f)
+        assertEquals(0f, tilted[0].first, 0.01f)
+        assertEquals(100f, tilted[0].second, 0.01f)
     }
 
     @Test fun telemetryFormats() {
