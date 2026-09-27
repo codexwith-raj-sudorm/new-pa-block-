@@ -810,6 +810,22 @@ class Store(context: Context) {
         get() = p.getString("model", Models.FALLBACK[0]) ?: Models.FALLBACK[0]
         set(v) = p.edit().putString("model", v).apply()
 
+    var aiProvider: String
+        get() = p.getString("ai_provider", AI_GEMINI) ?: AI_GEMINI
+        set(v) = p.edit().putString("ai_provider", v).apply()
+
+    var openaiKey: String
+        get() = p.getString("oai_key", "") ?: ""
+        set(v) = p.edit().putString("oai_key", v.trim()).apply()
+
+    var openaiBase: String
+        get() = p.getString("oai_base", "") ?: ""
+        set(v) = p.edit().putString("oai_base", v.trim()).apply()
+
+    var openaiModel: String
+        get() = p.getString("oai_model", OPENAI_DEFAULT_MODEL) ?: OPENAI_DEFAULT_MODEL
+        set(v) = p.edit().putString("oai_model", v.trim()).apply()
+
     var ttsEnabled: Boolean
         get() = p.getBoolean("tts", true)
         set(v) = p.edit().putBoolean("tts", v).apply()
@@ -1329,6 +1345,34 @@ object GeminiApi {
             throw JarvisError("Image generation failed:\n" + errs.joinToString("\n") { "\u2022 $it" })
         }
 
+    /** OpenAI-compatible single attempt (OpenAI, Groq, xAI, DeepSeek, Ollama…). */
+    suspend fun chatOpenAi(
+        base: String,
+        key: String,
+        model: String,
+        system: String,
+        history: List<Pair<String, String>>,
+        user: String
+    ): String = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url(openAiEndpoint(base))
+            .header("Authorization", "Bearer $key")
+            .post(openAiChatBody(model, system, history, user).toRequestBody(JSON))
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val txt = resp.body?.string() ?: ""
+            if (!resp.isSuccessful) throw JarvisError("Other-AI error (HTTP ${resp.code}): ${txt.take(160)}")
+            val text = try {
+                JSONObject(txt).optJSONArray("choices")
+                    ?.optJSONObject(0)?.optJSONObject("message")?.optString("content")
+            } catch (_: Exception) {
+                null
+            }
+            if (text.isNullOrEmpty()) throw JarvisError("Other-AI reply was empty.")
+            text
+        }
+    }
+
     private fun callOnce(model: String, apiKey: String, body: String): Triple<Boolean, String, String> {
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
@@ -1392,6 +1436,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var model by mutableStateOf(store.model)
         private set
+    var aiProvider by mutableStateOf(store.aiProvider)
+    var openaiKey by mutableStateOf(store.openaiKey)
+    var openaiBase by mutableStateOf(store.openaiBase)
+    var openaiModel by mutableStateOf(store.openaiModel)
     var activeChatId by mutableStateOf("")
         private set
     var memTick by mutableStateOf(0)
@@ -1462,7 +1510,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         else -> ""
     }
 
-    val brainOk: Boolean get() = effectiveKey.isNotBlank()
+    val brainOk: Boolean get() = effectiveKey.isNotBlank() || (aiProvider == AI_OPENAI && openaiKey.isNotBlank())
 
     init {
         installBakedMaster()
@@ -2655,12 +2703,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         toast(if (githubToken.isEmpty()) "GitHub token cleared" else "GitHub token saved")
     }
 
-    fun saveSettings(key: String, model: String) {
+    fun saveSettings(
+        key: String, model: String,
+        provider: String = aiProvider, oaiKey: String = openaiKey,
+        oaiBase: String = openaiBase, oaiModel: String = openaiModel
+    ) {
         val oldEff = effectiveKey
         store.apiKey = key
         store.model = model
+        store.aiProvider = provider
+        store.openaiKey = oaiKey
+        store.openaiBase = oaiBase
+        store.openaiModel = oaiModel
         apiKey = store.apiKey
         this.model = store.model
+        aiProvider = store.aiProvider
+        openaiKey = store.openaiKey
+        openaiBase = store.openaiBase
+        openaiModel = store.openaiModel
         showSettings = false
         settingsMsg = ""
         if (oldEff != effectiveKey) {
@@ -2887,6 +2947,31 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         false
     }
 
+    /** Provider-aware chat: Other-AI first when selected, Gemini fallback. */
+    private suspend fun chatSmart(system: String, hist: List<Pair<String, String>>, text: String): String {
+        if (aiProvider == AI_OPENAI && openaiKey.isNotBlank()) {
+            try {
+                return GeminiApi.chatOpenAi(
+                    openaiBase, openaiKey, openaiModel.ifBlank { OPENAI_DEFAULT_MODEL },
+                    system, hist, text
+                )
+            } catch (e: GeminiApi.JarvisError) {
+                if (effectiveKey.isBlank()) throw e
+                // fall through to Gemini
+            } catch (_: Exception) {
+                if (effectiveKey.isBlank()) throw GeminiApi.JarvisError("Other-AI failed and no Gemini key is set.")
+                // fall through to Gemini
+            }
+        }
+        return try {
+            GeminiApi.chat(effectiveKey, resolveModels(false), system, hist, text).first
+        } catch (e: GeminiApi.JarvisError) {
+            if (!e.message.orEmpty().contains("404")) throw e
+            // Model list went stale — rediscover once and retry.
+            GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text).first
+        }
+    }
+
     fun send(raw: String, fromVoice: Boolean = false, idChecked: Boolean = false): Boolean {
         var text = raw.trim()
         if (fromVoice && guardOn && !idChecked) {
@@ -2971,8 +3056,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return true
         }
         if (!brainOk) {
-            val reply = if (builtinKey.isNotBlank()) "🔑 Install your Master Key to unlock the brain — or add your own Gemini key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
-            else "🔑 I need a Gemini API key for that (free from aistudio.google.com — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
+            val reply = if (builtinKey.isNotBlank()) "🔑 Install your Master Key to unlock the brain — or add your own Gemini / Other-AI key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
+            else "🔑 I need an AI API key for that (free Gemini key from aistudio.google.com, or any OpenAI-compatible key — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
@@ -2980,20 +3065,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
         busy = true
         HudStateBus.update(thinking = true)
-        HudStateBus.postTicker(if (masterInstalled) "[MASTER UPLINK]" else "[UPLINK: GEMINI]")
+        HudStateBus.postTicker(if (masterInstalled) "[MASTER UPLINK]" else if (aiProvider == AI_OPENAI && openaiKey.isNotBlank()) "[UPLINK: OTHER-AI]" else "[UPLINK: GEMINI]")
         val t0 = System.currentTimeMillis()
         viewModelScope.launch {
             try {
                 val system = buildSystem(store.facts())
                 val hist = messages.dropLast(1).takeLast(40)
                     .map { (if (it.role == "user") "user" else "model") to it.text }
-                val (reply, _) = try {
-                    GeminiApi.chat(effectiveKey, resolveModels(false), system, hist, text)
-                } catch (e: GeminiApi.JarvisError) {
-                    if (!e.message.orEmpty().contains("404")) throw e
-                    // Model list went stale — rediscover once and retry.
-                    GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text)
-                }
+                val reply = chatSmart(system, hist, text)
                 deliverReply(sendChatId, reply)
                 if (fromVoice) speak(reply, voiceCmd = true)
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")

@@ -851,6 +851,10 @@ fun SettingsDialog(vm: JarvisViewModel) {
     var masterTaps by remember { mutableStateOf(0) }
     val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
     var model by remember { mutableStateOf(vm.model) }
+    var provider by remember { mutableStateOf(vm.aiProvider) }
+    var oaiKey by remember { mutableStateOf(vm.openaiKey) }
+    var oaiBase by remember { mutableStateOf(vm.openaiBase) }
+    var oaiModel by remember { mutableStateOf(vm.openaiModel) }
     LaunchedEffect(models.joinToString()) {
         if (model !in models && models.isNotEmpty()) model = models[0]
     }
@@ -878,6 +882,55 @@ fun SettingsDialog(vm: JarvisViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (vm.masterUnlocked) MasterKeySection(vm, cyber)
+                Text("AI provider", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(8.dp))
+                            .selectable(selected = provider == AI_GEMINI, onClick = { provider = AI_GEMINI })
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = provider == AI_GEMINI, onClick = { provider = AI_GEMINI })
+                        Text("Gemini", fontSize = 14.sp)
+                    }
+                    Row(
+                        Modifier.clip(RoundedCornerShape(8.dp))
+                            .selectable(selected = provider == AI_OPENAI, onClick = { provider = AI_OPENAI })
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = provider == AI_OPENAI, onClick = { provider = AI_OPENAI })
+                        Text("Other AI", fontSize = 14.sp)
+                    }
+                }
+                if (provider == AI_OPENAI) {
+                    Text(
+                        "Any OpenAI-compatible API: OpenAI, Groq, xAI, DeepSeek, Ollama… Falls back to Gemini if it fails.",
+                        fontSize = 13.sp, color = mut
+                    )
+                    HudTextField(cyber = cyber,
+                        value = oaiKey,
+                        onValueChange = { oaiKey = it.trim() },
+                        placeholder = { Text("Other-AI key (sk-…)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    HudTextField(cyber = cyber,
+                        value = oaiBase,
+                        onValueChange = { oaiBase = it.trim() },
+                        placeholder = { Text("Base URL — blank = OpenAI") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    HudTextField(cyber = cyber,
+                        value = oaiModel,
+                        onValueChange = { oaiModel = it.trim() },
+                        placeholder = { Text("Model (gpt-4o-mini)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     "Only needed if you want to use your own key.",
@@ -924,7 +977,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
                     Switch(checked = vm.cyberMode, onCheckedChange = { vm.toggleCyberMode() })
                 }
                 // Models stay hidden on the built-in key — only shown with your own key.
-                if (key.isNotBlank()) {
+                if (provider == AI_GEMINI && key.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { vm.refreshModels(key) }) {
                             Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -951,7 +1004,7 @@ fun SettingsDialog(vm: JarvisViewModel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.saveSettings(key, model); vm.saveGithubToken(gh) }) { Text("Save") }
+            TextButton(onClick = { vm.saveSettings(key, model, provider, oaiKey, oaiBase, oaiModel); vm.saveGithubToken(gh) }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
