@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import com.jarvis.app.frontend.screens.JarvisVmFactory
+import com.jarvis.app.backend.brain.JarvisViewModel
 
 /** Process-wide VM owner: MainActivity and WakeHudActivity share one JarvisViewModel. */
 object SharedVmOwner : ViewModelStoreOwner {

@@ -88,6 +88,7 @@ import com.jarvis.app.frontend.design.StarkBubble
 import com.jarvis.app.frontend.widgets.SpeechState
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
 import com.jarvis.app.R
+import com.jarvis.app.frontend.screens.MainActivity
 
 /**
  * Owns the "Hey Jarvis" wake loop, the floating bubble (visible over any app

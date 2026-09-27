@@ -11,6 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.jarvis.app.backend.brain.Store
 import com.jarvis.app.R
+import com.jarvis.app.frontend.screens.MainActivity
 
 /** Fires when a reminder alarm goes off: removes it from the store and notifies. */
 class ReminderReceiver : BroadcastReceiver() {

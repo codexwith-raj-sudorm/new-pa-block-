@@ -13,6 +13,7 @@ import com.jarvis.app.backend.data.ReminderItem
 import com.jarvis.app.backend.data.dueText
 import com.jarvis.app.backend.data.firstName
 import com.jarvis.app.R
+import com.jarvis.app.frontend.screens.MainActivity
 
 /** Home-screen briefing widget: time, battery, next reminder. Tap opens Jarvis. */
 class BriefingWidget : AppWidgetProvider() {

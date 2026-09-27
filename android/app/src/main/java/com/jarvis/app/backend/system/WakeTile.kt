@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.jarvis.app.frontend.widgets.StarkWidgetProvider
 import com.jarvis.app.backend.brain.Store
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
+import com.jarvis.app.frontend.screens.MainActivity
 
 /** Quick Settings tile: tap to toggle the "Hey Jarvis" wake service. */
 class WakeTile : TileService() {

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.jarvis.app.backend.system.WakeService
 import com.jarvis.app.R
+import com.jarvis.app.frontend.screens.MainActivity
 
 /** Tap action the widget's PendingIntent fires at MainActivity. */
 const val ACTION_WIDGET_TAP = "com.jarvis.app.WIDGET_TAP"

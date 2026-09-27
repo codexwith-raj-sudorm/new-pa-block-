@@ -16,6 +16,7 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import com.jarvis.app.backend.brain.daypart
 import com.jarvis.app.R
+import com.jarvis.app.frontend.screens.MainActivity
 
 const val BRIEFING_REQ = 6325
 
