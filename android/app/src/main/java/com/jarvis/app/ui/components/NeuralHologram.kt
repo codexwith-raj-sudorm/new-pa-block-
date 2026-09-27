@@ -287,7 +287,7 @@ fun NeuralHologramHud(
     val thinking = vm.busy
     val speaking = hud.speaking
     val state = coreStateLabel(listening, thinking, speaking, vm.convoActive)
-    val heard = vm.lastHeard.ifBlank { vm.voiceNote }.ifBlank { "…" }.take(140)
+    val heard = vm.lastHeard.ifBlank { vm.voiceNote.orEmpty() }.ifBlank { "…" }.take(140)
     Box(
         Modifier.fillMaxSize().background(NeuralBackdrop)
     ) {
