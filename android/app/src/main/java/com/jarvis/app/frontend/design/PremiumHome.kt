@@ -129,7 +129,7 @@ fun GlassCircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 
 /** Solid green pill action. */
 @Composable
-fun NeonPillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun NeonPillButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = modifier,

@@ -169,7 +169,7 @@ fun AssistCoreDot(diameter: Dp = 56.dp, onTap: () -> Unit) {
 
 /** Ghost pill companion to [NeonPillButton]. */
 @Composable
-fun GhostPillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun GhostPillButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         modifier = modifier,
@@ -303,8 +303,8 @@ fun AssistIslandSheet(
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NeonPillButton("ASK ABOUT SCREEN", onAskScreen, Modifier.weight(1f))
-                GhostPillButton("OPEN", onOpen, Modifier.width(80.dp))
+                NeonPillButton("ASK ABOUT SCREEN", Modifier.weight(1f), onAskScreen)
+                GhostPillButton("OPEN", Modifier.width(80.dp), onOpen)
             }
         }
     }
