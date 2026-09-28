@@ -40,11 +40,12 @@ fun voiceErrorText(error: Int): String? = when (error) {
 fun bestHeard(results: List<String>?, scores: FloatArray?): String {
     val cands = results.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
     if (cands.isEmpty()) return ""
-    if (scores == null || scores.size != results!!.size) return cands.first()
+    val res = results.orEmpty()
+    if (scores == null || scores.size != res.size) return cands.first()
     var best = cands.first()
     var bestScore = -1f
-    for (i in results.indices) {
-        val t = results[i].trim()
+    for (i in res.indices) {
+        val t = res[i].trim()
         if (t.isEmpty()) continue
         val s = scores[i]
         if (s > bestScore) {

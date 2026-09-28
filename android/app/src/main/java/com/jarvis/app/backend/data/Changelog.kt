@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        52, "6.1", listOf(
+            "Premium home: neon-green glass UI with a living swirl core",
+            "Hero greeting, context card, and one-tap “Execute Script”",
+            "Floating chat pill with mic ring; quick tiles for Briefing, Hooks, Chats",
+            "Assist island: neon edge flash, AI core, ask-about-screen sheet"
+        )
+    ),
+    ChangelogEntry(
         51, "6.0", listOf(
             "Default assistant: set Jarvis to answer the hold-gesture (Settings)",
             "Assist overlay: hologram HUD with one-tap “ask about screen”",

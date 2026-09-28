@@ -5,20 +5,21 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import com.jarvis.app.frontend.screens.StarkShareActivity
-import com.jarvis.app.frontend.design.AcousticArray
-import com.jarvis.app.frontend.design.ArcCoreReactor
 import com.jarvis.app.frontend.design.HeaderMiniReactor
-import com.jarvis.app.frontend.design.HudCyan
-import com.jarvis.app.frontend.design.HudGold
-import com.jarvis.app.frontend.design.HudInk
-import com.jarvis.app.frontend.design.coreStateLabel
-import com.jarvis.app.frontend.design.hudReadoutLine
 import com.jarvis.app.frontend.design.hudStatusLine
 import com.jarvis.app.frontend.design.AnimatedGlassBubble
-import com.jarvis.app.frontend.design.FluidAnimatedBackground
-import com.jarvis.app.frontend.design.FluidInputBar
 import com.jarvis.app.frontend.design.HudDialog
 import com.jarvis.app.frontend.design.HudTextField
+import com.jarvis.app.frontend.design.GlassCircleButton
+import com.jarvis.app.frontend.design.NeonPillButton
+import com.jarvis.app.frontend.design.PremiumBackdrop
+import com.jarvis.app.frontend.design.PremiumMuted
+import com.jarvis.app.frontend.design.PremiumNeon
+import com.jarvis.app.frontend.design.SwirlCore
+import com.jarvis.app.frontend.design.avatarLetter
+import com.jarvis.app.frontend.design.modelShortName
+import com.jarvis.app.frontend.design.premiumGlass
+import com.jarvis.app.frontend.design.premiumHeroVisible
 import com.jarvis.app.frontend.widgets.StarkWidgetProvider
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -52,13 +53,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -67,13 +78,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -94,7 +112,6 @@ import com.jarvis.app.backend.data.MASTER_SELF_NAME
 import com.jarvis.app.backend.data.dueText
 import com.jarvis.app.backend.device.StarkSounds
 import com.jarvis.app.backend.system.BubbleLevelBus
-import com.jarvis.app.backend.system.defaultAssistantPkg
 import com.jarvis.app.backend.system.defaultAssistantSettingsIntent
 import com.jarvis.app.backend.system.isJarvisDefaultAssistant
 import com.jarvis.app.backend.system.HudStateBus
@@ -450,7 +467,9 @@ fun JarvisScreen() {
         InterruptBus.requests.collect { vm.interruptSpeech() }
     }
 
-    FluidAnimatedBackground {
+    val bgLvl by BubbleLevelBus.level.collectAsState()
+    val hudUi by HudStateBus.state.collectAsState()
+    PremiumBackdrop(bgLvl) {
     Column(Modifier.fillMaxSize()) {
         HudTopBar(
             online = vm.brainOk,
@@ -466,12 +485,13 @@ fun JarvisScreen() {
             onInterrupt = vm::interruptSpeech
         )
         val listState = rememberLazyListState()
+        val heroVisible = premiumHeroVisible(vm.messages.size, vm.busy)
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
         }
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = if (heroVisible) Modifier.fillMaxWidth() else Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -480,56 +500,90 @@ fun JarvisScreen() {
                 item { ThinkingRow() }
             }
         }
-        if (vm.messages.size <= 1 && !vm.busy) {
-            LaunchedEffect(Unit) { vm.refreshDashboard() }
-            val coreLvl by BubbleLevelBus.level.collectAsState()
-            val coreHud by HudStateBus.state.collectAsState()
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(horizontal = 12.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background((Color(0xFF0D1526)).copy(alpha = 0.85f))
-                        .border(1.dp, (HudGold).copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(
-                            "MATRIX // ARC CORE", color = HudGold, fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Text(
-                            coreStateLabel(vm.listening, vm.busy, coreHud.speaking, vm.convoActive),
-                            color = HudCyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace
-                        )
-                    }
-                    ArcCoreReactor(
-                        listening = vm.listening,
-                        thinking = vm.busy,
-                        speaking = coreHud.speaking,
-                        level = coreLvl,
-                        onTap = vm::interruptSpeech
-                    )
-                    if (vm.listening || coreHud.speaking) {
-                        AcousticArray(level = coreLvl, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                    }
+        if (heroVisible) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                SwirlCore(
+                    level = if (vm.listening) 1f else if (hudUi.speaking) 0.6f else 0.2f,
+                    diameter = 148.dp
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        hudReadoutLine(vm.dashTemp, vm.dashPing, vm.dashBatt),
-                        color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.clickable { vm.refreshDashboard() }.padding(4.dp)
+                        if (vm.brainOk) "SYSTEM ONLINE" else "OFFLINE MODE",
+                        color = PremiumMuted, fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "What Can I Do for\nYou Today?",
+                        color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium,
+                        lineHeight = 34.sp, textAlign = TextAlign.Center
                     )
                 }
-            }
-            Row(
-                Modifier.fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                StarterChip("What can you do?") { vm.send("What can you do?") }
-                StarterChip("Calculate 15% of 240") { vm.send("Calculate 15% of 240") }
-                StarterChip("Motivate me") { vm.send("Motivate me in one line") }
+                Column(
+                    Modifier.fillMaxWidth()
+                        .premiumGlass(RoundedCornerShape(24.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(48.dp).background(PremiumNeon, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                avatarLetter(vm.masterName.ifBlank { "Master" }),
+                                color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                vm.masterName.ifBlank { "Master" },
+                                color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                if (vm.masterInstalled) "Authorized User" else "Guest",
+                                color = PremiumMuted, fontSize = 11.sp
+                            )
+                        }
+                        GlassCircleButton(onClick = { vm.showBriefing = true }) {
+                            Icon(Icons.Filled.Star, contentDescription = "Briefing", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        HomeTile(Icons.Filled.Shield, vm.masterInstalled, Modifier.weight(1f)) {
+                            vm.setMasterUnlocked(); vm.openSettings()
+                        }
+                        HomeTile(Icons.Filled.Terminal, false, Modifier.weight(1f)) { vm.showHooks = true }
+                        HomeTile(Icons.Filled.FolderOpen, false, Modifier.weight(1f)) { vm.showChats = true }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (vm.brainOk) "Environment initialized. Model " + modelShortName(vm.model) + " ready."
+                        else "Offline mode. On-device tools ready.",
+                        color = Color(0xFFD1D5DB), fontSize = 14.sp, fontWeight = FontWeight.Light,
+                        lineHeight = 20.sp
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    NeonPillButton("Execute Script") { vm.showHooks = true }
+                }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StarterChip("What can you do?") { vm.send("What can you do?") }
+                    StarterChip("Calculate 15% of 240") { vm.send("Calculate 15% of 240") }
+                    StarterChip("Motivate me") { vm.send("Motivate me in one line") }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
         InputRow(
@@ -577,68 +631,67 @@ fun HudTopBar(
     onWake: () -> Unit,
     onInterrupt: () -> Unit
 ) {
-    val accent = HudCyan
-    val ink = HudInk
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(Color(0xFF0A1424))) {
-        Box {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = accent)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "J.A.R.V.I.S", color = ink, fontSize = 15.sp,
-                        fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
-                    )
-                    Text(
-                        hudStatusLine(online, wakeOn),
-                        color = if (online) accent else JarvisRed,
-                        fontSize = 10.sp, fontFamily = FontFamily.Monospace
-                    )
-                }
-                HeaderMiniReactor(isSpeaking = hud.speaking, onInterrupt = onInterrupt)
-                IconButton(onClick = onSettings) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = accent)
-                }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GlassCircleButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("\uFF0B New chat", color = accent) },
-                    onClick = { menuOpen = false; onNewChat() }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("J.A.R.V.I.S", color = PremiumMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    hudStatusLine(online, wakeOn),
+                    color = if (online) PremiumNeon else JarvisRed,
+                    fontSize = 9.sp
                 )
-                DropdownMenuItem(
-                    text = { Text("🧠 Memory", color = accent) },
-                    onClick = { menuOpen = false; onMemory() }
-                )
-                DropdownMenuItem(
-                    text = { Text("📝 Lists", color = accent) },
-                    onClick = { menuOpen = false; onList() }
-                )
-                DropdownMenuItem(
-                    text = { Text(if (ttsOn) "🔊 Voice on" else "🔇 Voice off", color = accent) },
-                    onClick = { menuOpen = false; onToggleTts() }
-                )
+            }
+            GlassCircleButton(onClick = onSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text("+ New chat") },
+                onClick = { menuOpen = false; onNewChat() }
+            )
+            DropdownMenuItem(
+                text = { Text("Memory") },
+                onClick = { menuOpen = false; onMemory() }
+            )
+            DropdownMenuItem(
+                text = { Text("Lists") },
+                onClick = { menuOpen = false; onList() }
+            )
+            DropdownMenuItem(
+                text = { Text(if (ttsOn) "Voice on" else "Voice off") },
+                onClick = { menuOpen = false; onToggleTts() }
+            )
+        }
+        if (hud.speaking) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
             }
         }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
             TextButton(onClick = onChats) {
-                Text("\u25A4 CHATS", fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = accent)
+                Text("CHATS", fontSize = 12.sp, color = PremiumNeon)
             }
             TextButton(onClick = onWake) {
                 Text(
-                    if (wakeOn) "\u25C9 WAKE ON" else "\u25CE WAKE",
-                    fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                    color = if (wakeOn) JarvisRed else accent,
+                    if (wakeOn) "WAKE ON" else "WAKE",
+                    fontSize = 12.sp,
+                    color = if (wakeOn) JarvisRed else PremiumNeon,
                     modifier = Modifier.graphicsLayer { val sc = 1f + 0.18f * wakePulse; scaleX = sc; scaleY = sc }
                 )
             }
@@ -667,7 +720,7 @@ private fun ThinkingRow() {
     Box(Modifier.fillMaxWidth()) {
         Text(
             "● Jarvis is thinking…",
-            color = (HudCyan).copy(alpha = 0.45f + 0.55f * glow),
+            color = (PremiumNeon).copy(alpha = 0.45f + 0.55f * glow),
             fontSize = 14.sp, fontFamily = FontFamily.Monospace,
             modifier = Modifier
                 .align(Alignment.CenterStart)
@@ -735,6 +788,7 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Image(
                             art, "Generated image",
+                                  art, "Generated image",
                             modifier = Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { openGenImage(context, genPath) }
@@ -813,9 +867,34 @@ private fun StarterChip(label: String, onClick: () -> Unit) {
 }
 
 @Composable
+private fun HomeTile(icon: ImageVector, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.height(40.dp)
+            .background(
+                if (active) PremiumNeon.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.05f),
+                RoundedCornerShape(16.dp)
+            )
+            .border(
+                1.dp,
+                if (active) PremiumNeon.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f),
+                RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            icon, contentDescription = null,
+            tint = if (active) PremiumNeon else Color(0xFFD1D5DB),
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+@Composable
 fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?) {
     var input by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
+    val focusReq = remember { FocusRequester() }
     Column(Modifier.fillMaxWidth()) {
         if (listening) {
             Text(
@@ -833,27 +912,73 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
         } else if (!listening && heardFresh && heard.isNotEmpty()) {
             Text(
                 "Heard: “" + heard.take(120) + "”",
-                color = HudCyan, fontSize = 13.sp,
+                color = PremiumNeon, fontSize = 13.sp,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)
             )
         }
-            FluidInputBar(
-            text = input,
-            onTextChanged = { input = it },
-            onSend = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onSend(it)
-                input = ""
-            },
-            isListening = listening,
-            onMicTap = {
-                if (micVisible) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onMic()
+            Row(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .premiumGlass(RoundedCornerShape(50))
+                    .padding(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { focusReq.requestFocus() }) {
+                    Icon(Icons.Filled.Keyboard, contentDescription = "Keyboard", tint = PremiumMuted)
                 }
-            },
-            micEnabled = micVisible
-            )
+                BasicTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    modifier = Modifier.weight(1f).focusRequester(focusReq),
+                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Light),
+                    cursorBrush = SolidColor(PremiumNeon),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (input.isNotBlank()) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSend(input)
+                            input = ""
+                        }
+                    }),
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (input.isEmpty()) Text(
+                                "Message JARVIS...", color = Color(0xFF6B7280),
+                                fontSize = 15.sp, fontWeight = FontWeight.Light
+                            )
+                            inner()
+                        }
+                    }
+                )
+                if (micVisible) {
+                    Box(
+                        Modifier.size(40.dp)
+                            .background(PremiumNeon.copy(alpha = 0.1f), CircleShape)
+                            .border(1.dp, if (listening) JarvisRed else PremiumNeon, CircleShape)
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onMic()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Mic, contentDescription = "Mic",
+                            tint = if (listening) JarvisRed else PremiumNeon
+                        )
+                    }
+                } else {
+                    IconButton(onClick = {
+                        if (input.isNotBlank()) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSend(input)
+                            input = ""
+                        }
+                    }) {
+                        Icon(Icons.Filled.Send, contentDescription = "Send", tint = PremiumNeon)
+                    }
+                }
+            }
     }
 }
 
@@ -1009,6 +1134,16 @@ fun SettingsDialog(vm: JarvisViewModel) {
                                 Text(m, fontSize = 14.sp)
                             }
                         }
+                    }
+                }
+                MoreRow(
+                    if (isJarvisDefaultAssistant(setCtx)) "\u2713 Jarvis answers the hold-gesture"
+                    else "\u25CB Set Jarvis as default assistant"
+                ) {
+                    try {
+                        setCtx.startActivity(defaultAssistantSettingsIntent())
+                    } catch (_: Exception) {
+                        Toast.makeText(setCtx, "Couldn't open assistant settings", Toast.LENGTH_SHORT).show()
                     }
                 }
             }

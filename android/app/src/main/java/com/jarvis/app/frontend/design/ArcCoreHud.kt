@@ -8,7 +8,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -175,24 +174,6 @@ fun ArcCoreReactor(
                 Color.White.copy(alpha = 0.85f), spin, 40f, false,
                 topLeft = arcTopLeft, size = arcSize,
                 style = Stroke(width = 6f)
-            )
-        }
-    }
-}
-
-/** Gold waveform strip (every 5th bar cyan), driven by the live mic level. */
-@Composable
-fun AcousticArray(level: Float, modifier: Modifier = Modifier) {
-    val barCount = 24
-    Canvas(modifier.height(52.dp).fillMaxWidth()) {
-        val gap = 4f
-        val bw = (size.width - gap * (barCount - 1)) / barCount
-        for (i in 0 until barCount) {
-            val h = size.height * acousticBarHeight(level, i)
-            drawRect(
-                if (acousticBarCyan(i)) HudCyan else HudGold,
-                topLeft = Offset(i * (bw + gap), size.height - h),
-                size = Size(bw, h)
             )
         }
     }
