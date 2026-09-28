@@ -788,7 +788,6 @@ fun Bubble(m: ChatMessage, onRetry: () -> Unit, onSpeak: (String) -> Unit, modif
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Image(
                             art, "Generated image",
-                                  art, "Generated image",
                             modifier = Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { openGenImage(context, genPath) }
