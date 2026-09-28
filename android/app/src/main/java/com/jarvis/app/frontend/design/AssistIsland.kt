@@ -133,12 +133,12 @@ fun EdgeFlashOverlay(fireTick: Int) {
 
 /** 56dp AI core: pulsing glow dot + dashed/spinning + dotted/counter-spinning tracks. */
 @Composable
-fun AssistCoreDot(size: Dp = 56.dp, onTap: () -> Unit) {
+fun AssistCoreDot(diameter: Dp = 56.dp, onTap: () -> Unit) {
     val t = rememberInfiniteTransition(label = "assist_core")
     val outer by t.animateFloat(0f, 360f, infiniteRepeatable(tween(10000, easing = LinearEasing)), label = "o")
     val inner by t.animateFloat(360f, 0f, infiniteRepeatable(tween(7000, easing = LinearEasing)), label = "i")
     val pulse by t.animateFloat(0.85f, 1.15f, infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "pu")
-    Canvas(Modifier.size(size).clickable(onClick = onTap)) {
+    Canvas(Modifier.size(diameter).clickable(onClick = onTap)) {
         val dotR = 10.dp.toPx() * pulse
         drawCircle(PremiumNeon.copy(alpha = 0.30f), radius = dotR * 2f)
         drawCircle(PremiumNeon, radius = dotR)
