@@ -3,6 +3,7 @@ package com.jarvis.app
 import com.jarvis.app.backend.brain.shareSummarySystem
 import com.jarvis.app.backend.system.assistCaptureSettleMs
 import com.jarvis.app.backend.system.assistantPkgOf
+import com.jarvis.app.backend.system.toolYieldsScreen
 import com.jarvis.app.frontend.screens.sharedImageQuestion
 import org.junit.Assert.*
 import org.junit.Test
@@ -35,5 +36,15 @@ class AssistModeTest {
     @Test fun imageQuestions() {
         assertTrue("read" in sharedImageQuestion(true).lowercase())
         assertTrue("read" !in sharedImageQuestion(false).lowercase())
+    }
+
+    @Test fun yieldTools() {
+        // "device" is granular (see deviceCmdYieldsScreen) — torch/silence keep the overlay.
+        assertFalse(toolYieldsScreen("device"))
+        assertTrue(toolYieldsScreen("access_tap"))
+        assertTrue(toolYieldsScreen("autostart"))
+        assertTrue(toolYieldsScreen("backup"))
+        assertFalse(toolYieldsScreen("weather"))
+        assertFalse(toolYieldsScreen("screen_watch"))
     }
 }

@@ -2,22 +2,16 @@ package com.jarvis.app.frontend.design
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.unit.dp
 
 /** Shared HUD field palette: deep-navy fill, gold focus, transparent rest underline. */
@@ -36,31 +30,6 @@ fun hudFieldColors(): TextFieldColors = TextFieldDefaults.colors(
     unfocusedPlaceholderColor = Color(0xFF8B949E)
 )
 
-/** Cyber Mode Material scheme: recolors stock buttons/switches/checks/radios green. Pure. */
-fun cyberScheme() = darkColorScheme(
-    primary = CyberGreen,
-    onPrimary = Color.Black,
-    secondary = CyberDim,
-    onSecondary = Color.Black,
-    tertiary = CyberDim
-)
-
-/** Cyber Mode field palette: black fill, green focus/cursor/text. */
-@Composable
-fun cyberFieldColors(): TextFieldColors = TextFieldDefaults.colors(
-    focusedContainerColor = Color.Black,
-    unfocusedContainerColor = Color.Black,
-    disabledContainerColor = Color.Black,
-    focusedIndicatorColor = CyberGreen,
-    unfocusedIndicatorColor = CyberDim,
-    disabledIndicatorColor = Color.Transparent,
-    focusedTextColor = CyberGreen,
-    unfocusedTextColor = CyberPale,
-    cursorColor = CyberGreen,
-    focusedPlaceholderColor = CyberDim,
-    unfocusedPlaceholderColor = CyberDim
-)
-
 /** App-wide text field: same params as Material's, HUD colors by default. */
 @Composable
 fun HudTextField(
@@ -74,8 +43,7 @@ fun HudTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     shape: Shape = RoundedCornerShape(12.dp),
-    colors: TextFieldColors = hudFieldColors(),
-    cyber: Boolean = false
+    colors: TextFieldColors = hudFieldColors()
 ) {
     TextField(
         value = value,
@@ -88,7 +56,7 @@ fun HudTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         shape = shape,
-        colors = if (cyber) cyberFieldColors() else colors
+        colors = colors
     )
 }
 
@@ -99,8 +67,7 @@ fun HudDialog(
     title: @Composable (() -> Unit)?,
     text: @Composable (() -> Unit)?,
     confirmButton: @Composable () -> Unit,
-    dismissButton: @Composable (() -> Unit)? = null,
-    cyber: Boolean = false
+    dismissButton: @Composable (() -> Unit)? = null
 ) {
     @Composable
     fun Body() {
@@ -110,20 +77,12 @@ fun HudDialog(
             dismissButton = dismissButton,
             title = title,
             text = text,
-            shape = RoundedCornerShape(if (cyber) 4.dp else 16.dp),
-            containerColor = if (cyber) CyberBlack else Color(0xFF0B1322),
-            titleContentColor = if (cyber) CyberGreen else HudGold,
-            textContentColor = if (cyber) CyberPale else HudInk,
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color(0xFF0B1322),
+            titleContentColor = HudGold,
+            textContentColor = HudInk,
             tonalElevation = 0.dp
         )
     }
-    if (cyber) {
-        MaterialTheme(colorScheme = cyberScheme()) {
-            CompositionLocalProvider(LocalTextStyle provides TextStyle(fontFamily = FontFamily.Monospace)) {
-                Body()
-            }
-        }
-    } else {
-        Body()
-    }
+    Body()
 }

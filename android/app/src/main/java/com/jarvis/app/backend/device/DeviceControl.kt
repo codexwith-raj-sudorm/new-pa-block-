@@ -11,7 +11,7 @@ package com.jarvis.app.backend.device
  * - "call mom" / "dial +919876543210" (places the call directly)
  * - "answer" / "hang up" / "speaker on" (in-call control)
  * - "text mom I'll be late" / "whatsapp ram hi" / "telegram launch at 6"
- * - "open mom's chat" / "open my whatsapp chat with ram"
+ * - "open mom's chat" / "open my whatsapp chat with ram" / "whatsapp ram"
  * - "turn on wifi" (opens the Wi-Fi panel — Android 10+ forbids silent toggles)
  * - "open settings"
  * - "silence my phone" / "turn off silent mode" (Do Not Disturb)
@@ -102,15 +102,23 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
         }
 
     // Open a chat ("open mom's chat", "open my whatsapp chat with ram").
-    Regex("""^open\s+(?:my\s+)?(?:(whatsapp|telegram|sms|text)\s+)?chat\s+with\s+(.+)$""", RegexOption.IGNORE_CASE)
+    Regex("""^open\s+(?:my\s+)?(?:(whatsapp|telegram|sms|text)\s+)?chat\s+with\s+(.+?)(?:\s+(?:on|in)\s+(whatsapp|telegram|sms|text))?$""", RegexOption.IGNORE_CASE)
         .find(t)?.let {
             val c = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
-            if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[1]), c)
+            val app = parseMsgApp(it.groupValues[1]) ?: parseMsgApp(it.groupValues[3])
+            if (c.isNotEmpty()) return OpenChat(app, c)
         }
-    Regex("""^open\s+(.+?)['\u2019]s\s+chat(?:\s+on\s+(whatsapp|telegram|sms|text))?$""", RegexOption.IGNORE_CASE)
+    Regex("""^open\s+(.+?)['\u2019]s\s+chat(?:\s+(?:on|in)\s+(whatsapp|telegram|sms|text))?$""", RegexOption.IGNORE_CASE)
         .find(t)?.let {
             val c = it.groupValues[1].trim()
             if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[2]), c)
+        }
+
+    // Bare app + name ("whatsapp ram") opens the chat — texts with a body matched above.
+    Regex("""^(whatsapp|telegram|sms|text|message)\s+(\S+)$""", RegexOption.IGNORE_CASE)
+        .find(t)?.let {
+            val c = it.groupValues[2].trim().trimEnd('?', '.', '!').trim()
+            if (c.isNotEmpty()) return OpenChat(parseMsgApp(it.groupValues[1]), c)
         }
 
     // Answer / end calls ("answer", "pick up the phone", "hang up", "end the call").
@@ -206,6 +214,19 @@ fun isAppMatchStrict(label: String, pkgName: String, query: String): Boolean {
 fun isAppMatchLoose(label: String, query: String): Boolean {
     val q = query.lowercase().trim()
     return q.isNotEmpty() && label.lowercase().contains(q)
+}
+
+/** True when the command takes over the screen (foreground UI must duck away). Pure, tested. */
+fun deviceCmdYieldsScreen(cmd: DeviceCommand): Boolean = when (cmd) {
+    is OpenApp, is OpenChat, is TextMessage, is CallContact, is WifiPanel, is SysSettings,
+    is SetAlarm, is SetTimer, is NavigateTo, is WebSearch, is PlayMedia -> true
+    else -> false
+}
+
+/** Telegram deep link for a phone number (needs 7+ digits). Pure, tested. */
+fun tgResolveLink(number: String): String? {
+    val d = number.filter { it.isDigit() }
+    return if (d.length >= 7) "tg://resolve?phone=$d" else null
 }
 
 /** Map "whatsapp" / "telegram" / "sms" / "text" to [MsgApp]. Pure, tested. */

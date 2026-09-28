@@ -28,6 +28,8 @@ import com.jarvis.app.backend.device.isAppMatchLoose
 import com.jarvis.app.backend.device.isAppMatchStrict
 import com.jarvis.app.backend.device.parseAlarmTime
 import com.jarvis.app.backend.device.parseDeviceCommand
+import com.jarvis.app.backend.device.deviceCmdYieldsScreen
+import com.jarvis.app.backend.device.tgResolveLink
 import com.jarvis.app.backend.device.parseDuration
 import com.jarvis.app.backend.device.parseMsgApp
 import com.jarvis.app.backend.device.waDigits
@@ -169,5 +171,29 @@ class DeviceTest {
     @Test fun recentsDoesNotHijack() {
         assertEquals("device", Router.detect("open youtube")?.tool)
         assertEquals("device", Router.detect("open mom's chat")?.tool)
+    }
+
+    @Test fun openChatInApp() {
+        assertEquals(OpenChat(MsgApp.WHATSAPP, "mom"), parseDeviceCommand("open mom's chat in whatsapp"))
+        assertEquals(OpenChat(MsgApp.TELEGRAM, "mom"), parseDeviceCommand("open mom's chat on telegram"))
+        assertEquals(OpenChat(MsgApp.WHATSAPP, "ram"), parseDeviceCommand("open chat with ram in whatsapp"))
+        assertEquals(OpenChat(MsgApp.TELEGRAM, "ram"), parseDeviceCommand("open my telegram chat with ram"))
+    }
+
+    @Test fun bareAppNameOpensChat() {
+        assertEquals(OpenChat(MsgApp.WHATSAPP, "ram"), parseDeviceCommand("whatsapp ram"))
+        assertEquals(OpenChat(MsgApp.SMS, "mom"), parseDeviceCommand("text mom"))
+    }
+
+    @Test fun yieldScreen() {
+        assertTrue(deviceCmdYieldsScreen(OpenChat(null, "mom")))
+        assertTrue(deviceCmdYieldsScreen(OpenApp("youtube")))
+        assertFalse(deviceCmdYieldsScreen(Torch(true)))
+        assertFalse(deviceCmdYieldsScreen(Silence))
+    }
+
+    @Test fun tgLink() {
+        assertEquals("tg://resolve?phone=919876543210", tgResolveLink("+91 98765 43210"))
+        assertNull(tgResolveLink("123"))
     }
 }

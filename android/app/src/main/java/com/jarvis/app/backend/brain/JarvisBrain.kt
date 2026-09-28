@@ -118,6 +118,8 @@ import com.jarvis.app.backend.device.MsgApp
 import com.jarvis.app.backend.device.NavigateTo
 import com.jarvis.app.backend.device.OpenApp
 import com.jarvis.app.backend.device.OpenChat
+import com.jarvis.app.backend.device.deviceCmdYieldsScreen
+import com.jarvis.app.backend.device.tgResolveLink
 import com.jarvis.app.backend.device.PlayMedia
 import com.jarvis.app.backend.device.SetAlarm
 import com.jarvis.app.backend.device.SetTimer
@@ -153,6 +155,7 @@ import com.jarvis.app.backend.system.MicHandoff
 import com.jarvis.app.backend.system.NotifReader
 import com.jarvis.app.backend.system.ScreenConsent
 import com.jarvis.app.backend.system.assistCaptureSettleMs
+import com.jarvis.app.backend.system.toolYieldsScreen
 import com.jarvis.app.backend.system.WakeService
 import com.jarvis.app.backend.system.armReminderAlarm
 import com.jarvis.app.backend.system.armSchedMsgAlarm
@@ -951,10 +954,6 @@ class Store(context: Context) {
         get() = p.getBoolean("tts", true)
         set(v) = p.edit().putBoolean("tts", v).apply()
 
-    var cyberMode: Boolean
-        get() = p.getBoolean("cyber_mode", false)
-        set(v) = p.edit().putBoolean("cyber_mode", v).apply()
-
     var wakeEnabled: Boolean
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
@@ -1575,7 +1574,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var listTick by mutableStateOf(0)
         private set
     var ttsOn by mutableStateOf(store.ttsEnabled)
-    var cyberMode by mutableStateOf(store.cyberMode)
     var continuous by mutableStateOf(store.continuous)
     var hindiListen by mutableStateOf(store.hindiListen)
     var voiceGuard by mutableStateOf(store.voiceGuard)
@@ -1764,11 +1762,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         ttsOn = !ttsOn
         store.ttsEnabled = ttsOn
         if (!ttsOn) stopSpeaking()
-    }
-
-    fun toggleCyberMode() {
-        cyberMode = !cyberMode
-        store.cyberMode = cyberMode
     }
 
     fun toggleContinuous() {
@@ -3178,6 +3171,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         persist()
         HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
+            if (toolYieldsScreen(hit.tool)) requestCaptureHide()
             if (hit.tool == "weather" || hit.tool == "fx" || hit.tool.startsWith("github") || hit.tool == "screen_watch") {
                 busy = true
                 HudStateBus.update(thinking = true)
@@ -3480,6 +3474,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
             ?: return "I can place and answer calls, text, open apps and chats, or flip the torch — e.g. “text mom I’ll be late”."
+        if (deviceCmdYieldsScreen(cmd)) requestCaptureHide()
         return when (cmd) {
             is OpenApp -> openAppByName(cmd.name)
             is Silence -> setSilence(true)
@@ -3756,6 +3751,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ——— Scheduled messaging ———
+    private fun openTelegramChat(ctx: Context, label: String, number: String): String {
+        val link = tgResolveLink(number)
+            ?: return "That contact has no usable phone number for Telegram."
+        return try {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                i.setPackage("org.telegram.messenger")
+                ctx.startActivity(i)
+            } catch (_: Exception) {
+                i.setPackage(null)
+                ctx.startActivity(i)
+            }
+            "Opening $label's Telegram chat."
+        } catch (_: Exception) {
+            "Couldn't open Telegram — is it installed?"
+        }
+    }
+
     private fun scheduleSchedMsg(req: SchedMsgRequest?): String {
         if (req == null) return "Say it like: “text mom I'll be late tomorrow at 9am”."
         if (req.app == MsgApp.TELEGRAM) {
@@ -3829,14 +3842,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun openChat(app: MsgApp?, contact: String): String {
         val ctx = getApplication<Application>()
-        if (app == MsgApp.TELEGRAM) {
-            return "I can’t open Telegram chats by contact name yet — try WhatsApp or text."
-        }
         val number = when (val r = resolveRecipient(contact)) {
             is Recipient.Found -> r.number
             Recipient.NeedPermission -> return "I need contacts permission to find “$contact” — allow it, then ask again."
             Recipient.NotFound -> return "Couldn’t find “$contact” in contacts."
         }
+        if (app == MsgApp.TELEGRAM) return openTelegramChat(ctx, contact, number)
         if (app == MsgApp.WHATSAPP || (app == null && isAppInstalled(ctx, "com.whatsapp"))) {
             return openWhatsAppChat(ctx, contact, number, null)
         }

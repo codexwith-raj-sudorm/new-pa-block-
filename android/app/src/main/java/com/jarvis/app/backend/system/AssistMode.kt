@@ -38,3 +38,9 @@ fun defaultAssistantSettingsIntent(): Intent =
 
 /** Settle delay so our own window is gone before a screen capture (no selfies). Pure, tested. */
 fun assistCaptureSettleMs(): Long = 800L
+
+/** Router tools that take over the screen (foreground UI must duck away). Pure, tested. */
+fun toolYieldsScreen(tool: String): Boolean = tool in setOf(
+    "access_back", "access_recents", "access_recents_tap", "access_scroll",
+    "access_tap", "access_setup", "autostart", "backup"
+)
