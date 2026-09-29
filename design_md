@@ -643,3 +643,460 @@ new main screen ui design
 </body>
 </html>
 
+
+3. wake mode screen new design 
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS // Harmonic Core Active</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        /* 1. Ambient Background */
+        .ambient-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(23, 201, 100, 0.08) 0%, transparent 70%);
+            z-index: 0;
+        }
+
+        /* 2. Glassmorphic Components */
+        .glass-pill {
+            background: rgba(15, 15, 18, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 9999px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        /* 3. The Central Architecture */
+        .core-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 4. Harmonic Resonance Field (Expanding Ripples) */
+        .resonance-wave {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 1px solid rgba(23, 201, 100, 0.5);
+            box-shadow: 
+                0 0 20px rgba(23, 201, 100, 0.2),
+                inset 0 0 20px rgba(23, 201, 100, 0.1);
+            /* Smooth, easing expansion */
+            animation: ripple-out 9s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+        }
+        
+        /* Stagger the waves to create a continuous pulse */
+        .wave-1 { animation-delay: 0s; }
+        .wave-2 { animation-delay: 3s; }
+        .wave-3 { animation-delay: 6s; }
+
+        @keyframes ripple-out {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(2.8); opacity: 0; border-width: 0px; }
+        }
+
+        /* 5. Floating Data Nodes */
+        .data-ring {
+            position: absolute;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            animation: spin-slow 30s linear infinite;
+            pointer-events: none;
+        }
+        .data-ring-inner {
+            width: 180px;
+            height: 180px;
+            animation: spin-slow 20s linear infinite reverse;
+        }
+        .data-node {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ffffff, 0 0 15px #17c964;
+        }
+        /* Positioning the tiny nodes randomly on their invisible tracks */
+        .n1 { top: 0; left: 50%; transform: translateX(-50%); }
+        .n2 { bottom: 15%; right: 10%; }
+        .n3 { top: 20%; left: 10%; }
+        .n4 { bottom: 5%; left: 40%; }
+        
+        @keyframes spin-slow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 6. The Glass Containment Sphere */
+        .containment-orb {
+            position: absolute;
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), rgba(0,0,0,0.5));
+            border: 1px solid rgba(23, 201, 100, 0.3);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            box-shadow: 
+                inset 0 0 25px rgba(23, 201, 100, 0.2),
+                0 0 50px rgba(23, 201, 100, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: levitate 6s ease-in-out infinite alternate;
+            z-index: 10;
+        }
+
+        /* 7. The Hyper-Intelligent Entity (Inner Core) */
+        .intelligent-entity {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffffff 10%, #17c964 60%, transparent 100%);
+            filter: drop-shadow(0 0 10px #ffffff) drop-shadow(0 0 35px #17c964);
+            animation: deep-thought 4s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
+        }
+
+        @keyframes levitate {
+            0% { transform: translateY(-5px); }
+            100% { transform: translateY(5px); }
+        }
+
+        @keyframes deep-thought {
+            0% { 
+                transform: scale(0.95); 
+                filter: drop-shadow(0 0 5px #ffffff) drop-shadow(0 0 20px rgba(23,201,100,0.6));
+                opacity: 0.85;
+            }
+            100% { 
+                transform: scale(1.1); 
+                filter: drop-shadow(0 0 15px #ffffff) drop-shadow(0 0 50px #17c964);
+                opacity: 1;
+            }
+        }
+
+        /* Subdued Waveform */
+        .waveform-line {
+            height: 1px;
+            width: 100%;
+            background: linear-gradient(90deg, transparent, rgba(23, 201, 100, 0.6), transparent);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div class="ambient-bg"></div>
+
+    <main class="w-full max-w-[414px] h-[100dvh] relative flex flex-col z-10 px-6 py-10 justify-between">
+        
+        <!-- TOP: Telemetry Header -->
+        <header class="flex justify-between items-start w-full z-20 pt-4">
+            <div class="flex flex-col gap-1 text-[9px] font-mono text-gray-500 tracking-[0.2em] uppercase">
+                <span class="text-neon flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 bg-neon rounded-full shadow-[0_0_8px_#17c964] animate-pulse"></div>
+                    AEGIS.NEURAL // WAKE.01
+                </span>
+                <span>AUTH: Raj Thakur</span>
+            </div>
+            <div class="text-[9px] font-mono text-gray-500 tracking-[0.2em]">
+                FREQ: 433.0 Hz
+            </div>
+        </header>
+
+        <!-- CENTER: Main Interface -->
+        <div class="flex flex-col items-center justify-center flex-1 w-full gap-12 z-20">
+            
+            <div class="flex flex-col items-center gap-3">
+                <h2 class="text-gray-300 tracking-[0.4em] font-light text-sm animate-pulse">LISTENING</h2>
+                <div class="w-12 h-[1px] bg-neon shadow-[0_0_10px_#17c964]"></div>
+            </div>
+
+            <!-- The Neural Architecture -->
+            <div class="core-container">
+                
+                <!-- Harmonic Resonance Ripples -->
+                <div class="resonance-wave wave-1"></div>
+                <div class="resonance-wave wave-2"></div>
+                <div class="resonance-wave wave-3"></div>
+
+                <!-- Floating Data Nodes -->
+                <div class="data-ring">
+                    <div class="data-node n1"></div>
+                    <div class="data-node n2"></div>
+                </div>
+                <div class="data-ring data-ring-inner">
+                    <div class="data-node n3"></div>
+                    <div class="data-node n4"></div>
+                </div>
+                
+                <!-- The Entity inside the Glass Orb -->
+                <div class="containment-orb">
+                    <div class="intelligent-entity"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- BOTTOM: Transcription & Controls -->
+        <div class="w-full flex flex-col items-center gap-6 z-20 pb-4">
+            
+            <!-- Live Transcription -->
+            <div class="flex flex-col items-center gap-4 w-full">
+                <p class="text-gray-400 font-light text-lg italic tracking-wide h-6">"..."</p>
+                <div class="waveform-line"></div>
+            </div>
+
+            <!-- System Stats -->
+            <div class="flex justify-between items-center w-full px-2 text-[9px] font-mono tracking-widest text-gray-500">
+                <span class="text-neon">• 69MS</span>
+                <span>GEMINI-PRO</span>
+                <span>VOICE • EN •</span>
+            </div>
+
+            <!-- Action Controls (Rounded Glass Pill) -->
+            <div class="glass-pill w-full px-6 py-3.5 flex justify-between items-center mt-2">
+                <!-- Mute Button -->
+                <button class="w-12 h-12 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-full transition-colors outline-none">
+                    <i class="fa-solid fa-microphone-slash text-lg"></i>
+                </button>
+                
+                <!-- Expand -->
+                <button class="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-white transition-colors outline-none">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[15px]"></i>
+                </button>
+                
+                <!-- Close -->
+                <button class="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-white transition-colors outline-none">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+        </div>
+    </main>
+</body>
+</html>
+
+
+4. wake mode floating bubble new Design
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS // Hub Bubble Component</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #050505;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            gap: 50px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* 
+           THE GEOMETRIC HUB CONTAINER 
+           A heavily rounded diamond/squircle shape
+        */
+        .hub-bubble {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            background: rgba(20, 20, 25, 0.8);
+            backdrop-filter: blur(12px);
+            /* Shape definition: Rounded Diamond */
+            border-radius: 24px;
+            transform: rotate(45deg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Counter-rotate inner elements to keep them upright */
+        .hub-inner {
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* The Outer Dashed Track */
+        .hub-track {
+            position: absolute;
+            width: 130%;
+            height: 130%;
+            border: 2px dashed;
+            border-radius: 50%;
+            opacity: 0.6;
+            transition: border-color 0.4s ease;
+        }
+
+        /* The Central Glowing Core */
+        .hub-core {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            transition: all 0.4s ease;
+        }
+
+        /* Label beneath the hub */
+        .hub-label {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-45deg); /* Counter-rotate label */
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            color: #a1a1aa;
+            white-space: nowrap;
+            transition: color 0.4s ease;
+        }
+
+        /* ==========================================
+           STATE 1: IDLE (BLUE)
+           Slow breathing, slow track rotation
+           ========================================== */
+        .state-idle .hub-track {
+            border-color: #3b82f6; /* Blue */
+            animation: spin 15s linear infinite;
+        }
+        .state-idle .hub-core {
+            background: #3b82f6;
+            box-shadow: 0 0 15px #3b82f6, inset 0 0 8px rgba(255,255,255,0.5);
+            animation: breathe-slow 3s ease-in-out infinite alternate;
+        }
+
+        /* ==========================================
+           STATE 2: WAKE RECOGNIZED (GREEN)
+           Instant pop, rapid flash
+           ========================================== */
+        .state-wake {
+            transform: rotate(45deg) scale(1.15); /* Pop out effect */
+            border-color: rgba(23, 201, 100, 0.4);
+        }
+        .state-wake .hub-track {
+            border-color: #17c964; /* Neon Green */
+            animation: spin 4s linear infinite; /* Speeds up */
+        }
+        .state-wake .hub-core {
+            background: #17c964;
+            box-shadow: 0 0 25px #17c964, inset 0 0 10px #fff;
+            animation: flash-rapid 0.3s ease-in-out infinite alternate;
+        }
+        .state-wake .hub-label {
+            color: #17c964;
+            text-shadow: 0 0 8px rgba(23, 201, 100, 0.5);
+        }
+
+        /* ==========================================
+           STATE 3: LISTENING (WHITE)
+           Pulsing waveform effect
+           ========================================== */
+        .state-listening {
+            transform: rotate(45deg) scale(1.05);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .state-listening .hub-track {
+            border: 2px dotted #ffffff; /* Track changes to dots */
+            animation: spin 8s linear infinite reverse; /* Reverses direction */
+        }
+        .state-listening .hub-core {
+            background: #ffffff;
+            box-shadow: 0 0 20px #ffffff;
+            animation: pulse-wave 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .state-listening .hub-label {
+            color: #ffffff;
+        }
+
+        /* Keyframes */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes breathe-slow { 
+            0% { transform: scale(0.9); opacity: 0.7; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+        @keyframes flash-rapid {
+            0% { transform: scale(1); opacity: 0.9; }
+            100% { transform: scale(1.3); opacity: 1; }
+        }
+        @keyframes pulse-wave {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(255,255,255,0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+        }
+
+        /* Demo Buttons UI (Not part of the component) */
+        .controls { display: flex; gap: 10px; margin-top: 40px; }
+        button { background: #222; color: #fff; border: 1px solid #444; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #333; }
+    </style>
+</head>
+<body>
+
+    <!-- The Hub Bubble Component -->
+    <div class="hub-bubble state-idle" id="hub-component">
+        <div class="hub-inner">
+            <div class="hub-track"></div>
+            <div class="hub-core"></div>
+            <div class="hub-label" id="hub-text">[SYS: IDLE]</div>
+        </div>
+    </div>
+
+    <!-- Testing Controls (To preview the states) -->
+    <div class="controls">
+        <button onclick="setState('state-idle', '[SYS: IDLE]')">Idle (Blue)</button>
+        <button onclick="setState('state-wake', '[WAKE: RECOGNIZED]')">Wake (Green)</button>
+        <button onclick="setState('state-listening', '[MIC: LIVE]')">Listening (White)</button>
+    </div>
+
+    <script>
+        function setState(stateClass, labelText) {
+            const hub = document.getElementById('hub-component');
+            const text = document.getElementById('hub-text');
+            
+            // Reset states
+            hub.classList.remove('state-idle', 'state-wake', 'state-listening');
+            
+            // Apply new state
+            hub.classList.add(stateClass);
+            text.innerText = labelText;
+        }
+    </script>
+</body>
+</html>
+
+
