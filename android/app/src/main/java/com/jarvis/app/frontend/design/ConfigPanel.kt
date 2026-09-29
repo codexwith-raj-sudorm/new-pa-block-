@@ -475,7 +475,7 @@ fun ConfigPanel(vm: JarvisViewModel) {
                     Modifier.fillMaxWidth().padding(24.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    GhostPillButton("Abort", { vm.showSettings = false }, Modifier.weight(1f))
+                    GhostPillButton("Abort", Modifier.weight(1f)) { vm.showSettings = false }
                     NeonPillButton(
                         "Commit Changes",
                         Modifier.weight(1f)
