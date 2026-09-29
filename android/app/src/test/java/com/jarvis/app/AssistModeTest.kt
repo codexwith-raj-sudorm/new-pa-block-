@@ -39,7 +39,7 @@ class AssistModeTest {
     }
 
     @Test fun yieldTools() {
-        // "device" is granular (see deviceCmdYieldsScreen) — torch/silence keep the overlay.
+        // "device" is granular (see deviceCmdYieldsScreen) — silence keeps the overlay.
         assertFalse(toolYieldsScreen("device"))
         assertTrue(toolYieldsScreen("access_tap"))
         assertTrue(toolYieldsScreen("autostart"))

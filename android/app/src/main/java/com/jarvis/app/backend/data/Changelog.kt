@@ -9,6 +9,15 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        57, "6.6", listOf(
+            "Chat area strictly bounded — bottom bar always visible",
+            "Flashlight control removed (no hardware toggles)",
+            "Voice warnings auto-dismiss after 4 seconds",
+            "Baked keys activate on owner-grade master only",
+            "API keys + master key move to encrypted storage"
+        )
+    ),
+    ChangelogEntry(
         56, "6.5", listOf(
             "Share entry is a floating sheet — no more black fullscreen",
             "Fresh chats start empty (no pre-seeded bot messages)",

@@ -20,7 +20,6 @@ import com.jarvis.app.backend.device.Silence
 import com.jarvis.app.backend.device.Speaker
 import com.jarvis.app.backend.device.SysSettings
 import com.jarvis.app.backend.device.TextMessage
-import com.jarvis.app.backend.device.Torch
 import com.jarvis.app.backend.device.Unsilence
 import com.jarvis.app.backend.device.WebSearch
 import com.jarvis.app.backend.device.WifiPanel
@@ -43,9 +42,10 @@ class DeviceTest {
         assertEquals(OpenApp("whatsapp"), parseDeviceCommand("launch whatsapp app"))
     }
 
-    @Test fun torchParse() {
-        assertEquals(Torch(true), parseDeviceCommand("turn on the flashlight"))
-        assertEquals(Torch(false), parseDeviceCommand("torch off"))
+    @Test fun torchNotSupported() {
+        // Flashlight control removed: hardware toggles are out of scope.
+        assertNull(parseDeviceCommand("turn on the flashlight"))
+        assertNull(parseDeviceCommand("torch off"))
     }
 
     @Test fun callParse() {
@@ -188,7 +188,6 @@ class DeviceTest {
     @Test fun yieldScreen() {
         assertTrue(deviceCmdYieldsScreen(OpenChat(null, "mom")))
         assertTrue(deviceCmdYieldsScreen(OpenApp("youtube")))
-        assertFalse(deviceCmdYieldsScreen(Torch(true)))
         assertFalse(deviceCmdYieldsScreen(Silence))
     }
 

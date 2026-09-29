@@ -36,6 +36,21 @@ fun saveGithubToken(ctx: Context, token: String) {
     }
 }
 
+/** Read a secret from encrypted prefs ("" when unavailable). Never throws. */
+fun secureGet(ctx: Context, key: String): String = try {
+    securePrefs(ctx).getString(key, "") ?: ""
+} catch (_: Exception) {
+    ""
+}
+
+/** Write a secret to encrypted prefs. Never throws. */
+fun securePut(ctx: Context, key: String, value: String) {
+    try {
+        securePrefs(ctx).edit().putString(key, value).apply()
+    } catch (_: Exception) {
+    }
+}
+
 // ---------- repo-name parsing (pure, tested) ----------
 
 /**

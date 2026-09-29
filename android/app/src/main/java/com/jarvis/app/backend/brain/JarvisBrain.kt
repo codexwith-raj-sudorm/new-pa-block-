@@ -13,8 +13,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.provider.Settings
@@ -127,7 +125,6 @@ import com.jarvis.app.backend.device.SoundMuter
 import com.jarvis.app.backend.device.Speaker
 import com.jarvis.app.backend.device.SysSettings
 import com.jarvis.app.backend.device.TextMessage
-import com.jarvis.app.backend.device.Torch
 import com.jarvis.app.backend.device.Unsilence
 import com.jarvis.app.backend.device.WebSearch
 import com.jarvis.app.backend.device.WifiPanel
@@ -143,6 +140,8 @@ import com.jarvis.app.backend.net.formatRepoBrief
 import com.jarvis.app.backend.net.formatRepoList
 import com.jarvis.app.backend.net.formatRuns
 import com.jarvis.app.backend.net.loadGithubToken
+import com.jarvis.app.backend.net.secureGet
+import com.jarvis.app.backend.net.securePut
 import com.jarvis.app.backend.net.repoName
 import com.jarvis.app.backend.net.resolveMatch
 import com.jarvis.app.backend.net.saveGithubToken
@@ -955,9 +954,35 @@ class Store(context: Context) {
     private val appCtx = context.applicationContext
     private val p = context.getSharedPreferences("jarvis", Context.MODE_PRIVATE)
 
+    /**
+     * Encrypted secret read with one-time migration out of plain prefs.
+     * Falls back to the plain value when the keystore is unavailable —
+     * secrets are never lost to a broken keystore.
+     */
+    private fun secGet(plainKey: String): String {
+        val s = secureGet(appCtx, plainKey)
+        if (s.isNotEmpty()) return s
+        val legacy = p.getString(plainKey, "").orEmpty()
+        if (legacy.isNotEmpty()) {
+            securePut(appCtx, plainKey, legacy)
+            if (secureGet(appCtx, plainKey) == legacy) p.edit().remove(plainKey).apply()
+        }
+        return secureGet(appCtx, plainKey).ifEmpty { legacy }
+    }
+
+    /** Encrypted secret write (plain fallback only when the keystore fails). */
+    private fun secPut(plainKey: String, v: String) {
+        securePut(appCtx, plainKey, v)
+        if (v.isEmpty() || secureGet(appCtx, plainKey) == v) {
+            if (p.contains(plainKey)) p.edit().remove(plainKey).apply()
+        } else {
+            p.edit().putString(plainKey, v).apply()
+        }
+    }
+
     var apiKey: String
-        get() = p.getString("key", "") ?: ""
-        set(v) = p.edit().putString("key", v.trim()).apply()
+        get() = secGet("key")
+        set(v) { secPut("key", v.trim()) }
 
     var model: String
         get() = p.getString("model", Models.FALLBACK[0]) ?: Models.FALLBACK[0]
@@ -968,8 +993,8 @@ class Store(context: Context) {
         set(v) = p.edit().putString("ai_provider", v).apply()
 
     var openaiKey: String
-        get() = p.getString("oai_key", "") ?: ""
-        set(v) = p.edit().putString("oai_key", v.trim()).apply()
+        get() = secGet("oai_key")
+        set(v) { secPut("oai_key", v.trim()) }
 
     var openaiBase: String
         get() = p.getString("oai_base", "") ?: ""
@@ -1024,8 +1049,13 @@ class Store(context: Context) {
         set(v) = p.edit().putBoolean("onboarded", v).apply()
 
     var masterKey: String
-        get() = p.getString("master_key", "") ?: ""
-        set(v) = p.edit().putString("master_key", v).apply()
+        get() = secGet("master_key")
+        set(v) { secPut("master_key", v) }
+
+    /** True when the installed master is owner-grade (baked key or owner card). */
+    var masterBaked: Boolean
+        get() = p.getBoolean("master_baked", false)
+        set(v) = p.edit().putBoolean("master_baked", v).apply()
 
     var masterName: String
         get() = p.getString("master_name", "") ?: ""
@@ -1636,6 +1666,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var lastHeard by mutableStateOf("")
     var heardFresh by mutableStateOf(false)
     var voiceNote by mutableStateOf<String?>(null)
+    private var voiceNoteGen = 0
+
+    /** Transient banner: shows [text], auto-clears after 4s like a toast. */
+    private fun flashVoiceNote(text: String) {
+        voiceNoteGen++
+        val g = voiceNoteGen
+        voiceNote = text
+        viewModelScope.launch {
+            delay(4000)
+            if (voiceNoteGen == g && voiceNote == text) voiceNote = null
+        }
+    }
 
     /** Bumped to tell the foreground activity to move aside before a screen capture. */
     var captureHideTick by mutableStateOf(0)
@@ -1656,7 +1698,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val builtinKey: String = unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY)
 
     /** User's own key if pasted, else the built-in key — only once the Master Key is installed. */
-    private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled) builtinKey else "" }
+    private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled && store.masterBaked) builtinKey else "" }
 
     // Owner GitHub token, baked from the GH_READ_TOKEN repo secret (same obfuscation).
     // Only usable once the Master Key is installed — that activation is the unlock.
@@ -1665,11 +1707,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pasted token first, else the baked token once the Master Key is installed. */
     val effectiveGithubToken: String
-        get() = githubToken.ifBlank { if (masterInstalled) builtinGh else "" }
+        get() = githubToken.ifBlank { if (masterInstalled && store.masterBaked) builtinGh else "" }
 
     fun githubStatus(): String = when {
         githubToken.isNotBlank() -> "✓ Custom token active"
-        builtinGh.isNotBlank() && masterInstalled -> "✓ Repo access active via Master Key"
+        builtinGh.isNotBlank() && masterInstalled && store.masterBaked -> "✓ Repo access active via Master Key"
         builtinGh.isNotBlank() -> "Install Master Key to activate repo access"
         else -> ""
     }
@@ -1846,6 +1888,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
         val baked = k == BAKED_MASTER_KEY
         store.masterKey = k
+        store.masterBaked = baked
         store.masterName = (if (baked) BAKED_MASTER_NAME else MASTER_SELF_NAME).take(40)
         store.masterAbout = (if (baked) BAKED_MASTER_ABOUT else about.trim().ifBlank { MASTER_SELF_ABOUT }).take(500)
         masterInstalled = true
@@ -1854,7 +1897,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         store.masterUnlocked = false
         masterUnlocked = false
         settingsMsg = if (baked) "Master key accepted. Welcome, Master Raj."
-        else "Master key installed. I recognize you, Master Raj."
+        else "Master key installed — limited mode. Paste your own Gemini key."
         HudStateBus.postTicker("[MASTER RECOGNIZED]")
     }
 
@@ -1864,6 +1907,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return false
         }
         store.masterKey = ""
+        store.masterBaked = false
         store.masterName = ""
         store.masterAbout = ""
         masterName = ""
@@ -1905,13 +1949,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun installBakedMaster() {
-        if (store.masterKey.isNotBlank()) return
+        if (store.masterKey.isNotBlank()) {
+            // Upgrade reconciliation: a baked key stays owner-grade.
+            if (store.masterKey == BAKED_MASTER_KEY) store.masterBaked = true
+            return
+        }
         val b64 = BuildConfig.DEFAULT_MASTER
         if (b64.isBlank()) return
         try {
             val json = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8)
             val card = parseMasterCardJson(json) ?: return
             store.masterKey = card.first
+            store.masterBaked = true
             store.masterName = card.second.take(40)
             store.masterAbout = card.third.take(500)
             masterInstalled = true
@@ -2366,14 +2415,14 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         } else if (++convoErrs < CONVO_MAX_CONSEC_ERRORS) {
                             // Transient (network/server/busy) — stay in session, retry.
                             if (msg != null) {
-                                voiceNote = msg
+                                flashVoiceNote(msg)
                                 toast(msg)
                             }
                             restartConvoListen()
                         } else {
                             convoErrs = 0
                             if (msg != null) {
-                                voiceNote = msg
+                                flashVoiceNote(msg)
                                 toast(msg)
                             }
                             endConvoSession()
@@ -2381,7 +2430,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                         return
                     }
                     if (msg != null) {
-                        voiceNote = msg
+                        flashVoiceNote(msg)
                         toast(msg)
                     }
                     commandAudioEnd()
@@ -3035,7 +3084,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val d = voiceGateDecision(heard, guardOn, isDeviceLocked(), store.masterName, hasVoiceprint(), verdict)
         if (!d.send) {
             if (d.note != null) {
-                voiceNote = d.note
+                flashVoiceNote(d.note)
                 HudStateBus.postTicker("[VOICE: REJECTED]")
             }
             return false
@@ -3489,13 +3538,12 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun runDevice(arg: String): String {
         val cmd = parseDeviceCommand(arg)
-            ?: return "I can place and answer calls, text, open apps and chats, or flip the torch — e.g. “text mom I’ll be late”."
+            ?: return "I can place and answer calls, text, open apps and chats — e.g. “text mom I’ll be late”."
         if (deviceCmdYieldsScreen(cmd)) requestCaptureHide()
         return when (cmd) {
             is OpenApp -> openAppByName(cmd.name)
             is Silence -> setSilence(true)
             is Unsilence -> setSilence(false)
-            is Torch -> setTorch(cmd.on)
             is CallContact -> callContact(cmd.query)
             is TextMessage -> textMessage(cmd.app, cmd.contact, cmd.body)
             is OpenChat -> openChat(cmd.app, cmd.contact)
@@ -3586,22 +3634,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         if (!isAccessEnabled(getApplication())) return needAccess()
         return if (AccessBridge.recents()) "Recent apps — tap one, or say “open X from recents”."
         else "Couldn't open recent apps."
-    }
-
-    private fun setTorch(on: Boolean): String {
-        val ctx = getApplication<Application>()
-        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            permRequest = Manifest.permission.CAMERA
-            return "I need camera permission for the torch — allow it, then ask again."
-        }
-        return try {
-            val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-            val id = cm.cameraIdList.firstOrNull {
-                cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-            } ?: return "This device has no flashlight."
-            cm.setTorchMode(id, on)
-            if (on) "Torch on." else "Torch off."
-        } catch (_: Exception) { "Couldn't reach the torch." }
     }
 
     private sealed interface Recipient {
@@ -4041,7 +4073,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "\u2022 \"Briefing\" \u2014 the day at a glance\n" +
         "\u2022 \"Remind me in 10 minutes to stretch\"\n" +
         "\u2022 \"Remember that ...\" / \"Recall ...\"\n" +
-        "\u2022 \"Turn on the flashlight\" / \"Call mom\"\n" +
+        "\u2022 \"Silence my phone\" / \"Call mom\"\n" +
         "\u2022 \"Hands-free on\" / \"Daily briefing on\"\n" +
         "\u2022 \"Smart actions\" / \"List smart actions\"\n" +
         "\u2022 \"Back up my data\" / \"Battery status\"\n" +

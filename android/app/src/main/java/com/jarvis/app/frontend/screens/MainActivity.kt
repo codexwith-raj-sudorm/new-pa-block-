@@ -484,7 +484,7 @@ fun JarvisScreen() {
         }
         LazyColumn(
             state = listState,
-            modifier = if (heroVisible) Modifier.fillMaxWidth() else Modifier.weight(1f).fillMaxWidth(),
+            modifier = if (heroVisible) Modifier.fillMaxWidth().heightIn(max = 280.dp) else Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {

@@ -49,7 +49,7 @@ class JarvisAccessService : AccessibilityService() {
     }
 }
 
-/** Screen read + control. Every call returns null when the service isn't bound. */
+/** Screen read + UI navigation only (back/recents/tap) — never hardware or system settings. Every call returns null when the service isn't bound. */
 object AccessBridge {
     var bound: JarvisAccessService? = null
 

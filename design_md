@@ -198,7 +198,7 @@ new main screen ui design
     <main class="w-full max-w-[414px] h-[100dvh] relative flex flex-col z-10">
         
         <!-- Header -->
-        <header class="w-full px-6 py-4 flex justify-between items-center z-20">
+        <header class="w-full px-6 py-4 flex justify-between items-center shrink-0 z-20">
             <div class="w-10 h-10 rounded-full glass-card flex items-center justify-center">
                 <i class="fa-solid fa-bars text-sm text-gray-300"></i>
             </div>
@@ -211,7 +211,7 @@ new main screen ui design
         </header>
 
         <!-- Chat / Content Area -->
-        <div class="flex-1 overflow-y-auto no-scrollbar px-5 pt-4 pb-32 flex flex-col gap-6 z-20">
+        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 pt-4 pb-32 flex flex-col gap-6 z-20">
             
             <!-- Hero Text (Visible when chat is empty) -->
             <div class="w-full text-center mt-2 mb-10">

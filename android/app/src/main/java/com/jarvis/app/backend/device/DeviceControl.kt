@@ -7,7 +7,6 @@ package com.jarvis.app.backend.device
  * Understood (case-insensitive):
  * - "open YouTube" / "launch whatsapp app" / "start camera"
  * - "recent apps" / "open X from recents" (task switcher via accessibility)
- * - "turn on the flashlight" / "torch off"
  * - "call mom" / "dial +919876543210" (places the call directly)
  * - "answer" / "hang up" / "speaker on" (in-call control)
  * - "text mom I'll be late" / "whatsapp ram hi" / "telegram launch at 6"
@@ -18,7 +17,6 @@ package com.jarvis.app.backend.device
  */
 sealed interface DeviceCommand
 data class OpenApp(val name: String) : DeviceCommand
-data class Torch(val on: Boolean) : DeviceCommand
 data class CallContact(val query: String) : DeviceCommand
 object Silence : DeviceCommand
 object Unsilence : DeviceCommand
@@ -40,13 +38,6 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
     val t = raw.trim()
     if (t.isEmpty()) return null
     val low = t.lowercase()
-
-    // Torch ("turn on the flashlight", "torch off"). Bare "torch" falls through.
-    if (listOf("flashlight", "flash light", "torch").any { low.contains(it) }) {
-        val on = Regex("""\bon\b""").containsMatchIn(low)
-        val off = Regex("""\boff\b""").containsMatchIn(low)
-        if (on != off) return Torch(on)
-    }
 
     // Speakerphone ("speaker on", "turn off the speaker", "speakerphone off").
     if (low.contains("speaker")) {

@@ -357,8 +357,6 @@ fun ConfigPanel(vm: JarvisViewModel) {
                                 if (masterTaps >= 5) {
                                     vm.setMasterUnlocked()
                                     Toast.makeText(setCtx, "Master section unlocked", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(setCtx, (5 - masterTaps).toString() + " taps to unlock master", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
