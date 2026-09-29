@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        53, "6.2", listOf(
+            "Wake screen: harmonic core with ripples, data rings, live transcription",
+            "Floating hub bubble: diamond hub with idle/wake/listening states"
+        )
+    ),
+    ChangelogEntry(
         52, "6.1", listOf(
             "Premium home: neon-green glass UI with a living swirl core",
             "Hero greeting, context card, and one-tap “Execute Script”",

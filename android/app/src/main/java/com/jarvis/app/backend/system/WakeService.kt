@@ -84,7 +84,7 @@ import com.jarvis.app.backend.voice.templatesFromString
 import com.jarvis.app.backend.voice.verifyVoiceprint
 import com.jarvis.app.backend.voice.voiceGateDecision
 import com.jarvis.app.backend.voice.vpThresholdFor
-import com.jarvis.app.frontend.design.StarkBubble
+import com.jarvis.app.frontend.design.HubBubble
 import com.jarvis.app.frontend.widgets.SpeechState
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
 import com.jarvis.app.R
@@ -724,13 +724,13 @@ class WakeService : Service() {
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.graphicsLayer { scaleX = s; scaleY = s }
                     ) {
-                        StarkBubble(
+                        HubBubble(
                             startX = p.x.toFloat(),
                             startY = p.y.toFloat(),
                             contentWidthDp = 120f,
-                            level = level,
-                            hudActive = hud.listening || hud.speaking,
-                            accent = accent,
+                            listening = hud.listening,
+                            speaking = hud.speaking,
+                            wakeFlash = flash != null,
                             onClick = { onBubbleTap() },
                             onDoubleTap = { StarkSounds.click(); hushSpeech() },
                             onPositionChanged = { nx, ny ->

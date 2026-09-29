@@ -651,7 +651,7 @@ new main screen ui design
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS // Harmonic Core Active</title>
+    <title>JARVIS // Harmonic Core Active</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -817,7 +817,7 @@ new main screen ui design
             <div class="flex flex-col gap-1 text-[9px] font-mono text-gray-500 tracking-[0.2em] uppercase">
                 <span class="text-neon flex items-center gap-2">
                     <div class="w-1.5 h-1.5 bg-neon rounded-full shadow-[0_0_8px_#17c964] animate-pulse"></div>
-                    AEGIS.NEURAL // WAKE.01
+                    JARVIS.NEURAL // WAKE.01
                 </span>
                 <span>AUTH: Raj Thakur</span>
             </div>
@@ -908,7 +908,7 @@ new main screen ui design
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS // Hub Bubble Component</title>
+    <title>JARVIS // Hub Bubble Component</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     
     <style>
