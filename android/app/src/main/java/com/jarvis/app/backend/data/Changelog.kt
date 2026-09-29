@@ -9,6 +9,14 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        56, "6.5", listOf(
+            "Share entry is a floating sheet — no more black fullscreen",
+            "Fresh chats start empty (no pre-seeded bot messages)",
+            "Wake word answers instantly — mic opens before the greeting",
+            "Fuzzy wake matcher catches misheard variants (jervis, davis)"
+        )
+    ),
+    ChangelogEntry(
         55, "6.4", listOf(
             "New app icon: orbital quantum core on dark glass",
             "Home widget restyled to match the new icon"

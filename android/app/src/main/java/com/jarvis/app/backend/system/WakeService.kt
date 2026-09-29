@@ -331,7 +331,10 @@ class WakeService : Service() {
         HudStateBus.postTicker("[VOICE: MATCH]")
         StarkSounds.chime()
         flashBubble()
-        speakWakeGreeting()
+        // Instant mic: hush anything in flight and listen NOW. The greeting is
+        // deferred — spoken over the Gemini round trip once the command lands,
+        // or as a reprompt if the listen fails. No deaf window.
+        hushSpeech()
         // Hands-free first: no activity pop — the headless command listen
         // takes the order; the notification offers a manual open instead.
         startCommandListen()
@@ -342,14 +345,10 @@ class WakeService : Service() {
      * (background-start limits), the service takes the command itself. Yields
      * instantly if the app takes the mic (pause / handoff flag).
      */
-    private fun startCommandListen(tries: Int = 0) {
+    private fun startCommandListen() {
         if (!started || CallStateBus.current || pausedByApp || MicHandoff.appActive || cmdRecognizer != null) return
-        if (SpeechState.speaking) {
-            // Half-duplex: don't listen to our own "Yes sir?" greeting.
-            if (tries > 25) return
-            main.postDelayed({ startCommandListen(tries + 1) }, 400)
-            return
-        }
+        // No speaking gate: the wake greeting is deferred until the command
+        // lands, so the mic opens instantly and nothing self-triggers.
         try {
             if (!SpeechRecognizer.isRecognitionAvailable(this)) return
             val r = SpeechRecognizer.createSpeechRecognizer(this)
@@ -379,6 +378,7 @@ class WakeService : Service() {
                         results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
                     )
                     if (heard.isEmpty()) {
+                        speakWakeGreeting() // reprompt: nothing heard
                         resumeLoopAfterCmd()
                         return
                     }
@@ -402,6 +402,7 @@ class WakeService : Service() {
                                 val vm = sharedJarvisVm(application)
                                 vm.lastHeard = heard
                                 vm.heardFresh = true
+                                speakWakeGreeting() // ack now, reply lands over it
                                 val d = voiceGateDecision(heard, guard, deviceLocked(), store.masterName, enrolled, verdict)
                                 if (d.send) vm.send(d.cleaned, fromVoice = true, idChecked = d.bypassGuard)
                                 else if (d.note != null) {
@@ -430,6 +431,7 @@ class WakeService : Service() {
                     }
                     if (error != SpeechRecognizer.ERROR_CLIENT) {
                         HudStateBus.postTicker("[CMD: RETRY]")
+                        speakWakeGreeting() // reprompt after a failed listen
                     }
                     resumeLoopAfterCmd()
                 }

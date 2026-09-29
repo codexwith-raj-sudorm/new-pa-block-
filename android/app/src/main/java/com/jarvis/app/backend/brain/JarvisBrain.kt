@@ -103,7 +103,6 @@ import com.jarvis.app.backend.data.TodoItem
 import com.jarvis.app.backend.data.VaultDao
 import com.jarvis.app.backend.data.VaultFact
 import com.jarvis.app.backend.data.dueText
-import com.jarvis.app.backend.data.masterGreet
 import com.jarvis.app.backend.data.migrateLegacyFacts
 import com.jarvis.app.backend.data.parseListCommand
 import com.jarvis.app.backend.data.parseReminder
@@ -275,7 +274,37 @@ fun splitCodeBlocks(text: String): List<CodeSeg> {
 }
 
 /** True if a transcript contains the wake word. Pure, tested. */
-fun hearsWakeWord(text: String): Boolean = text.contains("jarvis", ignoreCase = true)
+fun hearsWakeWord(text: String): Boolean {
+    val low = text.lowercase()
+    if ("jarvis" in low) return true
+    // Fuzzy: sliding windows catch run-together STT variants ("heyjervis",
+    // "ok davis"); the rime-tail rule ("arvis"/"ervis"/"avis") rejects
+    // lookalikes ("paris", "service").
+    val letters = low.filter { it in 'a'..'z' }
+    for (len in 5..7) {
+        for (i in 0..letters.length - len) {
+            val wd = letters.substring(i, i + len)
+            if ((wd.endsWith("arvis") || wd.endsWith("ervis") || wd.endsWith("avis")) &&
+                levWake(wd, "jarvis") <= 2
+            ) return true
+        }
+    }
+    return false
+}
+
+/** Levenshtein distance for tiny inputs (wake-word windows). Pure. */
+private fun levWake(a: String, b: String): Int {
+    var prev = IntArray(b.length + 1) { it }
+    for (i in 1..a.length) {
+        val cur = IntArray(b.length + 1)
+        cur[0] = i
+        for (j in 1..b.length) {
+            cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+        }
+        prev = cur
+    }
+    return prev[b.length]
+}
 
 object Models {
     // Hardcoded fallback only — Jarvis auto-discovers working models per key (ListModels).
@@ -1670,9 +1699,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         for ((r, t, ts, img) in active.msgs) {
             messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
         }
-        if (messages.isEmpty()) {
-            messages.add(ChatMessage("bot", greet()))
-        }
+        // Fresh chats start empty — no pre-seeded bot message.
         createTts("com.google.android.tts")
         viewModelScope.launch {
             CallStateBus.inCall.collect { onCall ->
@@ -1699,12 +1726,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         commandAudioEnd()
         destroyRecognizer()
         super.onCleared()
-    }
-
-    private fun greet(): String {
-        if (masterInstalled) return masterGreet(masterName)
-        return if (brainOk) "Hello. I am Jarvis. How can I help?"
-        else "Hello. I am Jarvis.\n\n🔑 Add a Gemini key in Settings (⚙️, top right) to wake my brain — free from aistudio.google.com. Meanwhile I can still tell time, calculate, and remember things — try 'what time is it?'"
     }
 
     // ---- voice output (Jarvis-style male voice, human prosody) ----
@@ -2654,13 +2675,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         chats.add(0, c)
         activeChatId = c.id
         messages.clear()
-        messages.add(
-            ChatMessage(
-                "bot",
-                if (brainOk) "New chat started. What's on your mind?"
-                else "New chat started. Add a key in ⚙️ to wake my brain."
-            )
-        )
+        // New chats start empty — no pre-seeded bot message.
         showChats = false
         persist()
     }
@@ -2679,7 +2694,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         for ((r, t, ts, img) in c.msgs) {
             messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
         }
-        if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
+        // Empty chats stay empty — no seeded bot message.
         showChats = false
         persist()
     }
@@ -2751,7 +2766,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             for ((r, t, ts, img) in chats[0].msgs) {
                 messages.add(ChatMessage(if (r == "user") "user" else "bot", t, ts, if (img.isEmpty()) null else img))
             }
-            if (messages.isEmpty()) messages.add(ChatMessage("bot", greet()))
+            // Empty chats stay empty — no seeded bot message.
         }
         persist()
     }

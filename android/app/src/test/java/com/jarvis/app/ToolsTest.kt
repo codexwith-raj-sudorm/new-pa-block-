@@ -134,5 +134,14 @@ class ToolsTest {
         assertTrue(hearsWakeWord("hey jarvis, what time is it"))
         assertTrue(hearsWakeWord("JARVIS"))
         assertFalse(hearsWakeWord("hello there"))
+        // Fuzzy STT variants still wake...
+        assertTrue(hearsWakeWord("hey jervis"))
+        assertTrue(hearsWakeWord("ok davis"))
+        assertTrue(hearsWakeWord("hey garvis what time is it"))
+        assertTrue(hearsWakeWord("heyjervis"))
+        // ...while lookalikes stay asleep.
+        assertFalse(hearsWakeWord("paris in the spring"))
+        assertFalse(hearsWakeWord("how is the service today"))
+        assertFalse(hearsWakeWord("a viscous fluid"))
     }
 }

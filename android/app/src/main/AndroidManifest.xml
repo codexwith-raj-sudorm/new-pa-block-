@@ -111,7 +111,7 @@
             android:name=".frontend.screens.StarkShareActivity"
             android:exported="false"
             android:label="Stark Hub"
-            android:theme="@android:style/Theme.Material.NoActionBar" />
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name=".frontend.screens.WakeHudActivity"
             android:exported="false"
