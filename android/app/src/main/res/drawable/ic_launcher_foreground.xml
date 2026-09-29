@@ -1,22 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- outer gold ring -->
+    <!-- orbit glow -->
     <path
-        android:strokeWidth="6"
-        android:strokeColor="#F59E0B"
+        android:strokeWidth="8"
+        android:strokeColor="#1417C964"
         android:fillColor="#00000000"
-        android:pathData="M54,16 a38,38 0 1,0 0.1,0 Z" />
-    <!-- cyan telemetry ring -->
+        android:pathData="M24.0,54.0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0 Z" />
+    <path
+        android:strokeWidth="5"
+        android:strokeColor="#1F17C964"
+        android:fillColor="#00000000"
+        android:pathData="M24.0,54.0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0 Z" />
+    <!-- orbit quadrants: top solid, right 40%, bottom white 10%, left faint -->
     <path
         android:strokeWidth="3"
-        android:strokeColor="#22D3EE"
+        android:strokeLineCap="round"
+        android:strokeColor="#FF17C964"
         android:fillColor="#00000000"
-        android:pathData="M54,28 a26,26 0 1,0 0.1,0 Z" />
-    <!-- white-gold core -->
+        android:pathData="M32.79,32.79 A30,30 0 0,1 75.21,32.79" />
     <path
-        android:fillColor="#FEF3C7"
-        android:pathData="M54,42 a12,12 0 1,0 0.1,0 Z" />
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#6617C964"
+        android:fillColor="#00000000"
+        android:pathData="M75.21,32.79 A30,30 0 0,1 75.21,75.21" />
+    <path
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#1AFFFFFF"
+        android:fillColor="#00000000"
+        android:pathData="M75.21,75.21 A30,30 0 0,1 32.79,75.21" />
+    <path
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#1A17C964"
+        android:fillColor="#00000000"
+        android:pathData="M32.79,75.21 A30,30 0 0,1 32.79,32.79" />
+    <!-- inner dashed telemetry track -->
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M76.00,54.00 A22,22 0 0,1 74.92,60.80" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M73.05,65.00 A22,22 0 0,1 68.72,70.35" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M65.00,73.05 A22,22 0 0,1 58.57,75.52" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M54.00,76.00 A22,22 0 0,1 47.20,74.92" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M43.00,73.05 A22,22 0 0,1 37.65,68.72" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M34.95,65.00 A22,22 0 0,1 32.48,58.57" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M32.00,54.00 A22,22 0 0,1 33.08,47.20" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M34.95,43.00 A22,22 0 0,1 39.28,37.65" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M43.00,34.95 A22,22 0 0,1 49.43,32.48" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M54.00,32.00 A22,22 0 0,1 60.80,33.08" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M65.00,34.95 A22,22 0 0,1 70.35,39.28" />
+    <path
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeColor="#8017C964"
+        android:fillColor="#00000000"
+        android:pathData="M73.05,43.00 A22,22 0 0,1 75.52,49.43" />
+    <!-- quantum core: green halo, white glow, white heart -->
+    <path
+        android:fillColor="#3317C964"
+        android:pathData="M42.0,54.0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0 Z" />
+    <path
+        android:fillColor="#59FFFFFF"
+        android:pathData="M44.5,54.0 a9.5,9.5 0 1,0 19.0,0 a9.5,9.5 0 1,0 -19.0,0 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M46.5,54.0 a7.5,7.5 0 1,0 15.0,0 a7.5,7.5 0 1,0 -15.0,0 Z" />
 </vector>

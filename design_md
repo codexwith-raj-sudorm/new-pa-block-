@@ -1381,7 +1381,7 @@ new main screen ui design
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS // Animated Widget Icon</title>
+    <title>JARVIS // Animated Widget Icon</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1406,7 +1406,7 @@ new main screen ui design
            THE WIDGET CONTAINER 
            Matches the squircle shape of modern Android icons
         */
-        .aegis-animated-widget {
+        .jarvis-animated-widget {
             position: relative;
             width: 160px;
             height: 160px;
@@ -1517,13 +1517,13 @@ new main screen ui design
 
     <div class="flex flex-col items-center">
         <!-- Animated Widget Component -->
-        <div class="aegis-animated-widget">
+        <div class="jarvis-animated-widget">
             <div class="icon-orbit"></div>
             <div class="icon-orbit-inner"></div>
             <div class="icon-core"></div>
         </div>
         
-        <span class="app-label">AEGIS</span>
+        <span class="app-label">JARVIS</span>
     </div>
 
 </body>

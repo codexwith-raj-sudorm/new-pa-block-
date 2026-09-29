@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        55, "6.4", listOf(
+            "New app icon: orbital quantum core on dark glass",
+            "Home widget restyled to match the new icon"
+        )
+    ),
+    ChangelogEntry(
         54, "6.3", listOf(
             "Onboarding permission ticks refresh live after granting",
             "Home hero stays until you speak (survives master install)",
