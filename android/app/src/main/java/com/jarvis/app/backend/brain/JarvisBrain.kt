@@ -2890,6 +2890,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         oaiBase: String = openaiBase, oaiModel: String = openaiModel
     ) {
         val oldEff = effectiveKey
+        val wasOk = brainOk
         store.apiKey = key
         store.model = model
         store.aiProvider = provider
@@ -2911,7 +2912,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             availableModels.addAll(Models.FALLBACK)
             if (brainOk) refreshModels()
         }
-        if (brainOk && messages.size == 1) {
+        if (!wasOk && brainOk && messages.none { it.role == "user" }) {
             messages.add(ChatMessage("bot", "Brain connected. 🟢 What shall we do first?"))
             persist()
         }

@@ -19,9 +19,9 @@ class PremiumUiTest {
     }
 
     @Test
-    fun heroOnlyOnFreshChat() {
+    fun heroUntilUserSpeaks() {
         assertTrue(premiumHeroVisible(0, false))
-        assertTrue(premiumHeroVisible(1, false))
+        assertFalse(premiumHeroVisible(1, false))
         assertFalse(premiumHeroVisible(2, false))
         assertFalse(premiumHeroVisible(0, true))
     }

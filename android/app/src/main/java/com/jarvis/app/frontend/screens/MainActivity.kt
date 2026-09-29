@@ -116,6 +116,7 @@ import com.jarvis.app.frontend.widgets.SpeechState
 import com.jarvis.app.frontend.widgets.TapAction
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
 import com.jarvis.app.frontend.widgets.widgetTapAction
+import kotlinx.coroutines.delay
 
 val Panel = Color(0xFF121B2E)
 val Accent = Color(0xFFF59E0B)
@@ -477,7 +478,7 @@ fun JarvisScreen() {
             onInterrupt = vm::interruptSpeech
         )
         val listState = rememberLazyListState()
-        val heroVisible = premiumHeroVisible(vm.messages.size, vm.busy)
+        val heroVisible = premiumHeroVisible(vm.messages.count { it.role == "user" }, vm.busy)
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
         }
@@ -1211,20 +1212,27 @@ fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
         return ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
     }
+    var permTick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            permTick++
+        }
+    }
     HudDialog(
         onDismissRequest = { vm.finishOnboard() },
         title = { Text("👋 Welcome to Jarvis") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Three quick steps to wake me up:", fontSize = 14.sp)
-                OnboardRow(done = hasMic(), label = "Microphone for voice input", btn = "Allow", onBtn = onMic)
+                OnboardRow(done = remember(permTick) { hasMic() }, label = "Microphone for voice input", btn = "Allow", onBtn = onMic)
                 OnboardRow(done = vm.wakeOn, label = "Hey Jarvis wake word + HUD bubble", btn = "Enable", onBtn = onWake)
-                OnboardRow(done = vm.batteryUnrestricted(),
+                OnboardRow(done = remember(permTick, vm.batteryStateTick) { vm.batteryUnrestricted() },
                     label = "Unrestricted battery (survive reboot)",
                     btn = "Fix",
                     onBtn = vm::requestBatteryUnrestricted
                 )
-                OnboardRow(done = remember { isAccessEnabled(context) },
+                OnboardRow(done = remember(permTick) { isAccessEnabled(context) },
                     label = "Screen control (read, tap, scroll)",
                     btn = "Enable",
                     onBtn = {

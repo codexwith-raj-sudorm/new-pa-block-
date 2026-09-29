@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        54, "6.3", listOf(
+            "Onboarding permission ticks refresh live after granting",
+            "Home hero stays until you speak (survives master install)",
+            "“Brain connected” only announced when the brain actually wakes"
+        )
+    ),
+    ChangelogEntry(
         53, "6.2", listOf(
             "Wake screen: harmonic core with ripples, data rings, live transcription",
             "Floating hub bubble: diamond hub with idle/wake/listening states",

@@ -51,8 +51,8 @@ fun Modifier.premiumGlass(shape: Shape): Modifier =
 fun avatarLetter(name: String): String =
     name.trim().firstOrNull()?.uppercase() ?: "J"
 
-/** Home hero shows only on a fresh chat. Pure, tested. */
-fun premiumHeroVisible(msgCount: Int, busy: Boolean): Boolean = msgCount <= 1 && !busy
+/** Home hero shows until the user speaks (bot notices don't hide it). Pure, tested. */
+fun premiumHeroVisible(userMsgCount: Int, busy: Boolean): Boolean = userMsgCount == 0 && !busy
 
 /** Short model tag for the context card. Pure, tested. */
 fun modelShortName(model: String): String =
