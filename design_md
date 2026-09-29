@@ -1373,3 +1373,159 @@ new main screen ui design
 </body>
 </html>
 
+6 . new app icon 
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS // Animated Widget Icon</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body { 
+            background-color: #050505; 
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* 
+           THE WIDGET CONTAINER 
+           Matches the squircle shape of modern Android icons
+        */
+        .aegis-animated-widget {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            background: linear-gradient(145deg, #1f2024 0%, #0d0d0f 100%);
+            border-radius: 36px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 
+                inset 0 1px 1px rgba(255, 255, 255, 0.15),
+                inset 0 -1px 1px rgba(0, 0, 0, 0.8),
+                0 20px 40px rgba(0, 0, 0, 0.8),
+                0 0 60px rgba(23, 201, 100, 0.15);
+            /* A very slow levitation to make the whole widget feel alive */
+            animation: float-widget 6s ease-in-out infinite alternate;
+        }
+
+        /* 
+           THE CONTINUOUS ORBITAL TRACK
+        */
+        .icon-orbit {
+            position: absolute;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #17c964;
+            border-right-color: rgba(23, 201, 100, 0.4);
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+            border-left-color: rgba(23, 201, 100, 0.1);
+            filter: drop-shadow(0 0 8px #17c964);
+            /* Smooth, continuous 360 rotation */
+            animation: spin-forward 4s linear infinite;
+        }
+
+        /* 
+           THE INNER TELEMETRY TRACK
+        */
+        .icon-orbit-inner {
+            position: absolute;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 1px dashed rgba(23, 201, 100, 0.5);
+            /* Counter-rotation for mechanical complexity */
+            animation: spin-backward 12s linear infinite;
+        }
+
+        /* 
+           THE PULSING QUANTUM CORE
+        */
+        .icon-core {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            /* The breathing glow effect */
+            animation: core-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
+        }
+
+        /* 
+           ANIMATION KEYFRAMES
+        */
+        @keyframes spin-forward {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes spin-backward {
+            0% { transform: rotate(360deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        @keyframes core-pulse {
+            0% { 
+                transform: scale(0.95);
+                box-shadow: 
+                    0 0 10px #ffffff,
+                    0 0 20px rgba(23, 201, 100, 0.6),
+                    0 0 40px rgba(23, 201, 100, 0.4);
+            }
+            100% { 
+                transform: scale(1.1);
+                box-shadow: 
+                    0 0 20px #ffffff,
+                    0 0 40px #17c964,
+                    0 0 80px rgba(23, 201, 100, 0.8);
+            }
+        }
+
+        @keyframes float-widget {
+            0% { transform: translateY(-4px); }
+            100% { transform: translateY(4px); }
+        }
+
+        /* App Label */
+        .app-label {
+            margin-top: 32px;
+            font-size: 15px;
+            letter-spacing: 0.05em;
+            color: #e4e4e7;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="flex flex-col items-center">
+        <!-- Animated Widget Component -->
+        <div class="aegis-animated-widget">
+            <div class="icon-orbit"></div>
+            <div class="icon-orbit-inner"></div>
+            <div class="icon-core"></div>
+        </div>
+        
+        <span class="app-label">AEGIS</span>
+    </div>
+
+</body>
+</html>
+
