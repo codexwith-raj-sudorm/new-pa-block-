@@ -27,6 +27,7 @@ import com.jarvis.app.backend.device.isAppMatchLoose
 import com.jarvis.app.backend.device.isAppMatchStrict
 import com.jarvis.app.backend.device.parseAlarmTime
 import com.jarvis.app.backend.device.parseDeviceCommand
+import com.jarvis.app.backend.device.isUnsupportedHardware
 import com.jarvis.app.backend.device.deviceCmdYieldsScreen
 import com.jarvis.app.backend.device.tgResolveLink
 import com.jarvis.app.backend.device.parseDuration
@@ -46,6 +47,18 @@ class DeviceTest {
         // Flashlight control removed: hardware toggles are out of scope.
         assertNull(parseDeviceCommand("turn on the flashlight"))
         assertNull(parseDeviceCommand("torch off"))
+    }
+
+    @Test fun unsupportedHardware() {
+        assertTrue(isUnsupportedHardware("turn on the flashlight"))
+        assertTrue(isUnsupportedHardware("torch off"))
+        assertTrue(isUnsupportedHardware("switch on the torch"))
+        assertTrue(isUnsupportedHardware("set brightness to max"))
+        assertTrue(isUnsupportedHardware("dim the screen brightness"))
+        assertFalse(isUnsupportedHardware("tell me about torches"))
+        assertFalse(isUnsupportedHardware("the brightness of the stars"))
+        assertFalse(isUnsupportedHardware("turn on bedroom light"))
+        assertFalse(isUnsupportedHardware(""))
     }
 
     @Test fun callParse() {

@@ -41,6 +41,8 @@ class SettingsToolsTest {
         assertEquals("calc", Router.detect("what is 2+2")?.tool)
         assertEquals("joke", Router.detect("tell me a joke")?.tool)
         assertEquals("device", Router.detect("open youtube")?.tool)
+        assertEquals("nohw", Router.detect("turn on the flashlight")?.tool)
+        assertEquals("nohw", Router.detect("set screen brightness to max")?.tool)
         assertEquals("routine", Router.detect("good morning")?.tool)
     }
 }

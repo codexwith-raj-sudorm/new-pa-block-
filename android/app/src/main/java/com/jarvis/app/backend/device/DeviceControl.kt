@@ -160,6 +160,20 @@ fun parseDeviceCommand(raw: String): DeviceCommand? {
     return null
 }
 
+/**
+ * True for hardware-toggle requests Jarvis must decline (flashlight, screen
+ * brightness) instead of letting the LLM hallucinate compliance. Pure, tested.
+ */
+fun isUnsupportedHardware(raw: String): Boolean {
+    val low = raw.trim().lowercase()
+    if (low.isEmpty()) return false
+    val toggleVerb = Regex("""\b(on|off|turn|switch|toggle|enable|disable)\b""").containsMatchIn(low)
+    if (toggleVerb && (low.contains("flashlight") || low.contains("flash light") || low.contains("torch"))) return true
+    if (low.contains("screen brightness") || low.contains("display brightness")) return true
+    if (low.contains("brightness") && Regex("""\b(screen|phone|display|device|turn|set|dim|brighten|adjust|increase|decrease|raise|lower|max|high|low|full)\b""").containsMatchIn(low)) return true
+    return false
+}
+
 /** Parse "7", "7am", "7:30", "7:30 pm" into 24h (hour, min). Pure, tested. */
 fun parseAlarmTime(raw: String): Pair<Int, Int>? {
     val m = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?""", RegexOption.IGNORE_CASE)

@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        58, "6.7", listOf(
+            "Hardware requests get an honest refusal (no LLM hallucination)",
+            "Owner-card master keys stay owner-grade after updates"
+        )
+    ),
+    ChangelogEntry(
         57, "6.6", listOf(
             "Chat area strictly bounded — bottom bar always visible",
             "Flashlight control removed (no hardware toggles)",

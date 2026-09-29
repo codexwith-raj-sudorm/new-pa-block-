@@ -124,6 +124,7 @@ import com.jarvis.app.backend.device.Silence
 import com.jarvis.app.backend.device.SoundMuter
 import com.jarvis.app.backend.device.Speaker
 import com.jarvis.app.backend.device.SysSettings
+import com.jarvis.app.backend.device.isUnsupportedHardware
 import com.jarvis.app.backend.device.TextMessage
 import com.jarvis.app.backend.device.Unsilence
 import com.jarvis.app.backend.device.WebSearch
@@ -942,6 +943,7 @@ object Router {
             val q = it.groupValues[1].trim().trimEnd('?', '.', '!').trim()
             if (q.isNotEmpty()) return Hit("access_recents_tap", q)
         }
+        if (isUnsupportedHardware(t)) return Hit("nohw", t)
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1948,10 +1950,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Key inside the baked owner card ("" when none/undecodable). Never throws. */
+    private fun ownerCardKey(): String = try {
+        val b64 = BuildConfig.DEFAULT_MASTER
+        if (b64.isBlank()) ""
+        else parseMasterCardJson(String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8))?.first.orEmpty()
+    } catch (_: Exception) {
+        ""
+    }
+
     private fun installBakedMaster() {
         if (store.masterKey.isNotBlank()) {
-            // Upgrade reconciliation: a baked key stays owner-grade.
-            if (store.masterKey == BAKED_MASTER_KEY) store.masterBaked = true
+            // Upgrade reconciliation: a baked or owner-card key stays owner-grade.
+            val k = store.masterKey
+            if (k == BAKED_MASTER_KEY || (k.isNotEmpty() && k == ownerCardKey())) store.masterBaked = true
             return
         }
         val b64 = BuildConfig.DEFAULT_MASTER
@@ -4117,6 +4129,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "joke" -> jokeAt(kotlin.random.Random.nextInt(1000))
         "routine" -> morningRoutine()
         "device" -> runDevice(hit.arg)
+        "nohw" -> "I can't flip hardware switches — the flashlight and screen brightness are outside what I'm allowed to change."
         "notifs" -> readNotifs()
         "lists" -> runLists(hit.arg)
         "handsfree" -> {
