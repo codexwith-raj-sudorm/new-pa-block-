@@ -68,7 +68,7 @@ class AssistActivity : ComponentActivity() {
             Box(Modifier.fillMaxSize()) {
                 Box(
                     Modifier.fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.75f))
+                        .background(Color.Black.copy(alpha = 0.9f))
                         .clickable { finish() }
                 )
                 EdgeFlashOverlay(fireTick = 0)
