@@ -1,6 +1,7 @@
 # JARVIS App — Reactor Feature List
 
-> Last updated: v5.1 (Stark HUD) + local reactor-interrupt update.
+> Last updated: v6.7 + encrypted-secrets update.
+> Hardware toggles (flashlight/brightness/Wi-Fi switch) are intentionally unsupported.
 > Everything below runs on-device except Gemini cloud calls for chat.
 
 ## 1. Core AI Chat
@@ -71,11 +72,10 @@
 - Fingerprint/face gate screen ("Stark Neural Identity Check")
 - Launchable from Settings → More → Stark ID lock
 
-## 13. Hardware Voice Commands
-- "Turn on/off the flashlight" (flash-capable camera auto-detected)
+## 13. Device Voice Commands (hardware-safe: no torch/brightness/Wi-Fi toggles)
 - "Silence my phone" / "sound on" (Do Not Disturb)
 - "Open YouTube / launch maps / start camera …" (fuzzy app-name match)
-- "Call mom" (opens dialer, never auto-calls), alarms, timers, navigation, web search, "play …", Wi-Fi panel, system settings
+- "Call mom" (places the call directly), alarms, timers, navigation, web search, "play …", Wi-Fi panel, system settings
 - Battery reader, emergency silence, app launcher (`StarkDeviceController`)
 
 ## 14. Smart Actions (Webhooks)
