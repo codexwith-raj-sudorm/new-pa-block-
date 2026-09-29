@@ -56,3 +56,25 @@ To strictly adhere to the rule of utilizing local processing or zero-cost servic
  * Audio Capture: AudioCaptureManager begins recording. As the user speaks, the RMS amplitude of the audio buffer is calculated and streamed to the UI to drive the hologram's pulse animations.
  * Inference: The STT transcription + Screen Context is dispatched to the LlmDispatcher. The UI transitions to the "Thinking" state (rapid rotation).
  * Playback & Teardown: The LLM streams text back, which is immediately piped into the TtsSynthesizer. The UI transitions to the "Speaking" state. Once the TTS engine fires the completion callback, the UI automatically triggers the "Dismiss" animation and the session is destroyed via hide().
+
+
+5. user authentication 
+
+1. The Authentication Flow (Google OAuth 2.0)
+You will use the modern Android Credential Manager API on the frontend and verify it on your Python backend.
+The Frontend Trigger: The user taps a premium, glassmorphic "Sign in with Google" button on the AEGIS wake screen. The Android OS securely prompts the user to select their Google account.
+The Payload: Google returns an ID Token (a secure JSON Web Token) to the Android app, along with basic profile data (Name, Email, Profile Picture).
+The Backend Verification: The Android app sends this ID Token to your Python backend. Your Python server uses the google-auth library to verify the token's signature directly with Google's servers.
+Session Creation: Once verified, your backend creates a secure session (or issues its own JWT) for the app to use for all future API calls.
+2. Cloud Relational Database (User Profiles & Chat Logs)
+To replace the local SQLite database, you need a scalable cloud database to store structured data. Firebase/Firestore is the most seamless pairing if you are already using Google ecosystem tools, but PostgreSQL (via Supabase or Neon) is highly recommended for complex AI applications.
+Users Table/Collection: Stores your Google UID, Name, Email, and app-specific preferences (e.g., the Imperial Jade theme preference, hold-gesture settings).
+Conversations Table/Collection: Stores standard chat history (timestamp, sender, message text). This allows the AEGIS Android app to instantly load past chats if you reinstall the app or switch devices.
+3. Cloud Vector Database (Semantic Memory)
+If you move to the cloud, your local ChromaDB setup needs to be replaced or hosted remotely so the AI can retrieve your personal context from anywhere.
+Managed Vector Cloud: Services like Pinecone, Weaviate Cloud, or ChromaDB's hosted tier will store the embedded versions of your chats.
+The RAG Pipeline: When you send a message, your Python server intercepts it, queries the cloud Vector DB for relevant past context, structures the payload, and sends it to the Gemini API.
+4. Privacy & API Key Management
+Since the app will now communicate over the internet rather than just locally:
+No Hardcoded Keys: Your Gemini API keys and GitHub PATs must be stored as encrypted environment variables on your cloud server (e.g., AWS, Render, Google Cloud), never hardcoded in the Android APK.
+User Data Segregation: Ensure all database queries strictly filter by the authenticated user's ID to prevent data leakage.
