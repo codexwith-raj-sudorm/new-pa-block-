@@ -78,3 +78,43 @@ The RAG Pipeline: When you send a message, your Python server intercepts it, que
 Since the app will now communicate over the internet rather than just locally:
 No Hardcoded Keys: Your Gemini API keys and GitHub PATs must be stored as encrypted environment variables on your cloud server (e.g., AWS, Render, Google Cloud), never hardcoded in the Android APK.
 User Data Segregation: Ensure all database queries strictly filter by the authenticated user's ID to prevent data leakage.
+
+6. tutorial md 
+
+To make this impressive for your friend, the tutorial should be framed not as a standard app walkthrough, but as a "System Calibration Protocol." By using a spotlight overlay, you can restrict interactions to specific components while darkening the rest of the screen, creating a highly guided, premium experience.
+Here is the architectural blueprint to build this touch-restrictive onboarding flow.
+1. The Spotlight Overlay (The Touch Blocker)
+To achieve the effect where only one specific element reacts to touch, you need to create a "Scrim" or Overlay View that sits on the absolute top layer of your app architecture (above all other UI elements).
+ * The Visuals: The overlay is a full-screen, dark translucent layer (e.g., 85% opacity black with a heavy background blur).
+ * The "Punch-Out": Using Android's PorterDuff.Mode.CLEAR (or equivalent blend modes in Flutter/React Native), the app calculates the exact X/Y screen coordinates of the target UI element and "erases" a rounded rectangle or circle out of the dark overlay, revealing the glowing button underneath.
+ * Touch Interception: The overlay intercepts all screen taps. If a tap occurs outside the punched-out window, the overlay consumes the tap (doing nothing, or showing a slight error ripple). If the tap occurs inside the window, the overlay passes the touch event down to the actual button, allowing your friend to interact with it.
+2. The State Machine Logic
+The tutorial must be driven by a rigid sequence array so the app knows exactly what to highlight and what triggers the next step. You can structure this as a JSON or hardcoded list of "Calibration Steps":
+ * target_element_id: The ID of the UI component to highlight (e.g., btn_mic, nav_settings).
+ * tooltip_text: The text to display in the floating glassmorphic dialogue box.
+ * action_required: The trigger to move to the next step (e.g., TAP, LONG_PRESS, SWIPE_UP).
+ * hide_from_tutorial: A boolean flag. Set this to true for hidden elements (like the Master Key or API config) so the loop skips them entirely.
+3. The Tooltip UI Architecture
+The tooltip that displays the text should not look like a standard Android toast. It needs to match the Project AEGIS aesthetic.
+ * The Design: A floating, dark glassmorphic pill with a neon green border.
+ * The Connector: Draw a thin, glowing 1px line connecting the tooltip box directly to the punched-out spotlight window, anchoring the text to the UI element it is describing.
+ * The Typography: Use the typewriter effect. The text should rapidly type itself out character-by-character using the JetBrains Mono font to mimic a live terminal booting up.
+4. The "Eye-Catching" Entry Sequence
+When your friend logs in for the first time, the screen should be pitch black for 1.5 seconds. Then, sequence the tour like this:
+ * Step 1: The Core Awakening.
+   * Spotlight: The central Hub Bubble.
+   * Tooltip types out: [SYS] CALIBRATING NEURAL LINK. TAP CORE TO INITIATE.
+   * Action: User taps the glowing orb. The orb flares up, and the rest of the UI fades in behind the dark overlay.
+ * Step 2: Voice Input Protocol.
+   * Spotlight: The microphone button in the bottom right.
+   * Tooltip types out: [SYS] AUDIO TELEMETRY OFFLINE. PRESS TO OPEN COMM CHANNEL.
+   * Action: User taps the mic. The app acknowledges the tap but prevents actual recording during the tutorial.
+ * Step 3: Execution Engine.
+   * Spotlight: The green "Execute Script" button.
+   * Tooltip types out: [SYS] COMMAND TERMINAL. DEPLOY LOCAL SCRIPTS HERE.
+   * Action: User taps the button.
+ * Step 4: Handoff.
+   * The spotlight expands rapidly to reveal the entire screen. The dark overlay fades out.
+   * Final Tooltip: [SYS] CALIBRATION COMPLETE. AEGIS IS LISTENING.
+   * The tooltip dissolves, and full system control is handed over to your friend.
+
