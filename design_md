@@ -1099,4 +1099,277 @@ new main screen ui design
 </body>
 </html>
 
+5.new settings design 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AEGIS // System Configuration</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        neon: '#17c964',
+                        darkbg: '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Mock background of the main chat UI blurred out */
+        .mock-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 30%, rgba(23, 201, 100, 0.15) 0%, transparent 60%), #050505;
+            filter: blur(8px);
+            z-index: 0;
+        }
+
+        /* Hide scrollbar but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Glassmorphic Panel Base */
+        .glass-panel {
+            background: rgba(15, 15, 18, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Custom Input Styling */
+        .aegis-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #ffffff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .aegis-input:focus {
+            border-color: rgba(23, 201, 100, 0.6);
+            box-shadow: 0 0 15px rgba(23, 201, 100, 0.15);
+            background: rgba(0, 0, 0, 0.6);
+        }
+        .aegis-input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Custom Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #17c964;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: rgba(23, 201, 100, 0.2);
+            border-color: rgba(23, 201, 100, 0.5);
+        }
+        .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(100%);
+            background-color: #17c964;
+            box-shadow: 0 0 10px #17c964;
+        }
+        .toggle-label {
+            width: 44px;
+            height: 24px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background-color: #a1a1aa;
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        /* Panel Entrance Animation */
+        @keyframes slide-up-fade {
+            0% { transform: translateY(20px) scale(0.98); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .animate-entrance {
+            animation: slide-up-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-[100dvh]">
+
+    <div class="mock-bg"></div>
+
+    <!-- Main Configuration Panel -->
+    <main class="w-full max-w-[414px] h-[92vh] glass-panel rounded-t-[32px] sm:rounded-[32px] flex flex-col z-10 relative animate-entrance self-end sm:self-center border-b-0 sm:border-b">
+        
+        <!-- Header -->
+        <header class="px-6 py-5 border-b border-white/5 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center text-neon shadow-[0_0_15px_rgba(23,201,100,0.2)]">
+                    <i class="fa-solid fa-sliders text-xs"></i>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="text-[15px] font-semibold tracking-wide text-white">System Config</h1>
+                    <span class="text-[9px] font-mono text-neon uppercase tracking-widest">Network Secure</span>
+                </div>
+            </div>
+            <button class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors bg-white/5">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto no-scrollbar px-6 py-6 flex flex-col gap-8 pb-32">
+            
+            <!-- SECTION 1: Master Key (Active State) -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Security Clearance
+                </h2>
+                
+                <div class="bg-black/30 border border-neon/20 rounded-2xl p-4 relative overflow-hidden group">
+                    <!-- Subtle background glow -->
+                    <div class="absolute -right-10 -top-10 w-32 h-32 bg-neon/10 blur-3xl rounded-full"></div>
+                    
+                    <div class="flex items-center gap-3 mb-4 relative z-10">
+                        <i class="fa-solid fa-key text-neon text-sm"></i>
+                        <span class="text-sm font-medium text-white">Master Mode Active</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mb-5 relative z-10">
+                        <div class="w-1.5 h-1.5 bg-neon rounded-full animate-pulse shadow-[0_0_5px_#17c964]"></div>
+                        <span class="text-[11px] font-mono text-gray-300">Identity Confirmed: <span class="text-white font-semibold">Raj Thakur</span></span>
+                    </div>
+
+                    <div class="flex gap-3 relative z-10">
+                        <button class="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors">
+                            Revoke Key
+                        </button>
+                        <button class="flex-1 py-2.5 rounded-xl bg-neon/10 border border-neon/20 text-neon text-xs font-semibold hover:bg-neon/20 transition-colors">
+                            Export Card
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: AI Provider (Expanded Custom API State) -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Neural Engine
+                </h2>
+                
+                <!-- Segmented Control -->
+                <div class="bg-black/40 p-1 rounded-xl flex border border-white/5">
+                    <button class="flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400 hover:text-white transition-colors">
+                        Gemini Core
+                    </button>
+                    <button class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white/10 border border-white/10 text-white shadow-sm">
+                        Custom API
+                    </button>
+                </div>
+
+                <p class="text-[11px] text-gray-400 leading-relaxed font-light">
+                    Supports OpenAI-compatible endpoints (Groq, xAI, DeepSeek, Ollama). Fails over to Gemini automatically.
+                </p>
+
+                <div class="flex flex-col gap-3">
+                    <input type="password" placeholder="Other-AI Key (sk-...)" class="aegis-input">
+                    <input type="text" placeholder="Base URL (Blank = OpenAI)" class="aegis-input">
+                    <input type="text" placeholder="Model (e.g. gpt-4o-mini)" value="gpt-4o-mini" class="aegis-input">
+                </div>
+            </section>
+
+            <!-- SECTION 3: External Tokens -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Integrations
+                </h2>
+                
+                <div class="flex flex-col gap-2">
+                    <label class="text-[11px] text-gray-300 ml-1">Gemini API Key (Optional)</label>
+                    <input type="password" placeholder="Paste your key (AIza...)" class="aegis-input">
+                </div>
+
+                <div class="flex flex-col gap-2 mt-2">
+                    <div class="flex justify-between items-end">
+                        <label class="text-[11px] text-gray-300 ml-1">GitHub PAT (Repo Access)</label>
+                        <span class="text-[9px] font-mono text-neon flex items-center gap-1">
+                            <i class="fa-solid fa-check"></i> Active via Master
+                        </span>
+                    </div>
+                    <input type="password" placeholder="github_pat_..." value="github_pat_11AXYZ..." class="aegis-input text-gray-500" readonly>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Tokens are encrypted locally. Read-only permissions required.</p>
+                </div>
+            </section>
+
+            <!-- SECTION 4: Hardware & Gestures -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Hardware Interface
+                </h2>
+                
+                <div class="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-sm text-white font-medium">Hold-Gesture Override</span>
+                        <span class="text-[10px] text-gray-400">AEGIS answers physical device triggers</span>
+                    </div>
+                    
+                    <!-- Toggle Switch -->
+                    <div class="relative inline-block w-11 h-6 align-middle select-none">
+                        <input type="checkbox" name="toggle" id="gesture-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 opacity-0" checked/>
+                        <label for="gesture-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Sticky Footer Actions -->
+        <div class="absolute bottom-0 left-0 w-full p-6 pt-12 bg-gradient-to-t from-[rgba(15,15,18,1)] via-[rgba(15,15,18,0.9)] to-transparent rounded-b-[32px] pointer-events-none">
+            <div class="flex gap-3 pointer-events-auto">
+                <button class="flex-1 py-3.5 rounded-full bg-white/5 border border-white/10 text-gray-300 text-sm font-semibold hover:bg-white/10 transition-colors">
+                    Abort
+                </button>
+                <button class="flex-1 py-3.5 rounded-full bg-neon text-black text-sm font-semibold hover:scale-[1.02] transition-transform shadow-[0_0_20px_rgba(23,201,100,0.3)]">
+                    Commit Changes
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+</html>
 
