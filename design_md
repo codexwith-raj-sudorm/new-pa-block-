@@ -1106,7 +1106,7 @@ new main screen ui design
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AEGIS // System Configuration</title>
+    <title>JARVIS // System Configuration</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -1160,7 +1160,7 @@ new main screen ui design
         }
 
         /* Custom Input Styling */
-        .aegis-input {
+        .jarvis-input {
             width: 100%;
             background: rgba(0, 0, 0, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1172,12 +1172,12 @@ new main screen ui design
             outline: none;
             transition: all 0.2s ease;
         }
-        .aegis-input:focus {
+        .jarvis-input:focus {
             border-color: rgba(23, 201, 100, 0.6);
             box-shadow: 0 0 15px rgba(23, 201, 100, 0.15);
             background: rgba(0, 0, 0, 0.6);
         }
-        .aegis-input::placeholder {
+        .jarvis-input::placeholder {
             color: rgba(255, 255, 255, 0.25);
         }
 
@@ -1305,9 +1305,9 @@ new main screen ui design
                 </p>
 
                 <div class="flex flex-col gap-3">
-                    <input type="password" placeholder="Other-AI Key (sk-...)" class="aegis-input">
-                    <input type="text" placeholder="Base URL (Blank = OpenAI)" class="aegis-input">
-                    <input type="text" placeholder="Model (e.g. gpt-4o-mini)" value="gpt-4o-mini" class="aegis-input">
+                    <input type="password" placeholder="Other-AI Key (sk-...)" class="jarvis-input">
+                    <input type="text" placeholder="Base URL (Blank = OpenAI)" class="jarvis-input">
+                    <input type="text" placeholder="Model (e.g. gpt-4o-mini)" value="gpt-4o-mini" class="jarvis-input">
                 </div>
             </section>
 
@@ -1319,7 +1319,7 @@ new main screen ui design
                 
                 <div class="flex flex-col gap-2">
                     <label class="text-[11px] text-gray-300 ml-1">Gemini API Key (Optional)</label>
-                    <input type="password" placeholder="Paste your key (AIza...)" class="aegis-input">
+                    <input type="password" placeholder="Paste your key (AIza...)" class="jarvis-input">
                 </div>
 
                 <div class="flex flex-col gap-2 mt-2">
@@ -1329,7 +1329,7 @@ new main screen ui design
                             <i class="fa-solid fa-check"></i> Active via Master
                         </span>
                     </div>
-                    <input type="password" placeholder="github_pat_..." value="github_pat_11AXYZ..." class="aegis-input text-gray-500" readonly>
+                    <input type="password" placeholder="github_pat_..." value="github_pat_11AXYZ..." class="jarvis-input text-gray-500" readonly>
                     <p class="text-[10px] text-gray-500 mt-1 ml-1">Tokens are encrypted locally. Read-only permissions required.</p>
                 </div>
             </section>
@@ -1343,7 +1343,7 @@ new main screen ui design
                 <div class="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5">
                     <div class="flex flex-col gap-1">
                         <span class="text-sm text-white font-medium">Hold-Gesture Override</span>
-                        <span class="text-[10px] text-gray-400">AEGIS answers physical device triggers</span>
+                        <span class="text-[10px] text-gray-400">JARVIS answers physical device triggers</span>
                     </div>
                     
                     <!-- Toggle Switch -->

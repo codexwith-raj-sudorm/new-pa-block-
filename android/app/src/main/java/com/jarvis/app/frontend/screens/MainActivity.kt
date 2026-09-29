@@ -8,6 +8,7 @@ import com.jarvis.app.frontend.screens.StarkShareActivity
 import com.jarvis.app.frontend.design.HeaderMiniReactor
 import com.jarvis.app.frontend.design.hudStatusLine
 import com.jarvis.app.frontend.design.AnimatedGlassBubble
+import com.jarvis.app.frontend.design.ConfigPanel
 import com.jarvis.app.frontend.design.HudDialog
 import com.jarvis.app.frontend.design.HudTextField
 import com.jarvis.app.frontend.design.GlassCircleButton
@@ -52,7 +53,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -70,7 +70,6 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -93,27 +92,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.jarvis.app.backend.ai.AI_GEMINI
-import com.jarvis.app.backend.ai.AI_OPENAI
 import com.jarvis.app.backend.brain.ChatData
 import com.jarvis.app.backend.brain.ChatMessage
 import com.jarvis.app.backend.brain.JarvisViewModel
-import com.jarvis.app.backend.brain.Models
 import com.jarvis.app.backend.brain.codeShareText
 import com.jarvis.app.backend.brain.formatBriefing
 import com.jarvis.app.backend.brain.splitCodeBlocks
-import com.jarvis.app.backend.data.MASTER_SELF_NAME
 import com.jarvis.app.backend.data.dueText
 import com.jarvis.app.backend.device.StarkSounds
 import com.jarvis.app.backend.system.BubbleLevelBus
-import com.jarvis.app.backend.system.defaultAssistantSettingsIntent
-import com.jarvis.app.backend.system.isJarvisDefaultAssistant
 import com.jarvis.app.backend.system.HudStateBus
 import com.jarvis.app.backend.system.InterruptBus
 import com.jarvis.app.backend.system.WakeService
@@ -598,7 +590,7 @@ fun JarvisScreen() {
     }
     }
 
-    if (vm.showSettings) SettingsDialog(vm)
+    if (vm.showSettings) ConfigPanel(vm)
     if (vm.showChats) ChatsDialog(vm)
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
@@ -989,174 +981,6 @@ private fun MoreRow(label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun SettingsDialog(vm: JarvisViewModel) {
-    val mut = Muted
-    val acc = Accent
-    var key by remember { mutableStateOf(vm.apiKey) }
-    var gh by remember { mutableStateOf(vm.githubToken) }
-    val setCtx = LocalContext.current
-    var masterTaps by remember { mutableStateOf(0) }
-    val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
-    var model by remember { mutableStateOf(vm.model) }
-    var provider by remember { mutableStateOf(vm.aiProvider) }
-    var oaiKey by remember { mutableStateOf(vm.openaiKey) }
-    var oaiBase by remember { mutableStateOf(vm.openaiBase) }
-    var oaiModel by remember { mutableStateOf(vm.openaiModel) }
-    LaunchedEffect(models.joinToString()) {
-        if (model !in models && models.isNotEmpty()) model = models[0]
-    }
-    HudDialog(
-        onDismissRequest = { vm.showSettings = false },
-        title = {
-            Text(
-                "Jarvis Settings",
-                modifier = Modifier.clickable {
-                    if (!vm.masterUnlocked) {
-                        masterTaps++
-                        if (masterTaps >= 5) {
-                            vm.setMasterUnlocked()
-                            Toast.makeText(setCtx, "Master section unlocked", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(setCtx, (5 - masterTaps).toString() + " taps to unlock master", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            )
-        },
-        text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (vm.masterUnlocked) MasterKeySection(vm)
-                Text("AI provider", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(
-                        Modifier.clip(RoundedCornerShape(8.dp))
-                            .selectable(selected = provider == AI_GEMINI, onClick = { provider = AI_GEMINI })
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = provider == AI_GEMINI, onClick = { provider = AI_GEMINI })
-                        Text("Gemini", fontSize = 14.sp)
-                    }
-                    Row(
-                        Modifier.clip(RoundedCornerShape(8.dp))
-                            .selectable(selected = provider == AI_OPENAI, onClick = { provider = AI_OPENAI })
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = provider == AI_OPENAI, onClick = { provider = AI_OPENAI })
-                        Text("Other AI", fontSize = 14.sp)
-                    }
-                }
-                if (provider == AI_OPENAI) {
-                    Text(
-                        "Any OpenAI-compatible API: OpenAI, Groq, xAI, DeepSeek, Ollama… Falls back to Gemini if it fails.",
-                        fontSize = 13.sp, color = mut
-                    )
-                    HudTextField(
-                        value = oaiKey,
-                        onValueChange = { oaiKey = it.trim() },
-                        placeholder = { Text("Other-AI key (sk-…)") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    HudTextField(
-                        value = oaiBase,
-                        onValueChange = { oaiBase = it.trim() },
-                        placeholder = { Text("Base URL — blank = OpenAI") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    HudTextField(
-                        value = oaiModel,
-                        onValueChange = { oaiModel = it.trim() },
-                        placeholder = { Text("Model (gpt-4o-mini)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                Text("API key (optional)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    "Only needed if you want to use your own key.",
-                    fontSize = 13.sp, color = mut
-                )
-                HudTextField(
-                    value = key,
-                    onValueChange = { key = it.trim() },
-                    placeholder = { Text("Paste your key (AIza…)") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text("GitHub token (for repo access)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    "Fine-grained, read-only is enough. Stored encrypted on this phone.",
-                    fontSize = 13.sp, color = mut
-                )
-                HudTextField(
-                    value = gh,
-                    onValueChange = { gh = it.trim() },
-                    placeholder = { Text("github_pat_…") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (vm.githubStatus().isNotBlank()) {
-                    Text(vm.githubStatus(), fontSize = 13.sp, color = acc)
-                }
-                if (vm.settingsMsg.isNotBlank()) {
-                    Text(vm.settingsMsg, fontSize = 13.sp, color = acc)
-                }
-                // Models stay hidden on the built-in key — only shown with your own key.
-                if (provider == AI_GEMINI && key.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { vm.refreshModels(key) }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Refresh models")
-                        }
-                    }
-                    Text("Preferred model (auto-falls-back on quota):", fontSize = 13.sp, color = mut)
-                    LazyColumn(Modifier.heightIn(max = 140.dp)) {
-                        items(models) { m ->
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .selectable(selected = model == m, onClick = { model = m })
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = model == m, onClick = { model = m })
-                                Text(m, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-                MoreRow(
-                    if (isJarvisDefaultAssistant(setCtx)) "\u2713 Jarvis answers the hold-gesture"
-                    else "\u25CB Set Jarvis as default assistant"
-                ) {
-                    try {
-                        setCtx.startActivity(defaultAssistantSettingsIntent())
-                    } catch (_: Exception) {
-                        Toast.makeText(setCtx, "Couldn't open assistant settings", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { vm.saveSettings(key, model, provider, oaiKey, oaiBase, oaiModel); vm.saveGithubToken(gh) }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = { vm.showSettings = false }) { Text("Cancel") }
-        }
-    )
-}
-
-@Composable
 fun HooksDialog(vm: JarvisViewModel) {
     val mut = Muted
     var name by remember { mutableStateOf("") }
@@ -1261,63 +1085,6 @@ fun BriefingDialog(vm: JarvisViewModel) {
     )
 }
 
-
-@Composable
-fun MasterKeySection(vm: JarvisViewModel) {
-    val mut = Muted
-    val acc = Accent
-    var mkey by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var imp by remember { mutableStateOf("") }
-    Text("🔑 Master Key", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-    if (!vm.masterInstalled) {
-        Text(
-            "Enter your master key — identity loads automatically.",
-            fontSize = 13.sp, color = mut
-        )
-        HudTextField(
-            value = mkey,
-            onValueChange = { mkey = it.trim() },
-            placeholder = { Text("Choose a master key (4+ chars)") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(onClick = { vm.installMaster(mkey, MASTER_SELF_NAME, ""); mkey = "" }) {
-            Text("Install master key")
-        }
-        HudTextField(
-            value = imp,
-            onValueChange = { imp = it.trim() },
-            placeholder = { Text("...or paste a master card to import") },
-            singleLine = false,
-            maxLines = 2,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(onClick = { vm.importMasterCard(imp); imp = "" }) {
-            Text("Import master card")
-        }
-    } else {
-        Text(
-            "Master mode active — recognized as " + vm.masterName.ifBlank { "Master" } + ".",
-            fontSize = 13.sp, color = acc
-        )
-        HudTextField(
-            value = confirm,
-            onValueChange = { confirm = it.trim() },
-            placeholder = { Text("Current key to remove") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(onClick = { if (vm.removeMaster(confirm)) confirm = "" }) {
-            Text("Remove master key")
-        }
-        Button(onClick = { vm.shareMasterCard() }) {
-            Text("Share master card")
-        }
-    }
-}
 
 @Composable
 fun ChatsDialog(vm: JarvisViewModel) {

@@ -11,7 +11,8 @@ val CHANGELOG = listOf(
     ChangelogEntry(
         53, "6.2", listOf(
             "Wake screen: harmonic core with ripples, data rings, live transcription",
-            "Floating hub bubble: diamond hub with idle/wake/listening states"
+            "Floating hub bubble: diamond hub with idle/wake/listening states",
+            "System Config sheet: security card, neural engine, gesture toggle"
         )
     ),
     ChangelogEntry(
