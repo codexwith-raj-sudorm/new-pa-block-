@@ -4,9 +4,11 @@ name: android
 on: [push, pull_request]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest migrates to Ubuntu 26 (Oct 2026); stay on 24.04 LTS.
+    runs-on: ubuntu-24.04
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      MASTER_IDENTITY: ${{ secrets.MASTER_IDENTITY }}
       GH_READ_TOKEN: ${{ secrets.GH_READ_TOKEN }}
     defaults:
       run:
@@ -19,7 +21,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.14.5'
       - run: gradle clean :app:testDebugUnitTest --console=plain > ../build-output.log 2>&1
       - name: Diagnose failures
         if: failure()

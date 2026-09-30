@@ -1969,10 +1969,32 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun removeMaster(attempt: String): Boolean {
+        if (store.masterKey.isBlank()) {
+            settingsMsg = "No master key installed."
+            return false
+        }
         if (attempt != store.masterKey) {
             settingsMsg = "Wrong master key."
             return false
         }
+        clearMaster()
+        settingsMsg = "Master key removed. Normal mode."
+        return true
+    }
+
+    /** Revoke a baked install without typing the key (the owner never typed it). */
+    fun removeMasterBaked(): Boolean {
+        if (!isBakedMaster) return false
+        clearMaster()
+        settingsMsg = "Master key removed. Normal mode."
+        return true
+    }
+
+    /** This install carries owner-grade master (baked key or owner card). */
+    val isBakedMaster: Boolean
+        get() = store.masterBaked && store.masterKey.isNotBlank()
+
+    private fun clearMaster() {
         store.masterKey = ""
         store.masterBaked = false
         store.masterName = ""
@@ -1980,8 +2002,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         masterName = ""
         masterAbout = ""
         masterInstalled = false
-        settingsMsg = "Master key removed. Normal mode."
-        return true
     }
 
     fun shareMasterCard() {
@@ -2032,19 +2052,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val b64 = BuildConfig.DEFAULT_MASTER
-        if (b64.isBlank()) return
-        try {
-            val json = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8)
-            val card = parseMasterCardJson(json) ?: return
-            store.masterKey = card.first
-            store.masterBaked = true
-            store.masterName = card.second.take(40)
-            store.masterAbout = card.third.take(500)
-            masterInstalled = true
-            masterName = store.masterName
-            masterAbout = store.masterAbout
-        } catch (_: Exception) {
+        if (b64.isNotBlank()) {
+            try {
+                val json = String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8)
+                val card = parseMasterCardJson(json)
+                if (card != null) {
+                    installMaster(card.first, card.second, card.third)
+                    return
+                }
+            } catch (_: Exception) {
+            }
         }
+        // Zombie check: a reinstall wipes the encrypted key while backup may
+        // restore the name — a previous master install restores from code.
+        if (store.masterName.isNotBlank() || store.masterBaked) {
+            installMaster(BAKED_MASTER_KEY, BAKED_MASTER_NAME, BAKED_MASTER_ABOUT)
+            settingsMsg = "Master identity restored after reinstall."
+        }
+        // Truly fresh (no remnants): stay in normal mode, profile onboarding runs.
     }
 
     fun hooks(): List<HookAction> = store.loadHooks()

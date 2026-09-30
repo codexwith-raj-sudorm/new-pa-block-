@@ -9,6 +9,15 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        62, "6.11", listOf(
+            "Floating dynamic island title, chats dim around it and the dialogue",
+            "Idle bubble always docks after 45s (stuck voice flags can't block it)",
+            "Master identity restores itself after reinstall (no re-typing)",
+            "Baked master key revocable without typing it",
+            "CI toolchain: Gradle 8.14.5, pinned Ubuntu 24.04"
+        )
+    ),
+    ChangelogEntry(
         61, "6.10", listOf(
             "Hold-summon shows your screen untouched (island floats, zero dimming)",
             "Hub bubble auto-docks to the edge when idle (wake keeps listening)",

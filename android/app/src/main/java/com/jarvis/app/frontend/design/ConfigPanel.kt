@@ -274,10 +274,21 @@ fun MasterClearanceCard(vm: JarvisViewModel) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
-            ConfigInput(confirm, { confirm = it.trim() }, "Current key to remove", password = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                RedGhostButton("Revoke Key", { if (vm.removeMaster(confirm)) confirm = "" }, Modifier.weight(1f))
-                NeonGhostButton("Export Card", { vm.shareMasterCard() }, Modifier.weight(1f))
+            if (vm.isBakedMaster) {
+                Text(
+                    "Baked identity — revoking needs no key.",
+                    color = Color(0xFF9CA3AF), fontSize = 12.sp
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RedGhostButton("Revoke Key", { vm.removeMasterBaked() }, Modifier.weight(1f))
+                    NeonGhostButton("Export Card", { vm.shareMasterCard() }, Modifier.weight(1f))
+                }
+            } else {
+                ConfigInput(confirm, { confirm = it.trim() }, "Current key to remove", password = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    RedGhostButton("Revoke Key", { if (vm.removeMaster(confirm)) confirm = "" }, Modifier.weight(1f))
+                    NeonGhostButton("Export Card", { vm.shareMasterCard() }, Modifier.weight(1f))
+                }
             }
         }
     }

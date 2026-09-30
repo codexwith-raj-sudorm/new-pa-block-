@@ -90,6 +90,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -500,20 +501,10 @@ fun JarvisScreen() {
         Modifier.fillMaxSize()
             .onGloballyPositioned { calibParent = it }
     ) {
-    Column(Modifier.fillMaxSize()) {
-        HudTopBar(
-            online = vm.brainOk,
-            wakeOn = vm.wakeOn,
-            ttsOn = vm.ttsOn,
-            onSettings = vm::openSettings,
-            onNewChat = vm::newChat,
-            onChats = { vm.showChats = true },
-            onMemory = { vm.showMemory = true },
-            onList = { vm.showList = true },
-            onToggleTts = vm::toggleTts,
-            onWake = { onWakeTap() },
-            onInterrupt = vm::interruptSpeech
-        )
+    Box(Modifier.fillMaxSize()) {
+        // Scrollable content runs full-bleed; the floating island and the
+        // dialogue fade the chats behind them instead of blocking them.
+        Column(Modifier.fillMaxSize()) {
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
         }
@@ -528,7 +519,7 @@ fun JarvisScreen() {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 116.dp, end = 12.dp, bottom = 180.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
@@ -540,7 +531,7 @@ fun JarvisScreen() {
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).padding(top = 108.dp),
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -634,19 +625,45 @@ fun JarvisScreen() {
                     StarterChip("Calculate 15% of 240") { vm.send("Calculate 15% of 240") }
                     StarterChip("Motivate me") { vm.send("Motivate me in one line") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(172.dp))
             }
         }
-        InputRow(
-            onSend = vm::send,
-            onMic = ::onMicTap,
-            onMicPositioned = { calibTargets[1] = it },
-            micVisible = voiceAvailable(context),
-            listening = vm.listening,
-            heard = vm.lastHeard,
-            heardFresh = vm.heardFresh,
-            voiceNote = vm.voiceNote,
-                    )
+        }
+        // Gradient dims: chats fade out under the floating chrome.
+        Box(
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(180.dp)
+                .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.85f), 1f to Color.Transparent))
+        )
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(210.dp)
+                .background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
+        )
+        HudIsland(
+            online = vm.brainOk,
+            wakeOn = vm.wakeOn,
+            ttsOn = vm.ttsOn,
+            onSettings = vm::openSettings,
+            onNewChat = vm::newChat,
+            onChats = { vm.showChats = true },
+            onMemory = { vm.showMemory = true },
+            onList = { vm.showList = true },
+            onToggleTts = vm::toggleTts,
+            onWake = { onWakeTap() },
+            onInterrupt = vm::interruptSpeech,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp)
+        )
+        Box(Modifier.align(Alignment.BottomCenter)) {
+            InputRow(
+                onSend = vm::send,
+                onMic = ::onMicTap,
+                onMicPositioned = { calibTargets[1] = it },
+                micVisible = voiceAvailable(context),
+                listening = vm.listening,
+                heard = vm.lastHeard,
+                heardFresh = vm.heardFresh,
+                voiceNote = vm.voiceNote
+            )
+        }
     }
     if (vm.showCalib && heroVisible) {
         CalibrationOverlay(
@@ -681,7 +698,7 @@ private fun voiceAvailable(context: android.content.Context): Boolean {
 }
 
 @Composable
-fun HudTopBar(
+fun HudIsland(
     online: Boolean,
     wakeOn: Boolean,
     ttsOn: Boolean,
@@ -692,64 +709,62 @@ fun HudTopBar(
     onList: () -> Unit,
     onToggleTts: () -> Unit,
     onWake: () -> Unit,
-    onInterrupt: () -> Unit
+    onInterrupt: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val busLvl by BubbleLevelBus.level.collectAsState()
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    // Scrim: the bar reads as its own layer — messages never merge under it.
-    Column(
-        Modifier.fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.55f))
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GlassCircleButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+    // Floating dynamic island: title pill + action capsule hover over the
+    // chats, which dim behind them. Same controls as the old top bar.
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box {
+            Row(
+                Modifier.premiumGlass(RoundedCornerShape(50))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GlassCircleButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("J.A.R.V.I.S", color = PremiumMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        hudStatusLine(online, wakeOn),
+                        color = if (online) PremiumNeon else JarvisRed,
+                        fontSize = 9.sp
+                    )
+                }
+                GlassCircleButton(onClick = onSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+                }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("J.A.R.V.I.S", color = PremiumMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                Text(
-                    hudStatusLine(online, wakeOn),
-                    color = if (online) PremiumNeon else JarvisRed,
-                    fontSize = 9.sp
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("+ New chat") },
+                    onClick = { menuOpen = false; onNewChat() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Memory") },
+                    onClick = { menuOpen = false; onMemory() }
+                )
+                DropdownMenuItem(
+                    text = { Text("Lists") },
+                    onClick = { menuOpen = false; onList() }
+                )
+                DropdownMenuItem(
+                    text = { Text(if (ttsOn) "Voice on" else "Voice off") },
+                    onClick = { menuOpen = false; onToggleTts() }
                 )
             }
-            GlassCircleButton(onClick = onSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
-            }
         }
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text("+ New chat") },
-                onClick = { menuOpen = false; onNewChat() }
-            )
-            DropdownMenuItem(
-                text = { Text("Memory") },
-                onClick = { menuOpen = false; onMemory() }
-            )
-            DropdownMenuItem(
-                text = { Text("Lists") },
-                onClick = { menuOpen = false; onList() }
-            )
-            DropdownMenuItem(
-                text = { Text(if (ttsOn) "Voice on" else "Voice off") },
-                onClick = { menuOpen = false; onToggleTts() }
-            )
-        }
-        if (hud.speaking) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
-            }
-        }
+        Spacer(Modifier.height(6.dp))
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            Modifier.premiumGlass(RoundedCornerShape(50)).padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             TextButton(onClick = onChats) {
                 Text("CHATS", fontSize = 12.sp, color = PremiumNeon)
@@ -763,7 +778,10 @@ fun HudTopBar(
                 )
             }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
+        if (hud.speaking) {
+            Spacer(Modifier.height(6.dp))
+            HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
+        }
     }
 }
 
@@ -962,11 +980,8 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
     var input by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     val focusReq = remember { FocusRequester() }
-    Column(
-        Modifier.fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.55f))
-    ) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
+    // No flat scrim: the pill floats over chats dimmed by the bottom gradient.
+    Column(Modifier.fillMaxWidth()) {
         if (listening) {
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",

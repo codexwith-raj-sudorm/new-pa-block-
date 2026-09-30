@@ -135,6 +135,9 @@ class WakeService : Service() {
     private var lastBubbleHushMs = 0L
     private var bubbleDocked = false
     private var lastBubbleTouchMs = 0L
+    // Last moment the voice flags were observed quiet. A TTS/recognizer flag
+    // stuck true must not veto docking forever - 45s of it counts as quiet.
+    private var lastQuietMs = 0L
     private var dockCmdMs = 0L
 
     /** Set the dock command, stamping nonzero commands for stale detection. */
@@ -720,9 +723,10 @@ class WakeService : Service() {
                 if (bubbleDockCmd.value != 0 && !bubbleDocked && nowMs - dockCmdMs > 15_000) {
                     bubbleDockCmd.value = 0 // stale command (lost race) - retry next cycle
                 }
+                if (!SpeechState.speaking && !HudStateBus.state.value.listening) lastQuietMs = nowMs
                 if (started && bubbleView != null && !bubbleDocked && bubbleDockCmd.value == 0 &&
-                    System.currentTimeMillis() - lastBubbleTouchMs > 45_000 &&
-                    !SpeechState.speaking && !HudStateBus.state.value.listening
+                    nowMs - lastBubbleTouchMs > 45_000 &&
+                    nowMs - lastQuietMs > 45_000
                 ) {
                     val p = bubbleParams
                     if (p != null) {
@@ -839,6 +843,7 @@ class WakeService : Service() {
             bubbleDocked = false
             bubbleDockCmd.value = 0
             lastBubbleTouchMs = System.currentTimeMillis()
+            lastQuietMs = lastBubbleTouchMs
             main.removeCallbacks(idleDockCheck)
             main.postDelayed(idleDockCheck, 5000)
             owner.handleResume()
