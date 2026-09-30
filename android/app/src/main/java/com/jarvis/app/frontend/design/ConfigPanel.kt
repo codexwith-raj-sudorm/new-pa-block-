@@ -80,6 +80,14 @@ fun configNetLabel(online: Boolean): String = if (online) "Network Secure" else 
 fun masterCardTitle(installed: Boolean): String =
     if (installed) "Master Mode Active" else "Install Master Key"
 
+/** Master gate status: which brain unlock the install actually earned. Pure. */
+fun masterBrainLine(baked: Boolean, builtin: Boolean, online: Boolean): String = when {
+    !baked -> "LIMITED MODE — paste your Gemini key below"
+    online -> "OWNER-GRADE — built-in brain unlocked"
+    !builtin -> "OWNER-GRADE — this build has no built-in key; paste yours below"
+    else -> "OWNER-GRADE — reconnecting…"
+}
+
 /** GitHub status badge: explicit status wins, else master-backed token. Pure, tested. */
 fun githubBadge(status: String, masterInstalled: Boolean): String? = when {
     status.isNotBlank() -> status
@@ -274,6 +282,11 @@ fun MasterClearanceCard(vm: JarvisViewModel) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
+            Text(
+                masterBrainLine(vm.isBakedMaster, vm.builtinKeyPresent, vm.brainOk),
+                color = if (vm.brainOk) PremiumNeon else Color(0xFFF59E0B),
+                fontSize = 11.sp, fontFamily = FontFamily.Monospace
+            )
             if (vm.isBakedMaster) {
                 Text(
                     "Baked identity — revoking needs no key.",
@@ -440,6 +453,12 @@ fun ConfigPanel(vm: JarvisViewModel) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Gemini API Key (Optional)", color = Color(0xFFD1D5DB), fontSize = 11.sp)
                             ConfigInput(key, { key = it.trim() }, "Paste your key (AIza...)", password = true)
+                            if (!vm.builtinKeyPresent && vm.apiKey.isBlank()) {
+                                Text(
+                                    "No built-in key in this build — paste yours (free from aistudio.google.com).",
+                                    color = Color(0xFFF59E0B), fontSize = 10.sp
+                                )
+                            }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

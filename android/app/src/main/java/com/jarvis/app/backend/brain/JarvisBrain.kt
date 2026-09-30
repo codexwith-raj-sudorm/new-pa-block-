@@ -1744,6 +1744,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     // NOTE: obfuscation, not encryption — anyone decompiling the APK can recover it.
     // Real protection = restrict the key in Google Cloud + keep the APK private.
     private val builtinKey: String = unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY)
+    /** False when CI built without the GEMINI_API_KEY secret. */
+    val builtinKeyPresent: Boolean get() = builtinKey.isNotBlank()
 
     /** User's own key if pasted, else the built-in key — only once the Master Key is installed. */
     private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled && store.masterBaked) builtinKey else "" }
@@ -1963,9 +1965,17 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         masterAbout = store.masterAbout
         store.masterUnlocked = false
         masterUnlocked = false
-        settingsMsg = if (baked) "Master key accepted. Welcome, Master Raj."
+        settingsMsg = if (baked && brainOk) "Master key accepted. Welcome, Master Raj."
+        else if (baked) "Master accepted — but this build has no built-in key. Paste a Gemini key below."
         else "Master key installed — limited mode. Paste your own Gemini key."
         HudStateBus.postTicker("[MASTER RECOGNIZED]")
+        if (brainOk) {
+            refreshModels()
+            if (messages.none { it.role == "user" }) {
+                messages.add(ChatMessage("bot", "Brain connected. 🟢 What shall we do first?"))
+                persist()
+            }
+        }
     }
 
     fun removeMaster(attempt: String): Boolean {

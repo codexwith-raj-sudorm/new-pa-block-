@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        63, "6.12", listOf(
+            "Master install connects the brain instantly + shows key status",
+            "Settings tells you when the build has no built-in key"
+        )
+    ),
+    ChangelogEntry(
         62, "6.11", listOf(
             "Floating dynamic island title, chats dim around it and the dialogue",
             "Idle bubble always docks after 45s (stuck voice flags can't block it)",
