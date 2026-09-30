@@ -8,7 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,9 +65,10 @@ class AssistActivity : ComponentActivity() {
             val state = coreStateLabel(listening, thinking, speaking, vm.convoActive)
             val heard = vm.lastHeard.ifBlank { vm.voiceNote.orEmpty() }.ifBlank { "…" }.take(300)
             Box(Modifier.fillMaxSize()) {
+                // No scrim: the app behind stays fully visible, the island
+                // floats over it. The transparent layer only catches outside taps.
                 Box(
                     Modifier.fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.9f))
                         .clickable { finish() }
                 )
                 EdgeFlashOverlay(fireTick = 0)

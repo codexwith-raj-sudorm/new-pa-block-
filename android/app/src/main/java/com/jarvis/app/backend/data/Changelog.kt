@@ -9,6 +9,30 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        61, "6.10", listOf(
+            "Hold-summon shows your screen untouched (island floats, zero dimming)",
+            "Hub bubble auto-docks to the edge when idle (wake keeps listening)",
+            "Tap pops it out, double-tap turns wake off, hold opens wake screen",
+            "Drag it to the border to hide it, like the accessibility icon"
+        )
+    ),
+    ChangelogEntry(
+        60, "6.9", listOf(
+            "System Calibration tour: spotlight + typewriter guide",
+            "1.5s entry beat, core-mic-execute-handoff steps",
+            "Always skippable, crash-safe, master screens excluded"
+        )
+    ),
+    ChangelogEntry(
+        59, "6.8", listOf(
+            "First-run profile: Jarvis asks your name + details",
+            "Say 'my name is X' anytime to update it",
+            "AI personalizes replies with who you are",
+            "Header + input ride on scrims — messages never merge under them",
+            "Swirl core stays on behind the chat after first message"
+        )
+    ),
+    ChangelogEntry(
         58, "6.7", listOf(
             "Hardware requests get an honest refusal (no LLM hallucination)",
             "Owner-card master keys stay owner-grade after updates"

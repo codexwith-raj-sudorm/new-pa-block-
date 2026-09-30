@@ -42,6 +42,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import android.graphics.BitmapFactory
@@ -76,6 +78,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -463,6 +477,29 @@ fun JarvisScreen() {
     val bgLvl by BubbleLevelBus.level.collectAsState()
     val hudUi by HudStateBus.state.collectAsState()
     PremiumBackdrop(bgLvl) {
+    // System Calibration overlay needs window-space target rects.
+    var calibParent by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val calibTargets = remember { mutableStateMapOf<Int, LayoutCoordinates>() }
+    var calibStep by remember { mutableStateOf(0) }
+    val heroScroll = rememberScrollState()
+    val listState = rememberLazyListState()
+    val heroVisible = premiumHeroVisible(vm.messages.count { it.role == "user" }, vm.busy)
+    // A chat that already has messages has no hero targets - retire silently.
+    if (vm.showCalib && !heroVisible) {
+        LaunchedEffect(Unit) { vm.finishCalibration() }
+    }
+    // The mic step has no target on devices without recognition - skip it.
+    LaunchedEffect(calibStep, vm.showCalib) {
+        if (vm.showCalib && calibStep == 1 && !voiceAvailable(context)) calibStep = 2
+    }
+    // Keep the Execute step on screen on short displays.
+    LaunchedEffect(calibStep, vm.showCalib) {
+        if (vm.showCalib && calibStep == 2) heroScroll.animateScrollTo(heroScroll.maxValue)
+    }
+    Box(
+        Modifier.fillMaxSize()
+            .onGloballyPositioned { calibParent = it }
+    ) {
     Column(Modifier.fillMaxSize()) {
         HudTopBar(
             online = vm.brainOk,
@@ -477,32 +514,53 @@ fun JarvisScreen() {
             onWake = { onWakeTap() },
             onInterrupt = vm::interruptSpeech
         )
-        val listState = rememberLazyListState()
-        val heroVisible = premiumHeroVisible(vm.messages.count { it.role == "user" }, vm.busy)
         LaunchedEffect(vm.messages.size, vm.busy) {
             if (vm.messages.isNotEmpty()) listState.animateScrollToItem(vm.messages.size - 1)
         }
-        LazyColumn(
-            state = listState,
-            modifier = if (heroVisible) Modifier.fillMaxWidth().heightIn(max = 280.dp) else Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
-            if (vm.busy) {
-                item { ThinkingRow() }
+        if (!heroVisible) {
+            // The core stays on as an ambient backdrop behind the messages.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                SwirlCore(
+                    level = if (vm.listening) 1f else if (hudUi.speaking) 0.6f else 0.2f,
+                    modifier = Modifier.align(Alignment.Center).alpha(0.35f),
+                    diameter = 300.dp
+                )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
+                    if (vm.busy) {
+                        item { ThinkingRow() }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
+                if (vm.busy) {
+                    item { ThinkingRow() }
+                }
             }
         }
         if (heroVisible) {
             Column(
                 Modifier.weight(1f).fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(heroScroll)
                     .padding(horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 SwirlCore(
                     level = if (vm.listening) 1f else if (hudUi.speaking) 0.6f else 0.2f,
+                    modifier = Modifier.onGloballyPositioned { calibTargets[0] = it },
                     diameter = 148.dp
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -566,7 +624,7 @@ fun JarvisScreen() {
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    NeonPillButton("Execute Script") { vm.showHooks = true }
+                    NeonPillButton("Execute Script", Modifier.onGloballyPositioned { calibTargets[2] = it }) { vm.showHooks = true }
                 }
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -582,12 +640,23 @@ fun JarvisScreen() {
         InputRow(
             onSend = vm::send,
             onMic = ::onMicTap,
+            onMicPositioned = { calibTargets[1] = it },
             micVisible = voiceAvailable(context),
             listening = vm.listening,
             heard = vm.lastHeard,
             heardFresh = vm.heardFresh,
             voiceNote = vm.voiceNote,
                     )
+    }
+    if (vm.showCalib && heroVisible) {
+        CalibrationOverlay(
+            step = calibStep,
+            rect = calibRect(calibStep, calibTargets.toMap(), calibParent),
+            parent = calibParent,
+            onTargetTap = { if (calibStep < 3) calibStep++ },
+            onFinish = { vm.finishCalibration() }
+        )
+    }
     }
     }
 
@@ -596,6 +665,7 @@ fun JarvisScreen() {
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
     if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, { onWakeTap() })
+    else if (vm.showProfile) ProfileDialog(vm)
     else if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)
     if (vm.showHooks) HooksDialog(vm)
@@ -628,9 +698,13 @@ fun HudTopBar(
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
+    // Scrim: the bar reads as its own layer — messages never merge under it.
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.55f))
+    ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -689,6 +763,7 @@ fun HudTopBar(
                 )
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
     }
 }
 
@@ -883,11 +958,15 @@ private fun HomeTile(icon: ImageVector, active: Boolean, modifier: Modifier = Mo
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?) {
+fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?, onMicPositioned: (LayoutCoordinates) -> Unit = {}) {
     var input by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     val focusReq = remember { FocusRequester() }
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.55f))
+    ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
         if (listening) {
             Text(
                 "🎙 Listening… speak now (tap mic to stop)",
@@ -948,6 +1027,7 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
                         Modifier.size(40.dp)
                             .background(PremiumNeon.copy(alpha = 0.1f), CircleShape)
                             .border(1.dp, if (listening) JarvisRed else PremiumNeon, CircleShape)
+                            .onGloballyPositioned(onMicPositioned)
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onMic()
@@ -1249,6 +1329,150 @@ fun OnboardDialog(vm: JarvisViewModel, onMic: () -> Unit, onWake: () -> Unit) {
             }
         },
         confirmButton = { TextButton(onClick = { vm.finishOnboard() }) { Text("Start") } }
+    )
+}
+
+/** Target rect in overlay-parent space (null while layout settles). Never throws. */
+private fun calibRect(step: Int, targets: Map<Int, LayoutCoordinates>, parent: LayoutCoordinates?): Rect? {
+    val t = targets[step] ?: return null
+    val p = parent ?: return null
+    return try {
+        if (!t.isAttached || !p.isAttached) return null
+        val o = p.boundsInWindow().topLeft
+        t.boundsInWindow().translate(Offset(-o.x, -o.y))
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
+ * System Calibration: scrim + punched spotlight + typewriter tooltip.
+ * Taps inside the hole advance; everything else is consumed. SKIP is always
+ * visible and a crash only restarts the tour at step 0 - never a lock.
+ */
+@Composable
+private fun BoxScope.CalibrationOverlay(
+    step: Int,
+    rect: Rect?,
+    parent: LayoutCoordinates?,
+    onTargetTap: () -> Unit,
+    onFinish: () -> Unit
+) {
+    val density = LocalDensity.current
+    val handoff = step >= 3
+    var entered by remember { mutableStateOf(false) }
+    // Pitch-black entry beat, then the tour fades in.
+    LaunchedEffect(Unit) { delay(1500); entered = true }
+    val hole = rect?.inflate(with(density) { 14.dp.toPx() })
+    val pw = parent?.size?.width ?: 0
+    val ph = parent?.size?.height ?: 0
+    val below = hole != null && hole.bottom + 170 < ph
+    val tipW = (pw - 64).coerceAtLeast(200)
+    val tipY = when {
+        handoff -> (ph / 2 - 90).coerceAtLeast(0)
+        hole == null -> 200
+        below -> (hole.bottom + 16).toInt()
+        else -> (hole.top - 170).toInt().coerceAtLeast(0)
+    }
+    val fullText = when (step) {
+        0 -> "[SYS] CALIBRATING NEURAL LINK. TAP CORE TO INITIATE."
+        1 -> "[SYS] AUDIO TELEMETRY OFFLINE. TAP TO OPEN COMM CHANNEL."
+        2 -> "[SYS] COMMAND TERMINAL. DEPLOY LOCAL SCRIPTS HERE."
+        else -> "[SYS] CALIBRATION COMPLETE. JARVIS IS LISTENING. TAP ANYWHERE."
+    }
+    var shown by remember(step) { mutableStateOf(0) }
+    LaunchedEffect(step, entered) {
+        if (!entered) return@LaunchedEffect
+        shown = 0
+        while (shown < fullText.length) { delay(14); shown++ }
+    }
+    Box(
+        Modifier.fillMaxSize()
+            .pointerInput(step, hole, handoff, entered) {
+                detectTapGestures { off ->
+                    if (!entered) return@detectTapGestures
+                    if (handoff) { onFinish(); return@detectTapGestures }
+                    if (hole != null && hole.contains(off)) onTargetTap()
+                }
+            }
+    ) {
+        if (!handoff) {
+            Canvas(
+                Modifier.fillMaxSize()
+                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            ) {
+                drawRect(Color.Black.copy(alpha = if (entered) 0.85f else 1f))
+                if (entered && hole != null) {
+                    if (step == 0) {
+                        drawCircle(
+                            Color.Transparent, radius = hole.width / 2f, center = hole.center,
+                            blendMode = BlendMode.Clear
+                        )
+                    } else {
+                        drawRoundRect(
+                            Color.Transparent, topLeft = hole.topLeft, size = hole.size,
+                            cornerRadius = CornerRadius(28.dp.toPx), blendMode = BlendMode.Clear
+                        )
+                    }
+                    // Connector stub bridging the hole toward the tooltip.
+                    val from = if (below) Offset(hole.center.x, hole.bottom)
+                    else Offset(hole.center.x, hole.top)
+                    val dir = if (below) Offset(0f, 1f) else Offset(0f, -1f)
+                    drawLine(PremiumNeon, from, from + dir * 14f, strokeWidth = 2f)
+                }
+            }
+        }
+        if (entered) {
+            Box(
+                Modifier.align(Alignment.TopStart)
+                    .offset { IntOffset(32, tipY) }
+                    .width(with(density) { tipW.toDp() })
+                    .background(Color(0xFF111418), RoundedCornerShape(16.dp))
+                    .border(1.dp, PremiumNeon, RoundedCornerShape(16.dp))
+                    .padding(14.dp)
+            ) {
+                Text(
+                    fullText.take(shown), color = Color.White, fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace, lineHeight = 18.sp
+                )
+            }
+        }
+        TextButton(onClick = onFinish, modifier = Modifier.align(Alignment.TopEnd)) {
+            Text(
+                "SKIP", fontSize = 12.sp, color = PremiumMuted,
+                fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileDialog(vm: JarvisViewModel) {
+    var name by remember { mutableStateOf("") }
+    var about by remember { mutableStateOf("") }
+    HudDialog(
+        onDismissRequest = { vm.skipProfile() },
+        title = { Text("Who am I serving?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Tell me your name — I'll remember you and pick up the rest as we chat.",
+                    fontSize = 14.sp
+                )
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it.take(40) },
+                    label = { Text("Your name") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = about, onValueChange = { about = it.take(200) },
+                    label = { Text("Anything about you (city, interests…)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { vm.saveProfile(name, about) }) { Text("Remember me") } },
+        dismissButton = { TextButton(onClick = { vm.skipProfile() }) { Text("Skip") } }
     )
 }
 

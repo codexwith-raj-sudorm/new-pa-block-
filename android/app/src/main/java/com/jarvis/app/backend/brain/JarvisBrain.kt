@@ -802,6 +802,33 @@ fun masterIdentity(name: String, about: String): String {
     return sb.toString()
 }
 
+/** Identity line for a named user (no master installed). Pure, tested. */
+fun profileIdentity(name: String, about: String): String {
+    val n = name.trim()
+    val a = about.trim()
+    if (n.isEmpty() && a.isEmpty()) return ""
+    val sb = StringBuilder("You're chatting with your owner")
+    if (n.isNotEmpty()) sb.append(", ").append(n)
+    sb.append(". Address them by name when it feels natural.")
+    if (a.isNotEmpty()) sb.append(" What you know about them: ").append(a)
+    return sb.toString()
+}
+
+/** Words that are never a name ("call me back"). */
+private val PROFILE_NOISE = setOf("back", "later", "soon", "now", "please", "maybe")
+
+/** "my name is X" / "call me X" -> X. Pure, tested. */
+fun parseProfileClaim(raw: String): String? {
+    val t = raw.trim().trimEnd('?', '.', '!').trim()
+    if (t.isEmpty()) return null
+    val m = Regex("""^(?:my name is|call me)\s+(.+)$""", RegexOption.IGNORE_CASE).find(t) ?: return null
+    val name = m.groupValues[1].trim().trim('"', '\'').trim()
+    if (name.isEmpty() || name.length > 40 || !name.any(Char::isLetter)) return null
+    if (name.split(Regex("""\s+""")).size > 4) return null
+    if (name.lowercase() in PROFILE_NOISE) return null
+    return name
+}
+
 /** Reverse the build-time key obfuscation (reversed Base64). Pure, tested. */
 fun unobscureKey(obf: String): String = try {
     if (obf.isBlank()) "" else String(
@@ -944,6 +971,7 @@ object Router {
             if (q.isNotEmpty()) return Hit("access_recents_tap", q)
         }
         if (isUnsupportedHardware(t)) return Hit("nohw", t)
+        parseProfileClaim(t)?.let { return Hit("profile", it) }
         parseDeviceCommand(t)?.let { return Hit("device", t) }
         parseListCommand(t)?.let { return Hit("lists", t) }
         return null
@@ -1058,6 +1086,23 @@ class Store(context: Context) {
     var masterBaked: Boolean
         get() = p.getBoolean("master_baked", false)
         set(v) = p.edit().putBoolean("master_baked", v).apply()
+
+    /** First-run profile: who Jarvis is serving (local only). */
+    var userName: String
+        get() = p.getString("user_name", "") ?: ""
+        set(v) = p.edit().putString("user_name", v.trim().take(40)).apply()
+
+    var userAbout: String
+        get() = p.getString("user_about", "") ?: ""
+        set(v) = p.edit().putString("user_about", v.trim().take(200)).apply()
+
+    var profileDone: Boolean
+        get() = p.getBoolean("profile_done", false)
+        set(v) = p.edit().putBoolean("profile_done", v).apply()
+
+    var calibrated: Boolean
+        get() = p.getBoolean("cal_done", false)
+        set(v) = p.edit().putBoolean("cal_done", v).apply()
 
     var masterName: String
         get() = p.getString("master_name", "") ?: ""
@@ -1613,6 +1658,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showReminders by mutableStateOf(false)
     var remTick by mutableStateOf(0)
     var showOnboard by mutableStateOf(!store.onboarded)
+    var showProfile by mutableStateOf(!store.profileDone && store.masterKey.isBlank())
     var masterInstalled by mutableStateOf(store.masterKey.isNotBlank())
     var masterName by mutableStateOf(store.masterName)
     var masterAbout by mutableStateOf(store.masterAbout)
@@ -1882,6 +1928,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         showOnboard = false
     }
 
+    fun saveProfile(name: String, about: String) {
+        store.userName = name.trim().take(40)
+        store.userAbout = about.trim().take(200)
+        store.profileDone = true
+        showProfile = false
+    }
+
+    fun skipProfile() {
+        store.profileDone = true
+        showProfile = false
+    }
+
+    val showCalib: Boolean get() = !store.calibrated && !showOnboard && !showProfile
+
+    fun finishCalibration() {
+        store.calibrated = true
+    }
+
     fun installMaster(key: String, name: String, about: String) {
         val k = key.trim()
         if (k.length < 4) {
@@ -1891,6 +1955,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val baked = k == BAKED_MASTER_KEY
         store.masterKey = k
         store.masterBaked = baked
+        showProfile = false
         store.masterName = (if (baked) BAKED_MASTER_NAME else MASTER_SELF_NAME).take(40)
         store.masterAbout = (if (baked) BAKED_MASTER_ABOUT else about.trim().ifBlank { MASTER_SELF_ABOUT }).take(500)
         masterInstalled = true
@@ -4130,6 +4195,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         "routine" -> morningRoutine()
         "device" -> runDevice(hit.arg)
         "nohw" -> "I can't flip hardware switches — the flashlight and screen brightness are outside what I'm allowed to change."
+        "profile" -> saveProfileName(hit.arg)
         "notifs" -> readNotifs()
         "lists" -> runLists(hit.arg)
         "handsfree" -> {
@@ -4259,8 +4325,19 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         else -> "?"
     }
 
+    /** Save a spoken name claim ("my name is X"). */
+    private fun saveProfileName(name: String): String {
+        store.userName = name.take(40)
+        store.profileDone = true
+        showProfile = false
+        return if (masterInstalled) "Saved — I'll remember $name."
+        else "Got it — I'll call you $name from now on."
+    }
+
     private fun buildSystem(facts: List<String>): String {
-        val master = if (masterInstalled) masterIdentity(masterName, masterAbout) + "\n" else ""
+        val who = if (masterInstalled) masterIdentity(masterName, masterAbout)
+        else profileIdentity(store.userName, store.userAbout)
+        val master = if (who.isNotEmpty()) "$who\n" else ""
         val base = master + "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. " +
             "Be warm, a little witty, and helpful. Keep answers short enough for a phone screen unless asked for detail."
         if (facts.isEmpty()) return base

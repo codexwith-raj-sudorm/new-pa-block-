@@ -76,6 +76,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -94,6 +95,10 @@ fun rippleAlpha(phase: Float): Float = 0.8f * (1f - phase)
 enum class HubState { IDLE, WAKE, LISTENING }
 
 /** Hub bubble state: live audio wins, then the wake flash. Pure, tested. */
+/** Edge to dock (-1 left, +1 right) from window x. Pure, tested. */
+fun nearestDockSide(xPx: Float, centerPx: Float, screenWPx: Float): Int =
+    if (xPx + centerPx < screenWPx / 2) -1 else 1
+
 fun hubStateFor(listening: Boolean, speaking: Boolean, wakeFlash: Boolean): HubState = when {
     listening || speaking -> HubState.LISTENING
     wakeFlash -> HubState.WAKE
@@ -343,6 +348,11 @@ fun HubBubble(
     wakeFlash: Boolean = false,
     onClick: () -> Unit,
     onDoubleTap: () -> Unit = {},
+    onLongPress: () -> Unit = {},
+    onDragStart: () -> Unit = {},
+    onEdgeRelease: (Int) -> Unit = {},
+    dockCmd: Int = 0,
+    onDockedChange: (Boolean) -> Unit = {},
     onPositionChanged: (Float, Float) -> Unit = { _, _ -> }
 ) {
     val state = hubStateFor(listening, speaking, wakeFlash)
@@ -352,6 +362,10 @@ fun HubBubble(
     val configuration = LocalConfiguration.current
     val scope = rememberCoroutineScope()
     val stateNow by rememberUpdatedState(state)
+    var dockedSide by remember { mutableStateOf(0) }
+    var lastUndockX by remember { mutableStateOf(startX) }
+    var lastUndockY by remember { mutableStateOf(startY) }
+    var dockJob by remember { mutableStateOf<Job?>(null) }
     var clock by remember { mutableStateOf(0L) }
     var trackDeg by remember { mutableStateOf(0f) }
     LaunchedEffect(Unit) {
@@ -362,6 +376,41 @@ fun HubBubble(
             trackDeg = (trackDeg + hubSpinDir(s) * 360f * 16f / hubSpinMs(s)) % 360f
         }
     }
+    // Service-driven edge dock (idle hide + wake pop-out).
+    LaunchedEffect(dockCmd) {
+        val side = dockCmd
+        if (side != 0 && dockedSide == 0) {
+            val screenWpx = with(density) { configuration.screenWidthDp.dp.toPx() }
+            val widthPx = with(density) { contentWidthDp.dp.toPx() }
+            val peekPx = with(density) { 30.dp.toPx() }
+            val targetX = if (side < 0) -(widthPx - peekPx) else screenWpx - peekPx
+            lastUndockX = offsetX
+            lastUndockY = offsetY
+            dockJob?.cancel()
+            dockJob = scope.launch {
+                Animatable(offsetX).animateTo(targetX, tween(250)) {
+                    offsetX = value
+                    onPositionChanged(offsetX, offsetY)
+                }
+                dockedSide = side
+                onDockedChange(true)
+            }
+        } else if (side == 0 && dockedSide != 0) {
+            val tx = lastUndockX
+            dockJob?.cancel()
+            dockJob = scope.launch {
+                Animatable(offsetX).animateTo(tx, tween(250)) {
+                    offsetX = value
+                    onPositionChanged(offsetX, offsetY)
+                }
+                offsetY = lastUndockY
+                onPositionChanged(offsetX, offsetY)
+                dockedSide = 0
+                onDockedChange(false)
+            }
+        }
+    }
+
     val period = hubPeriodMs(state)
     val phase = (clock % period).toFloat() / period
     val (coreS, coreA) = hubPulse(state, phase)
@@ -392,10 +441,22 @@ fun HubBubble(
     Column(
         modifier = modifier
             .pointerInput(Unit) {
-                detectTapGestures(onTap = { onClick() }, onDoubleTap = { onDoubleTap() })
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onDoubleTap = { onDoubleTap() },
+                    onLongPress = { onLongPress() }
+                )
             }
             .pointerInput(Unit) {
                 detectDragGestures(
+                    onDragStart = {
+                        dockJob?.cancel()
+                        if (dockedSide != 0) {
+                            dockedSide = 0
+                            onDockedChange(false)
+                        }
+                        onDragStart()
+                    },
                     onDrag = { change, amt ->
                         change.consume()
                         offsetX += amt.x
@@ -406,6 +467,16 @@ fun HubBubble(
                         val screenWpx = with(density) { configuration.screenWidthDp.dp.toPx() }
                         val centerPx = with(density) { (contentWidthDp / 2).dp.toPx() }
                         val marginPx = with(density) { 8.dp.toPx() }
+                        val edgePx = with(density) { 64.dp.toPx() }
+                        val releaseCx = offsetX + centerPx
+                        if (releaseCx < edgePx) {
+                            onEdgeRelease(-1)
+                            return@detectDragGestures
+                        }
+                        if (releaseCx > screenWpx - edgePx) {
+                            onEdgeRelease(1)
+                            return@detectDragGestures
+                        }
                         val targetX =
                             (if (offsetX + centerPx < screenWpx / 2) marginPx else screenWpx - marginPx) - centerPx
                         scope.launch {

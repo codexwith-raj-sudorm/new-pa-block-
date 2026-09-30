@@ -85,6 +85,7 @@ import com.jarvis.app.backend.voice.verifyVoiceprint
 import com.jarvis.app.backend.voice.voiceGateDecision
 import com.jarvis.app.backend.voice.vpThresholdFor
 import com.jarvis.app.frontend.design.HubBubble
+import com.jarvis.app.frontend.design.nearestDockSide
 import com.jarvis.app.frontend.widgets.SpeechState
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
 import com.jarvis.app.R
@@ -125,12 +126,22 @@ class WakeService : Service() {
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
     private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
+    private val bubbleDockCmd = kotlinx.coroutines.flow.MutableStateFlow(0)
     private var restarts = 0
     @Suppress("DEPRECATION")
     private var callListener: PhoneStateListener? = null
     private val errorTimes = ArrayDeque<Long>()
     private var lastStandbyToastMs = 0L
     private var lastBubbleHushMs = 0L
+    private var bubbleDocked = false
+    private var lastBubbleTouchMs = 0L
+    private var dockCmdMs = 0L
+
+    /** Set the dock command, stamping nonzero commands for stale detection. */
+    private fun setDockCmd(side: Int) {
+        if (side != 0) dockCmdMs = System.currentTimeMillis()
+        bubbleDockCmd.value = side
+    }
     private var started = false
 
     override fun onCreate() {
@@ -331,6 +342,8 @@ class WakeService : Service() {
         HudStateBus.postTicker("[VOICE: MATCH]")
         StarkSounds.chime()
         flashBubble()
+        if (bubbleDocked) bubbleDockCmd.value = 0 // pop out on wake
+        lastBubbleTouchMs = System.currentTimeMillis()
         // Instant mic: hush anything in flight and listen NOW. The greeting is
         // deferred — spoken over the Gemini round trip once the command lands,
         // or as a reprompt if the listen fails. No deaf window.
@@ -637,6 +650,11 @@ class WakeService : Service() {
     private fun onBubbleTap() {
         StarkSounds.click()
         val now = System.currentTimeMillis()
+        lastBubbleTouchMs = now
+        if (bubbleDocked) {
+            bubbleDockCmd.value = 0 // tap only pops the bubble back out
+            return
+        }
         if (SpeechState.speaking) {
             lastBubbleHushMs = now
             hushSpeech()
@@ -649,6 +667,24 @@ class WakeService : Service() {
             cmdRetries = 0
             startCommandListen()
         }
+    }
+
+    /** Double-tap: stop the response and switch wake mode off (re-arm from the app). */
+    private fun onBubbleDoubleTap() {
+        StarkSounds.click()
+        lastBubbleTouchMs = System.currentTimeMillis()
+        hushSpeech()
+        InterruptBus.request()
+        toast("Wake off — re-arm it from the app")
+        shutDown(userStopped = true)
+    }
+
+    /** Long-press: pop the bubble out (if docked) and open the wake screen. */
+    private fun onBubbleHold() {
+        StarkSounds.click()
+        lastBubbleTouchMs = System.currentTimeMillis()
+        if (bubbleDocked) bubbleDockCmd.value = 0
+        openAppForCommand()
     }
 
     private fun hushSpeech() {
@@ -673,6 +709,30 @@ class WakeService : Service() {
             t.setSpeechRate(0.93f) // fixed
             t.setPitch(0.68f) // fixed
         } catch (_: Exception) {
+        }
+    }
+
+    /** Idle watch: dock the bubble to the nearest edge after 45s quiet. The wake loop keeps listening. */
+    private val idleDockCheck = object : Runnable {
+        override fun run() {
+            try {
+                val nowMs = System.currentTimeMillis()
+                if (bubbleDockCmd.value != 0 && !bubbleDocked && nowMs - dockCmdMs > 15_000) {
+                    bubbleDockCmd.value = 0 // stale command (lost race) - retry next cycle
+                }
+                if (started && bubbleView != null && !bubbleDocked && bubbleDockCmd.value == 0 &&
+                    System.currentTimeMillis() - lastBubbleTouchMs > 45_000 &&
+                    !SpeechState.speaking && !HudStateBus.state.value.listening
+                ) {
+                    val p = bubbleParams
+                    if (p != null) {
+                        val dm = resources.displayMetrics
+                        setDockCmd(nearestDockSide(p.x.toFloat(), 60f * dm.density, dm.widthPixels.toFloat()))
+                    }
+                }
+            } catch (_: Exception) {
+            }
+            if (started && bubbleView != null) main.postDelayed(this, 5000)
         }
     }
 
@@ -734,8 +794,22 @@ class WakeService : Service() {
                             speaking = hud.speaking,
                             wakeFlash = flash != null,
                             onClick = { onBubbleTap() },
-                            onDoubleTap = { StarkSounds.click(); hushSpeech() },
+                            onDoubleTap = { onBubbleDoubleTap() },
+                            onLongPress = { onBubbleHold() },
+                            onDragStart = {
+                                lastBubbleTouchMs = System.currentTimeMillis()
+                                if (bubbleDockCmd.value != 0) bubbleDockCmd.value = 0
+                            },
+                            onEdgeRelease = { side ->
+                                lastBubbleTouchMs = System.currentTimeMillis()
+                                if (!bubbleDocked) setDockCmd(side)
+                            },
+                            dockCmd = bubbleDockCmd.collectAsState().value,
+                            onDockedChange = { bubbleDocked = it },
                             onPositionChanged = { nx, ny ->
+                                if (bubbleDockCmd.value == 0 && !bubbleDocked) {
+                                    lastBubbleTouchMs = System.currentTimeMillis()
+                                }
                                 p.x = nx.toInt()
                                 p.y = ny.toInt()
                                 runCatching { wm.updateViewLayout(view, p) }
@@ -762,6 +836,11 @@ class WakeService : Service() {
             }
             wm.addView(view, p)
             bubbleView = view
+            bubbleDocked = false
+            bubbleDockCmd.value = 0
+            lastBubbleTouchMs = System.currentTimeMillis()
+            main.removeCallbacks(idleDockCheck)
+            main.postDelayed(idleDockCheck, 5000)
             owner.handleResume()
         } catch (_: Exception) {
             bubbleView = null
@@ -771,6 +850,9 @@ class WakeService : Service() {
     private fun removeBubble() {
         val v = bubbleView ?: return
         bubbleView = null
+        main.removeCallbacks(idleDockCheck)
+        bubbleDockCmd.value = 0
+        bubbleDocked = false
         runCatching { wm.removeView(v) }
         runCatching { bubbleLifecycle?.handleDestroy() }
         bubbleLifecycle = null

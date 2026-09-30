@@ -7,6 +7,7 @@ import com.jarvis.app.frontend.design.hubPulse
 import com.jarvis.app.frontend.design.hubSpinDir
 import com.jarvis.app.frontend.design.hubSpinMs
 import com.jarvis.app.frontend.design.hubStateFor
+import com.jarvis.app.frontend.design.nearestDockSide
 import com.jarvis.app.frontend.design.rippleAlpha
 import com.jarvis.app.frontend.design.ripplePhase
 import com.jarvis.app.frontend.design.rippleScale
@@ -14,6 +15,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WakeHarmonicTest {
+    @Test
+    fun dockSidePicksNearestEdge() {
+        assertEquals(-1, nearestDockSide(0f, 60f, 1080f))
+        assertEquals(1, nearestDockSide(1000f, 60f, 1080f))
+        assertEquals(1, nearestDockSide(480f, 60f, 1080f))
+    }
+
     @Test
     fun ripplesStaggerByThirds() {
         assertEquals(0f, ripplePhase(0f, 0), 1e-6f)

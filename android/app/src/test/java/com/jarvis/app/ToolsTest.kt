@@ -9,6 +9,8 @@ import com.jarvis.app.backend.brain.StoredMsg
 import com.jarvis.app.backend.brain.chatTitle
 import com.jarvis.app.backend.brain.cleanForSpeech
 import com.jarvis.app.backend.brain.hearsWakeWord
+import com.jarvis.app.backend.brain.parseProfileClaim
+import com.jarvis.app.backend.brain.profileIdentity
 import com.jarvis.app.backend.brain.splitSentences
 
 class ToolsTest {
@@ -128,6 +130,23 @@ class ToolsTest {
         val parts = splitSentences(s)
         assertTrue(parts.size >= 2)
         assertTrue(parts.all { it.length <= 1500 })
+    }
+
+    @Test fun profileClaim() {
+        assertEquals("Ishaan", parseProfileClaim("my name is Ishaan"))
+        assertEquals("Ishaan", parseProfileClaim("call me Ishaan"))
+        assertEquals("Mary Jane", parseProfileClaim("My Name Is Mary Jane?"))
+        assertNull(parseProfileClaim("call me back"))
+        assertNull(parseProfileClaim("call mom"))
+        assertNull(parseProfileClaim("hello"))
+        assertEquals("profile", Router.detect("my name is Ishaan")?.tool)
+        assertEquals("profile", Router.detect("call me Ishaan")?.tool)
+    }
+
+    @Test fun profileIdentityLine() {
+        assertTrue(profileIdentity("", "").isEmpty())
+        assertTrue("Ishaan" in profileIdentity("Ishaan", ""))
+        assertTrue("Kolkata" in profileIdentity("", "from Kolkata"))
     }
 
     @Test fun wakeWord() {
