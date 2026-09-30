@@ -1364,6 +1364,7 @@ private fun BoxScope.CalibrationOverlay(
     // Pitch-black entry beat, then the tour fades in.
     LaunchedEffect(Unit) { delay(1500); entered = true }
     val hole = rect?.inflate(with(density) { 14.dp.toPx() })
+    val holeCornerPx = with(density) { 28.dp.toPx() }
     val pw = parent?.size?.width ?: 0
     val ph = parent?.size?.height ?: 0
     val below = hole != null && hole.bottom + 170 < ph
@@ -1411,7 +1412,7 @@ private fun BoxScope.CalibrationOverlay(
                     } else {
                         drawRoundRect(
                             Color.Transparent, topLeft = hole.topLeft, size = hole.size,
-                            cornerRadius = CornerRadius(28.dp.toPx), blendMode = BlendMode.Clear
+                            cornerRadius = CornerRadius(holeCornerPx), blendMode = BlendMode.Clear
                         )
                     }
                     // Connector stub bridging the hole toward the tooltip.
