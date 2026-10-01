@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        67, "6.16", listOf(
+            "Gesture navigation: edge-swipe drawer with chats, memory, lists + voice/wake toggles",
+            "Floating header (menu, status pill, avatar) + top-right profile hub",
+            "Tap the status pill to stop Jarvis mid-speech"
+        )
+    ),
+    ChangelogEntry(
         66, "6.15", listOf(
             "Compact island pill, chats flow up both sides",
             "Unified glass menu, identity handshake and chats from your mockup"

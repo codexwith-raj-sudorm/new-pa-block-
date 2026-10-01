@@ -71,4 +71,11 @@ class MasterTest {
             masterGreet("Cher")
         )
     }
+
+    @Test fun clearanceTiers() {
+        assertEquals("OWNER", clearanceLabel(true, true))
+        assertEquals("ADMIN", clearanceLabel(true, false))
+        assertEquals("GUEST", clearanceLabel(false, false))
+        assertEquals("GUEST", clearanceLabel(false, true))
+    }
 }

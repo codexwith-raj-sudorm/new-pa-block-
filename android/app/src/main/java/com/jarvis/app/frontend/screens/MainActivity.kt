@@ -5,13 +5,16 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import com.jarvis.app.frontend.screens.StarkShareActivity
-import com.jarvis.app.frontend.design.HeaderMiniReactor
 import com.jarvis.app.frontend.design.hudStatusLine
 import com.jarvis.app.frontend.design.AnimatedGlassBubble
 import com.jarvis.app.frontend.design.ConfigPanel
 import com.jarvis.app.frontend.design.HudDialog
 import com.jarvis.app.frontend.design.HudTextField
 import com.jarvis.app.frontend.design.GlassCircleButton
+import com.jarvis.app.frontend.design.JarvisHeader
+import com.jarvis.app.frontend.design.NavDrawerContent
+import com.jarvis.app.frontend.design.ProfileHubOverlay
+import com.jarvis.app.frontend.design.clearanceLabel
 import com.jarvis.app.frontend.design.JarvisGlassDialog
 import com.jarvis.app.frontend.design.JarvisGlassFill
 import com.jarvis.app.frontend.design.JarvisGlassEdge
@@ -67,10 +70,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Memory
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Share
@@ -79,12 +78,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -144,6 +141,7 @@ import com.jarvis.app.frontend.widgets.TapAction
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
 import com.jarvis.app.frontend.widgets.widgetTapAction
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 val Panel = Color(0xFF121B2E)
 val Accent = Color(0xFFF59E0B)
@@ -312,6 +310,10 @@ fun JarvisScreen() {
     val vm: JarvisViewModel = remember {
         sharedJarvisVm(context.applicationContext as Application)
     }
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var showHub by remember { mutableStateOf(false) }
 
     // Permission launchers (set flags only — effects below drive the follow-ups).
     var wakeRequest by remember { mutableStateOf(false) }
@@ -513,6 +515,24 @@ fun JarvisScreen() {
         Modifier.fillMaxSize()
             .onGloballyPositioned { calibParent = it }
     ) {
+    ModalNavigationDrawer(
+        drawerContent = {
+            NavDrawerContent(
+                drawerState = drawerState,
+                ttsOn = vm.ttsOn,
+                wakeOn = vm.wakeOn,
+                onNewChat = vm::newChat,
+                onChats = { vm.showChats = true },
+                onMemory = { vm.showMemory = true },
+                onList = { vm.showList = true },
+                onToggleTts = vm::toggleTts,
+                onWake = { onWakeTap() }
+            )
+        },
+        drawerState = drawerState,
+        gesturesEnabled = true,
+        scrimColor = Color.Black.copy(alpha = 0.6f)
+    ) {
     Box(Modifier.fillMaxSize()) {
         // Scrollable content runs full-bleed; the floating island and the
         // dialogue fade the chats behind them instead of blocking them.
@@ -660,19 +680,24 @@ fun JarvisScreen() {
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(210.dp)
                 .background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
         )
-        HudIsland(
+        JarvisHeader(
             online = vm.brainOk,
             wakeOn = vm.wakeOn,
-            ttsOn = vm.ttsOn,
-            onSettings = vm::openSettings,
-            onNewChat = vm::newChat,
-            onChats = { vm.showChats = true },
-            onMemory = { vm.showMemory = true },
-            onList = { vm.showList = true },
-            onToggleTts = vm::toggleTts,
-            onWake = { onWakeTap() },
-            onInterrupt = vm::interruptSpeech,
+            speaking = hudUi.speaking,
+            avatarLetter = avatarLetter(vm.masterName.ifBlank { "Master" }),
+            onMenu = { scope.launch { drawerState.open() } },
+            onAvatar = { showHub = true },
+            onStatusTap = { if (hudUi.speaking) vm.interruptSpeech() else vm.showChats = true },
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp)
+        )
+        ProfileHubOverlay(
+            show = showHub,
+            name = vm.masterName.ifBlank { "Master" },
+            clearance = clearanceLabel(vm.masterInstalled, vm.isBakedMaster),
+            onEditProfile = { showHub = false; vm.showProfile = true },
+            onSettings = { showHub = false; vm.openSettings() },
+            onMasterLock = { showHub = false; vm.setMasterUnlocked(); vm.openSettings() },
+            onDismiss = { showHub = false }
         )
         Box(Modifier.align(Alignment.BottomCenter)) {
             InputRow(
@@ -686,6 +711,7 @@ fun JarvisScreen() {
                 voiceNote = vm.voiceNote
             )
         }
+    }
     }
     if (vm.showCalib && heroVisible) {
         CalibrationOverlay(
@@ -721,27 +747,6 @@ private fun voiceAvailable(context: android.content.Context): Boolean {
 
 /** Glass menu row (design_md navigation overlay): icon + label, green when active. */
 @Composable
-private fun GlassMenuRow(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = {
-            Text(
-                label, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                color = if (active) PremiumNeon else Color(0xFFD4D4D8)
-            )
-        },
-        leadingIcon = {
-            Icon(
-                icon, contentDescription = null,
-                tint = if (active) PremiumNeon else Color(0xFF71717A),
-                modifier = Modifier.size(16.dp)
-            )
-        },
-        onClick = onClick
-    )
-}
-
-/** Dark glass input colors (design_md): black field, green focus ring. */
-@Composable
 private fun glassFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = Color.Black.copy(alpha = 0.7f),
     unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
@@ -754,94 +759,6 @@ private fun glassFieldColors() = OutlinedTextFieldDefaults.colors(
     cursorColor = PremiumNeon
 )
 
-@Composable
-fun HudIsland(
-    online: Boolean,
-    wakeOn: Boolean,
-    ttsOn: Boolean,
-    onSettings: () -> Unit,
-    onNewChat: () -> Unit,
-    onChats: () -> Unit,
-    onMemory: () -> Unit,
-    onList: () -> Unit,
-    onToggleTts: () -> Unit,
-    onWake: () -> Unit,
-    onInterrupt: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val busLvl by BubbleLevelBus.level.collectAsState()
-    val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
-    val hud by HudStateBus.state.collectAsState()
-    var menuOpen by remember { mutableStateOf(false) }
-    // Compact island: one pill, chats flow up both sides. Title opens the
-    // thread directory, the dot toggles wake, the reactor swaps in to stop speech.
-    Box(modifier) {
-        Row(
-            Modifier.premiumGlass(RoundedCornerShape(50))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GlassCircleButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
-            }
-            if (hud.speaking) {
-                HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
-            } else {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable(onClick = onChats)
-                ) {
-                    Text("J.A.R.V.I.S", color = PremiumMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(
-                        hudStatusLine(online, wakeOn),
-                        color = if (online) PremiumNeon else JarvisRed,
-                        fontSize = 9.sp
-                    )
-                }
-            }
-            Box(
-                Modifier.size(26.dp)
-                    .clip(CircleShape)
-                    .background(if (wakeOn) JarvisRed else Color(0xFF374151))
-                    .graphicsLayer {
-                        val sc = 1f + 0.18f * wakePulse
-                        scaleX = sc
-                        scaleY = sc
-                    }
-                    .clickable(onClick = onWake),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier.size(8.dp)
-                        .background(Color.White.copy(alpha = if (wakeOn) 0.9f else 0.35f), CircleShape)
-                )
-            }
-            GlassCircleButton(onClick = onSettings) {
-                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
-            }
-        }
-        DropdownMenu(
-            expanded = menuOpen,
-            onDismissRequest = { menuOpen = false },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = JarvisGlassFill,
-            border = BorderStroke(1.dp, JarvisGlassEdge),
-            modifier = Modifier.width(224.dp)
-        ) {
-            GlassMenuRow(Icons.Filled.Add, "+ New chat", active = true) { menuOpen = false; onNewChat() }
-            GlassMenuRow(Icons.Filled.Memory, "Memory") { menuOpen = false; onMemory() }
-            GlassMenuRow(Icons.Filled.List, "Lists") { menuOpen = false; onList() }
-            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-            GlassMenuRow(
-                if (ttsOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
-                if (ttsOn) "Voice on" else "Voice off"
-            ) { menuOpen = false; onToggleTts() }
-        }
-    }
-}
-
-/** "h:mm a" stamp for chat bubbles (blank when unknown). Pure. */
 fun fmtTime(ts: Long): String {
     if (ts <= 0) return ""
     return try {
