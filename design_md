@@ -1531,3 +1531,207 @@ new main screen ui design
 
 new chat,menu, personal info design 
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS // Unified UI Components</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'], },
+                    colors: { neon: '#17c964', darkbg: '#000000', }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            /* Subtle background glow to simulate the app environment */
+            background-image: radial-gradient(circle at 50% 30%, rgba(23, 201, 100, 0.05) 0%, transparent 70%);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* The core AEGIS glassmorphism standard */
+        .aegis-glass {
+            background: rgba(15, 15, 18, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+        }
+
+        /* Native Input Styling */
+        .aegis-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .aegis-input:focus {
+            border-color: rgba(23, 201, 100, 0.6);
+            box-shadow: 0 0 15px rgba(23, 201, 100, 0.15);
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .aegis-input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+        /* Dropdown Menu Item Styling */
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #d4d4d8; /* Gray-300 */
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+        }
+        .menu-item i { width: 16px; text-align: center; color: #71717a; transition: color 0.2s; }
+        .menu-item:hover i { color: #17c964; }
+        .menu-item.active { color: #17c964; }
+        .menu-item.active i { color: #17c964; }
+    </style>
+</head>
+<body class="min-h-screen p-8 flex flex-col items-center gap-12 pb-24 overflow-y-auto">
+
+    <div class="w-full max-w-sm flex flex-col gap-12">
+        
+        <!-- ==========================================
+             COMPONENT 1: THE MENU BAR DROPDOWN
+             Upgraded from flat gray to frosted glass
+             ========================================== -->
+        <section class="flex flex-col gap-3">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">01 // Navigation Overlay</span>
+            
+            <div class="aegis-glass w-56 rounded-2xl overflow-hidden flex flex-col py-2 self-start border border-white/10">
+                <button class="menu-item active">
+                    <i class="fa-solid fa-plus"></i> New chat
+                </button>
+                <button class="menu-item">
+                    <i class="fa-solid fa-brain"></i> Memory
+                </button>
+                <button class="menu-item">
+                    <i class="fa-solid fa-list-check"></i> Lists
+                </button>
+                <div class="h-[1px] w-full bg-white/5 my-1"></div>
+                <button class="menu-item">
+                    <i class="fa-solid fa-volume-high"></i> Voice on
+                </button>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             COMPONENT 2: IDENTITY / SYSTEM CALIBRATION
+             Replaces the dark blue/amber modal
+             ========================================== -->
+        <section class="flex flex-col gap-3 mt-8">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">02 // Identity Handshake</span>
+            
+            <div class="aegis-glass w-full rounded-[28px] p-7 flex flex-col border border-white/10">
+                <div class="flex items-center gap-3 mb-2">
+                    <i class="fa-solid fa-fingerprint text-neon"></i>
+                    <h2 class="text-white text-[17px] font-semibold tracking-wide">Who am I serving?</h2>
+                </div>
+                
+                <p class="text-[13px] text-gray-400 leading-relaxed mb-6">
+                    Establish your identity profile. System memory will adapt to your context across all sessions.
+                </p>
+                
+                <div class="flex flex-col gap-3 mb-8">
+                    <input type="text" placeholder="Designation (e.g., Raj Thakur)" class="aegis-input font-medium">
+                    <textarea placeholder="Append system context (city, primary interests, environment constraints...)" class="aegis-input h-24 resize-none"></textarea>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <button class="text-gray-500 text-[13px] font-semibold hover:text-white px-2 transition-colors">
+                        Bypass
+                    </button>
+                    <button class="bg-neon text-black text-[13px] font-bold px-6 py-2.5 rounded-xl hover:scale-[1.02] transition-transform shadow-[0_0_15px_rgba(23,201,100,0.2)]">
+                        Commit Profile
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             COMPONENT 3: CHATS DIRECTORY
+             Replaces the bulky purple modal and red icons
+             ========================================== -->
+        <section class="flex flex-col gap-3 mt-8">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">03 // Thread Directory</span>
+            
+            <div class="aegis-glass w-full rounded-[28px] p-7 flex flex-col border border-white/10">
+                
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-neon/10 border border-neon/20 flex items-center justify-center text-neon">
+                            <i class="fa-solid fa-message text-xs"></i>
+                        </div>
+                        <h2 class="text-white text-[17px] font-semibold tracking-wide">Chats</h2>
+                    </div>
+                    <button class="text-gray-400 hover:text-neon text-[12px] font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Export
+                    </button>
+                </div>
+
+                <!-- Chat Thread Card -->
+                <div class="bg-black/50 border border-white/5 rounded-2xl p-4 flex justify-between items-center mb-6 hover:border-neon/30 hover:bg-black/70 transition-all cursor-pointer group">
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-white text-[14px] font-medium group-hover:text-neon transition-colors">Local Script Testing</h3>
+                        <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                            <span class="w-1.5 h-1.5 rounded-full bg-neon"></span>
+                            <span>4 messages • Active</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 text-gray-500">
+                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-pen text-sm"></i></button>
+                        <button class="hover:text-red-500 transition-colors"><i class="fa-solid fa-trash text-sm"></i></button>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="flex justify-between items-center border-t border-white/10 pt-5">
+                    <button class="text-red-500/80 hover:text-red-400 text-[13px] font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-trash-can"></i> Purge All
+                    </button>
+                    
+                    <div class="flex items-center gap-5">
+                        <button class="text-neon text-[13px] font-semibold hover:brightness-125 transition-all">
+                            + New Thread
+                        </button>
+                        <button class="text-gray-400 text-[13px] font-medium hover:text-white transition-colors">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+</body>
+</html>
+
+
