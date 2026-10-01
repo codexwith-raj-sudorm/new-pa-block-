@@ -22,7 +22,7 @@ jobs:
           if [ "$code" = "200" ]; then
             echo "Gemini API key is set and responding (HTTP 200)."
           else
-            echo "::error ::Gemini key check failed (HTTP $code). 400 = bad key, 429 = quota spent."
+            echo "::error ::Gemini key check failed (HTTP $code). 400/401 = bad key, 429 = quota spent."
             exit 1
           fi
         env:
