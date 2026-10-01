@@ -16,6 +16,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -126,6 +130,8 @@ class WakeService : Service() {
     private var bubbleView: ComposeView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
+    private var islandView: ComposeView? = null
+    private var islandLifecycle: ServiceLifecycleOwner? = null
     private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
     private val bubbleDockCmd = kotlinx.coroutines.flow.MutableStateFlow(0)
     private var restarts = 0
@@ -237,6 +243,7 @@ class WakeService : Service() {
         }
         StandbyBus.set(true)
         addBubble()
+        addIsland()
         muteBlip(800) // cover any start beep on arming
         refreshReactorWidgets(this)
         HudStateBus.postTicker("[SYS: ONLINE]")
@@ -260,6 +267,7 @@ class WakeService : Service() {
         stopCallWatch()
         haltLoop()
         removeBubble()
+        removeIsland()
         unmute()
         try {
             tts?.stop()
@@ -377,6 +385,8 @@ class WakeService : Service() {
         // or as a reprompt if the listen fails. No deaf window.
         hushSpeech()
         haltLoop() // release the mic for the handoff
+        StandbyBus.override()
+        strikeHaptic()
         // §6 awakening: seize the screen when the OS allows it; the app
         // session pauses us and resumes us on end. Otherwise headless.
         if (tryPopAppForWake()) return
@@ -908,6 +918,69 @@ class WakeService : Service() {
         runCatching { bubbleLifecycle?.handleDestroy() }
         bubbleLifecycle = null
         bubbleParams = null
+    }
+
+    // ---- standby island (§8): cutout-tethered arm indicator ----
+
+    private fun addIsland() {
+        if (islandView != null) return
+        try {
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return
+            val owner = ServiceLifecycleOwner()
+            owner.handleCreate()
+            val view = ComposeView(this)
+            view.setViewTreeLifecycleOwner(owner)
+            view.setViewTreeViewModelStoreOwner(owner)
+            view.setViewTreeSavedStateRegistryOwner(owner)
+            val hPx = (120 * resources.displayMetrics.density).toInt()
+            val p = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, hPx,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            p.gravity = Gravity.TOP or Gravity.START
+            if (Build.VERSION.SDK_INT >= 28) {
+                p.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
+            view.setContent { StandbyIslandHud(cutoutBias(wm)) }
+            wm.addView(view, p)
+            islandView = view
+            islandLifecycle = owner
+            owner.handleResume()
+        } catch (_: Exception) {
+            islandView = null
+            islandLifecycle = null
+        }
+    }
+
+    private fun removeIsland() {
+        val v = islandView ?: return
+        islandView = null
+        runCatching { wm.removeView(v) }
+        runCatching { islandLifecycle?.handleDestroy() }
+        islandLifecycle = null
+    }
+
+    /** Wake strike haptic: sharp heavy click as the island bursts open. */
+    private fun strikeHaptic() {
+        try {
+            val vib = if (Build.VERSION.SDK_INT >= 31) {
+                getSystemService(VibratorManager::class.java)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                vib?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
+            } else {
+                @Suppress("DEPRECATION")
+                vib?.vibrate(60)
+            }
+        } catch (_: Exception) {
+        }
     }
 
     private fun flashBubble() {

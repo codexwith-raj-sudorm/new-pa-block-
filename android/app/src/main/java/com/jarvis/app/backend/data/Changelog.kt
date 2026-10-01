@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        69, "6.18", listOf(
+            "Dynamic Island: black pill drops from the camera cutout when standby arms",
+            "Collapses to a green dot; the wake word strikes it back open with haptics",
+            "[SYS] LISTENING / OVERRIDE readout with a live neon waveform"
+        )
+    ),
+    ChangelogEntry(
         68, "6.17", listOf(
             "Time-boxed standby: the listener lives only inside your window",
             "Wake pop: Jarvis seizes the screen over the lock screen",

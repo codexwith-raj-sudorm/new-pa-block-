@@ -7,7 +7,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.jarvis.app.backend.system.autoStartTarget
 import com.jarvis.app.backend.system.fmtWindowTime
+import com.jarvis.app.backend.system.ISLAND_DOT
+import com.jarvis.app.backend.system.ISLAND_HIDDEN
+import com.jarvis.app.backend.system.ISLAND_OVERRIDE
+import com.jarvis.app.backend.system.ISLAND_PILL
 import com.jarvis.app.backend.system.inStandbyWindow
+import com.jarvis.app.backend.system.islandMode
 import com.jarvis.app.backend.system.nextWindowEdgeMs
 import com.jarvis.app.backend.system.shouldRevive
 import com.jarvis.app.backend.system.shouldStandbyToast
@@ -100,5 +105,20 @@ class StandbyTest {
         assertEquals("08:00", fmtWindowTime(480))
         assertEquals("23:59", fmtWindowTime(1439))
         assertEquals("01:00", fmtWindowTime(1500))
+    }
+
+    @Test
+    fun islandStates() {
+        assertEquals(ISLAND_HIDDEN, islandMode(false, 0, null))
+        assertEquals(ISLAND_HIDDEN, islandMode(false, 60_000, 0))
+        assertEquals(ISLAND_PILL, islandMode(true, 0, null))
+        assertEquals(ISLAND_PILL, islandMode(true, 4_999, null))
+        assertEquals(ISLAND_DOT, islandMode(true, 5_000, null))
+        assertEquals(ISLAND_DOT, islandMode(true, 60_000, null))
+        // Override wins for 3s, then back to dot.
+        assertEquals(ISLAND_OVERRIDE, islandMode(true, 60_000, 0))
+        assertEquals(ISLAND_OVERRIDE, islandMode(true, 1_000, 2_999))
+        assertEquals(ISLAND_DOT, islandMode(true, 60_000, 3_000))
+        assertEquals(ISLAND_DOT, islandMode(true, 60_000, 10_000))
     }
 }

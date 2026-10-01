@@ -78,8 +78,14 @@ object InterruptBus {
 object StandbyBus {
     private val _armed = MutableStateFlow(false)
     val armed: StateFlow<Boolean> = _armed.asStateFlow()
+    private val _ov = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    val overrides: SharedFlow<Long> = _ov.asSharedFlow()
     fun set(v: Boolean) {
         _armed.value = v
+    }
+    /** Wake strike: the island bursts open. Epoch ms, collected once. */
+    fun override() {
+        _ov.tryEmit(System.currentTimeMillis())
     }
 }
 
