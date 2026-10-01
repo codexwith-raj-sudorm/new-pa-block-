@@ -2,7 +2,11 @@
 # APK) is set and responding. Prints only the HTTP status, never the key.
 # Run: Actions tab -> keycheck -> Run workflow (or: gh workflow run keycheck).
 name: keycheck
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/keycheck.yml
 jobs:
   check:
     runs-on: ubuntu-24.04
