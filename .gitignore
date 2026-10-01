@@ -3,6 +3,27 @@
 build/
 local.properties
 *.p12
+*.jks
+*.keystore
 *.apk
+*.aab
 captures/
 .externalNativeBuild/
+.cxx/
+*.hprof
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets / scratch
+*.env
+secrets/
+scratch/

@@ -5,42 +5,32 @@ No server, no hosting, no sleep — the app talks to Google Gemini straight from
 
 ![android](https://github.com/codexwith-raj-sudorm/new-pa-block-/actions/workflows/android.yml/badge.svg?branch=arena/01a08a6b-new-pa-block)
 
-## Features (v6.7)
+## Features (v6.21)
 
-- 💬 Chat with Gemini + auto model discovery, 20-message context, on-device history
-- 💬 Multi-chat: new / switch / delete chats with auto-titles (fresh chats start empty)
-- 🧠 Memory manager: view/add/delete memories (or “remember …” in chat)
-- 🎙️ Voice I/O: in-app mic (no Google popup/beeps — all streams muted around every listen) + "Hey Jarvis" wake word with instant mic, fuzzy matching (catches "jervis"/"davis"), and an arc-reactor HUD bubble over any app + fixed Priya voice with mute toggle
-- ⏰ Offline tools (no key needed): time, calculator, memory, reminders, silence, calls, app launch
-- 📝 Todos & notes: checkable lists ("add milk to my list", "done 2") + quick notes — all offline
-- 🔋 Wake word + reminders survive reboot (auto re-arm) + battery-optimization prompt
-- 🧲 Mini arc-reactor home-screen widget: tap to arm wake mode, tap while Jarvis speaks to interrupt
-- 🆕 What's-new popup on every update + full update history in Settings
-- 🌀 HUD states: live waveform ring, color-coded modes, status ticker, interface chimes
-- ⚙️ Settings: optional own key, preferred model, custom OpenAI-compatible endpoints, refresh models
-- 🎨 Premium green glass theme + orbital app icon + voice warnings that auto-dismiss
-- 💻 Code Terminal: fenced code renders in monospace blocks with Copy (TTS skips code)
-- ⚡ Share Hub: floating sheet over any app — summarize text, describe/read shared images, inject to chat
-- 🔇 Device silence: “silence my phone” / “unsilence” via Do Not Disturb
-- 🔁 Hands-free mode: mic re-opens after every reply (menu toggle)
-- 🗄️ Memory Vault: facts in Room DB with 30-day auto-expiry + seamless migration
-- 📊 Briefing card: battery, memory, storage, network + chat search + starter chips
-- ↻ One-tap retry on failed replies + 📤 export any chat as text
-- 🛠️ Everyday tools: alarms, timers, navigation, web search, play from YouTube
-- 🔄 Unit + live currency converter, dice, coin, jokes, good-morning routine
-- 🌦️ Keyless weather, 🔌 smart-home webhooks, 🕒 timestamped bubbles
-- 🔔 Notification reader, ☀ 8 AM briefing, QS tile, shortcuts, Hindi mic, voiceprint guard
-- 🔒 Hardware-safe by design: no torch/brightness/Wi-Fi toggles (refused with an honest reply)
-- 🔐 API keys + master key in encrypted storage; baked owner keys unlock on owner-grade master only
+- 🧭 Gesture navigation: edge-swipe drawer (chats, memory, lists, voice/wake toggles) + floating header + profile hub — tap the status pill to stop speech
+- 🕰️ Time-boxed standby: the listener lives only inside your window (default 08:00–18:00); wake word pops Jarvis over the lock screen
+- 🏝️ Dynamic Island: black pill drops from the camera cutout when standby arms, collapses to a green dot, bursts open on wake with haptics
+- 📡 Proactive reflexes: unprompted voice for low battery + incoming messages (Gemini persona, offline fallback, DND/cooldown/pocket guardrails)
+- 🔐 Neural-link onboarding: glass auth module with a 3-phase establish sequence + clearance pill
+- 🎵 Zero-API media router: “play X” opens Spotify/YouTube directly — first-time app chooser with remember
+- 💬 Chat with Gemini + auto model discovery, multi-chat with auto-titles, rename/search/delete, export + full backup
+- 🎙️ Voice I/O: in-app mic (beeps muted on every stream) + “Hey Jarvis” wake word with fuzzy matching + fixed Priya voice
+- 🧠 Memory vault (Room, auto-expiry) + todos/notes/lists, reminders + alarms, scheduled messages
+- 🛠️ Everyday tools: screen control, calls/SMS, alarms, timers, navigation, web search, weather, calculator, converters, jokes
+- ⚙️ Settings: optional own key, preferred model, custom OpenAI-compatible endpoints, standby window, reflexes, playback app
+- 🎨 Premium green-glass HUD theme + orbital icon + widgets + Quick Settings tile + shortcuts
+- 🔒 Hardware-safe by design (no torch/brightness/Wi-Fi toggles) · 🔐 keys in encrypted storage · sir, always
+
+Full list: [FEATURES.md](FEATURES.md) · in-app history: Settings → updates · specs: [docs/](docs/README.md)
 
 ## Install (phone, no PC needed)
 
 1. Open this repo on GitHub → **Actions** tab → latest green `android` run
 2. Download **jarvis-apk** under Artifacts (it's a `.zip` — unzip it)
-3. Open the `.apk` → **Install** (allow "install unknown apps" if asked)
+3. Open the `.apk` → **Install** (allow “install unknown apps” if asked)
 4. Open **Jarvis** and chat! 🎉 (Paste your own free key from `aistudio.google.com` in ⚙️ Settings — or install the owner Master Key to use the baked-in key.)
 
-Every push to this branch rebuilds the APK automatically.
+Every push to this branch rebuilds the APK automatically. Updates install in place — chats, keys and permissions stay.
 
 ## Built-in default key (owner setup)
 
@@ -65,24 +55,26 @@ Two ways — pick either:
 ## Project layout
 
 ```
-android/                  # native app (this is the main product now)
+android/                  # native app (the product)
   app/src/main/java/com/jarvis/app/
-    frontend/screens/     # Compose UI: chat, HUD, share sheet, onboarding
-    frontend/design/      # premium theme, config panel, assist island
-    backend/brain/        # ViewModel + Gemini REST + router + offline tools + storage
-    backend/system/       # wake service, bubble, accessibility bridge
+    frontend/screens/     # Compose UI: chat, HUD, assist, share sheet, wake
+    frontend/design/      # theme, config panel, nav drawer, auth gate, media
+    frontend/widgets/     # home-screen widgets
+    backend/brain/        # ViewModel + Gemini REST + router + media router
+    backend/system/       # wake service, standby, island, reflexes, receivers
     backend/device/       # device-command parsing (hardware-safe)
     backend/voice/        # voice loop, voiceprint, TTS helpers
     backend/data/         # vault DB, lists, reminders, changelog
+    backend/ai/           # providers, personas, image generation
     backend/net/          # GitHub API + encrypted token storage
-  app/src/test/...        # unit tests (calculator, router)
-  ...
-.github/workflows/android.yml  # CI: tests + stable-signed release APK
-.github/workflows/keycheck.yml  # CI: manual baked-key health check
-renovate.json               # Renovate: grouped Gradle + Actions updates
+  app/src/test/...        # 262 unit tests, JVM-pure
+docs/                     # product specs + inline HTML mockups (see docs/README.md)
+.github/workflows/        # android.yml (tests + APK) · keycheck.yml (baked-key health)
+FEATURES.md               # full feature list
+renovate.json             # grouped Gradle + Actions updates
 ```
 
 ## Dev notes
 
 - Min SDK 26 (Android 8) · builds on JDK 17 + AGP 8.5.2 (CI does it)
- updating the changelog list too.
+- Pure logic lives in testable top-level functions; every release adds tests + updates the changelog list too.

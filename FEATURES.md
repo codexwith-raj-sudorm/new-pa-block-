@@ -1,6 +1,6 @@
 # JARVIS App — Reactor Feature List
 
-> Last updated: v6.7 + encrypted-secrets update.
+> Last updated: v6.21.
 > Hardware toggles (flashlight/brightness/Wi-Fi switch) are intentionally unsupported.
 > Everything below runs on-device except Gemini cloud calls for chat.
 
@@ -18,77 +18,82 @@
 - Hands-free continuous mode (listens again after every reply)
 - Code fences, URLs, and symbols cleaned before speaking ("code snippet", "link")
 - Sentence-chunked speech with live HUD speaking state
-- ⚛️ **Tap the arc reactor to interrupt** — welcome core is tappable; a mini reactor appears in the header while speaking ("tap reactor to stop"); hands-free keeps listening after interrupt
+- Tap the status pill (or the bubble) to interrupt mid-speech
 
 ## 3. Wake Word ("Hey Jarvis")
-- Always-on foreground mic service with battery/optimization handling
+- Foreground mic service with battery/optimization handling + offline-first recognition
+- Time-boxed standby window (default 08:00–18:00, overnight OK) with exact edge alarms
+- Wake pop: Jarvis seizes the screen over the lock screen; headless command listen as fallback
 - "Yes sir?" reply; once-per-day-part greeting (Good morning/afternoon/evening, Master Raj)
 - Quick Settings tile to toggle wake; reactor widget tap to arm/disarm or interrupt speech
-- Wake greetings spoken in the same Priya voice
 
 ## 4. Master Key System
-- Install a master key → Jarvis recognizes you as Master (creator identity injected into every reply, tickers, greetings)
-- Code-baked master: `JARVIS-RAJ-MASTER-77` / Raj Thakur / West Bengal, India — works on every install
-- Shareable Master Card (`JARVIS-MASTER:` code) — import on any device
-- Master section hidden in Settings — **tap the "Jarvis Settings" title 5× to unlock**
+- Install a master key → Jarvis recognizes you as Master (identity injected into replies, tickers, greetings)
+- Baked-in owner identity via `MASTER_IDENTITY` secret — recognized on every install, revokable key-free
+- Shareable Master Card — import on any device, zero typing
+- Master section hidden in Settings — **tap the "System Config" title 5× to unlock**
+- Master voice guard + 3-sample voiceprint enrollment — strangers are ignored on locked commands
 
 ## 5. Memory
 - "Remember that …" / "recall …" voice + text commands
 - On-device Room vault (30-day auto-purge, 200-item cap)
-- Stark privacy vault mirror (90-day auto-purge) — silent background store
-- Memory viewer dialog in menu
+- Memory viewer dialog in the drawer
 
 ## 6. Lists, Notes & Todos
 - Todo lists + notes with check-off, add/remove (voice + UI)
 
-## 7. Reminders & Alarms
+## 7. Reminders, Alarms & Scheduled Messages
 - "Remind me in 10 minutes to …" / "at 5pm" / "tomorrow at 9am"
 - Exact alarms with notification; cancel by voice or UI
 - Quick-add field inside the Reminders dialog (no voice needed)
 - Next reminder shown on the briefing widget with countdown
+- Scheduled messages ("text mom I'll be late tomorrow at 9am") — SMS automatic, WhatsApp via tap
 
 ## 8. Briefing & Dashboard
 - ⚡ Briefing dialog (battery, storage, network, quote)
 - Daily 8 AM briefing notification (toggle)
 - Briefing home-screen widget (time, date, battery, next reminder, tap-to-refresh)
-- Stark dashboard on welcome screen: live temperature (wttr.in), battery, measured ping — tap ⟳ to refresh
-- Pulsing golden brain-core arc reactor visual
+- Welcome hero: live temperature, battery, measured ping — tap ⟳ to refresh
 
-## 9. Stark HUD Retheme
-- Golden `StarkHeader` (JARVIS HUD + neural-link dot) replacing the old top bar
-- `StarkMessageCard` chat bubbles (COMMAND // USER / NEURAL_RESP)
-- `GoldenBrainCoreView` reactor, `StarkGoldenBubble` draggable bubble component
-- `StarkBriefingDashboard` telemetry panel
+## 9. Premium Green-Glass HUD
+- Edge-swipe drawer + floating header (menu, status pill, avatar) + top-right profile hub
+- Unified glass dialogs (chats, identity, lists, config) with neon accents
+- Living swirl core, waveform ring, color-coded modes, status ticker, interface chimes
+- Orbital app icon + matching widget art; hold-summon floats with zero dimming
 
-## 10. Stark Hub (Share Intercept)
-- Single "Jarvis" Android share target → opens Stark Hub screen
-- PROCESS & INJECT sends shared text straight to Jarvis automatically
+## 10. Share Hub (Share Intercept)
+- Single "Jarvis" Android share target → floating sheet over any app
+- Summarize text, describe/read shared images, inject to chat
 
-## 11. Stark Wake Widget
-- Home-screen reactor widget: ACTIVE/STANDBY toggle persisted across reboots
-- Toggle drives real wake-word listening (starts/stops the wake service)
+## 11. Widgets
+- Reactor widget: ACTIVE/STANDBY toggle persisted across reboots, drives real wake listening
+- Briefing widget: time, date, battery, next reminder, tap-to-refresh
 
-## 12. Stark ID Lock (Biometric)
-- Fingerprint/face gate screen ("Stark Neural Identity Check")
-- Launchable from Settings → More → Stark ID lock
+## 12. Standby Window & Dynamic Island
+- Standby window with start/end pickers in Settings (exact alarms, boot + watchdog aware)
+- Stealth IMPORTANCE_MIN notification showing the armed window
+- Dynamic Island: black pill drops from the camera cutout on arm, dot after 5s, wake strike with haptics
 
-## 13. Device Voice Commands (hardware-safe: no torch/brightness/Wi-Fi toggles)
+## 13. Device Commands & Media Router
 - "Silence my phone" / "sound on" (Do Not Disturb)
 - "Open YouTube / launch maps / start camera …" (fuzzy app-name match)
-- "Call mom" (places the call directly), alarms, timers, navigation, web search, "play …", Wi-Fi panel, system settings
-- Battery reader, emergency silence, app launcher (`StarkDeviceController`)
+- "Call mom" (places the call directly), alarms, timers, navigation, web search, Wi-Fi panel, system settings
+- Screen control ("take a screenshot", "what's on my screen", "tap …"), battery reader, emergency silence
+- Media router: "play …" opens Spotify/YouTube directly — app chooser with remember, web fallback, spoken handoff
 
 ## 14. Smart Actions (Webhooks)
 - Name + URL (+ GET/POST) hooks for Home Assistant, IFTTT, ESP devices
 - Trigger by voice ("turn on bedroom light")
 
-## 15. Built-in Skills (no key needed)
+## 15. Proactive Reflexes & Built-in Skills (no key needed)
+- Reflexes speak unprompted: low battery + WhatsApp/Telegram/Gmail/SMS arrivals (toggle in Settings)
+- Gemini persona lines with offline fallback; music ducks; DND/cooldown/call/pocket guardrails
 - Time/date, calculator, unit conversion, currency conversion (live FX)
 - Weather + forecast (keyless wttr.in), jokes, coin flip, dice, day-part greetings
 - Notification reader ("read my notifications" — opt-in listener)
 
 ## 16. System Integration
+- Neural-link onboarding gate (3-phase establish) + permission checklist + calibration tour
 - Quick Settings tile (wake toggle), app shortcuts, boot receiver (restores wake + briefings)
-- What's-new dialog after updates; onboarding checklist (mic, overlay, notifications)
-- Slim 4-item menu (New chat, Memory, Lists, Voice); everything else in Settings → More
-- 148 unit tests; Room + kapt; Material 3 dark HUD theme
+- What's-new dialog after updates; in-place updates keep chats/keys/permissions
+- 262 unit tests across 43 files; Room + kapt; Material 3 dark HUD theme
