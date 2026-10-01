@@ -2915,7 +2915,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setProactiveOn(on: Boolean) {
+    fun setProactive(on: Boolean) {
         proactiveOn = on
         store.proactiveOn = on
     }

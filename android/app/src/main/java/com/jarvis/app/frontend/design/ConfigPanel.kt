@@ -570,7 +570,7 @@ fun ConfigPanel(vm: JarvisViewModel) {
                                     color = Color(0xFF9CA3AF), fontSize = 10.sp
                                 )
                             }
-                            NeonToggle(vm.proactiveOn) { vm.setProactiveOn(!vm.proactiveOn) }
+                            NeonToggle(vm.proactiveOn) { vm.setProactive(!vm.proactiveOn) }
                         }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
