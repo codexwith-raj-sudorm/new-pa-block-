@@ -1748,7 +1748,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     val builtinKeyPresent: Boolean get() = builtinKey.isNotBlank()
 
     /** User's own key if pasted, else the built-in key — only once the Master Key is installed. */
-    private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled && store.masterBaked) builtinKey else "" }
+    private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled) builtinKey else "" }
 
     // Owner GitHub token, baked from the GH_READ_TOKEN repo secret (same obfuscation).
     // Only usable once the Master Key is installed — that activation is the unlock.
@@ -1757,11 +1757,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pasted token first, else the baked token once the Master Key is installed. */
     val effectiveGithubToken: String
-        get() = githubToken.ifBlank { if (masterInstalled && store.masterBaked) builtinGh else "" }
+        get() = githubToken.ifBlank { if (masterInstalled) builtinGh else "" }
 
     fun githubStatus(): String = when {
         githubToken.isNotBlank() -> "✓ Custom token active"
-        builtinGh.isNotBlank() && masterInstalled && store.masterBaked -> "✓ Repo access active via Master Key"
+        builtinGh.isNotBlank() && masterInstalled -> "✓ Repo access active via Master Key"
         builtinGh.isNotBlank() -> "Install Master Key to activate repo access"
         else -> ""
     }
@@ -1965,9 +1965,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         masterAbout = store.masterAbout
         store.masterUnlocked = false
         masterUnlocked = false
-        settingsMsg = if (baked && brainOk) "Master key accepted. Welcome, Master Raj."
-        else if (baked) "Master accepted — but this build has no built-in key. Paste a Gemini key below."
-        else "Master key installed — limited mode. Paste your own Gemini key."
+        settingsMsg = if (!brainOk) "Master accepted — but this build has no built-in key. Paste a Gemini key below."
+        else if (baked) "Master key accepted. Welcome, Master Raj."
+        else "Master key installed. Welcome, Master Raj."
         HudStateBus.postTicker("[MASTER RECOGNIZED]")
         if (brainOk) {
             refreshModels()

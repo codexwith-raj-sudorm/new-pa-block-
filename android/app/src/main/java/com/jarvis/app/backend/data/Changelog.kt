@@ -9,6 +9,11 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        64, "6.13", listOf(
+            "Any master key unlocks the built-in brain and repo access"
+        )
+    ),
+    ChangelogEntry(
         63, "6.12", listOf(
             "Master install connects the brain instantly + shows key status",
             "Settings tells you when the build has no built-in key"

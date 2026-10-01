@@ -80,12 +80,12 @@ fun configNetLabel(online: Boolean): String = if (online) "Network Secure" else 
 fun masterCardTitle(installed: Boolean): String =
     if (installed) "Master Mode Active" else "Install Master Key"
 
-/** Master gate status: which brain unlock the install actually earned. Pure. */
-fun masterBrainLine(baked: Boolean, builtin: Boolean, online: Boolean): String = when {
-    !baked -> "LIMITED MODE — paste your Gemini key below"
-    online -> "OWNER-GRADE — built-in brain unlocked"
-    !builtin -> "OWNER-GRADE — this build has no built-in key; paste yours below"
-    else -> "OWNER-GRADE — reconnecting…"
+/** Master gate status: any installed master unlocks the built-in brain. Pure. */
+fun masterBrainLine(installed: Boolean, builtin: Boolean, online: Boolean): String = when {
+    !installed -> "NO MASTER — paste a Gemini key below"
+    online -> "MASTER MODE — built-in brain unlocked"
+    !builtin -> "MASTER MODE — this build has no built-in key; paste yours below"
+    else -> "MASTER MODE — reconnecting…"
 }
 
 /** GitHub status badge: explicit status wins, else master-backed token. Pure, tested. */
@@ -283,7 +283,7 @@ fun MasterClearanceCard(vm: JarvisViewModel) {
                 )
             }
             Text(
-                masterBrainLine(vm.isBakedMaster, vm.builtinKeyPresent, vm.brainOk),
+                masterBrainLine(vm.masterInstalled, vm.builtinKeyPresent, vm.brainOk),
                 color = if (vm.brainOk) PremiumNeon else Color(0xFFF59E0B),
                 fontSize = 11.sp, fontFamily = FontFamily.Monospace
             )
