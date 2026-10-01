@@ -1,4 +1,4 @@
-jiArchitecture Document
+Architecture Document
 1. High-Level System Architecture
 The Jarvis Assistant Client (new-pa-block) relies heavily on Android's native Assist API rather than standard Activities or background overlays. The system is decoupled into three primary operational layers:
 A. The System Hook Layer

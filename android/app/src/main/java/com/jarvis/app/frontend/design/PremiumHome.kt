@@ -12,6 +12,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -35,7 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 
-/** Premium green tokens (from design_md "Premium UI" mockup). */
+/** Premium green tokens (from docs/design_md "Premium UI" mockup). */
 val PremiumNeon = Color(0xFF17C964)
 val PremiumJade = Color(0xFF10B981)
 val PremiumMint = Color(0xFF34D399)
@@ -46,6 +52,26 @@ val PremiumMuted = Color(0xFF9CA3AF)
 /** Frosted dark-glass surface. */
 fun Modifier.premiumGlass(shape: Shape): Modifier =
     this.background(PremiumGlass, shape).border(1.dp, PremiumGlassEdge, shape)
+
+/** Unified glass (design_md components): deep frosted surface, hairline edge. */
+val JarvisGlassFill = Color(0xBF0F0F12)
+val JarvisGlassEdge = Color(0x14FFFFFF)
+fun Modifier.jarvisGlass(shape: Shape): Modifier =
+    this.background(JarvisGlassFill, shape).border(1.dp, JarvisGlassEdge, shape)
+
+/** Glass dialog shell for the unified components. */
+@Composable
+fun JarvisGlassDialog(onDismissRequest: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        Column(
+            Modifier.fillMaxWidth()
+                .jarvisGlass(RoundedCornerShape(28.dp))
+                .padding(28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+    }
+}
 
 /** First letter for the avatar. Pure, tested. */
 fun avatarLetter(name: String): String =

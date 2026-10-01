@@ -12,6 +12,9 @@ import com.jarvis.app.frontend.design.ConfigPanel
 import com.jarvis.app.frontend.design.HudDialog
 import com.jarvis.app.frontend.design.HudTextField
 import com.jarvis.app.frontend.design.GlassCircleButton
+import com.jarvis.app.frontend.design.JarvisGlassDialog
+import com.jarvis.app.frontend.design.JarvisGlassFill
+import com.jarvis.app.frontend.design.JarvisGlassEdge
 import com.jarvis.app.frontend.design.NeonPillButton
 import com.jarvis.app.frontend.design.PremiumBackdrop
 import com.jarvis.app.frontend.design.PremiumMuted
@@ -63,6 +66,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.FolderOpen
@@ -519,7 +531,7 @@ fun JarvisScreen() {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, top = 116.dp, end = 12.dp, bottom = 180.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 88.dp, end = 12.dp, bottom = 180.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
@@ -531,7 +543,7 @@ fun JarvisScreen() {
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).padding(top = 108.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).padding(top = 88.dp),
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -630,10 +642,20 @@ fun JarvisScreen() {
         }
         }
         // Gradient dims: chats fade out under the floating chrome.
-        Box(
-            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(180.dp)
-                .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.85f), 1f to Color.Transparent))
-        )
+        BoxWithConstraints(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(150.dp)) {
+            val cx = constraints.maxWidth / 2f
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(
+                        0f to Color.Black.copy(alpha = 0.85f),
+                        0.55f to Color.Black.copy(alpha = 0.35f),
+                        1f to Color.Transparent,
+                        center = Offset(cx, 0f),
+                        radius = 560f
+                    )
+                )
+            )
+        }
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(210.dp)
                 .background(Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)))
@@ -697,6 +719,41 @@ private fun voiceAvailable(context: android.content.Context): Boolean {
     }
 }
 
+/** Glass menu row (design_md navigation overlay): icon + label, green when active. */
+@Composable
+private fun GlassMenuRow(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                label, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                color = if (active) PremiumNeon else Color(0xFFD4D4D8)
+            )
+        },
+        leadingIcon = {
+            Icon(
+                icon, contentDescription = null,
+                tint = if (active) PremiumNeon else Color(0xFF71717A),
+                modifier = Modifier.size(16.dp)
+            )
+        },
+        onClick = onClick
+    )
+}
+
+/** Dark glass input colors (design_md): black field, green focus ring. */
+@Composable
+private fun glassFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = Color.Black.copy(alpha = 0.7f),
+    unfocusedContainerColor = Color.Black.copy(alpha = 0.5f),
+    focusedBorderColor = PremiumNeon.copy(alpha = 0.6f),
+    unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    focusedPlaceholderColor = Color.White.copy(alpha = 0.3f),
+    unfocusedPlaceholderColor = Color.White.copy(alpha = 0.3f),
+    cursorColor = PremiumNeon
+)
+
 @Composable
 fun HudIsland(
     online: Boolean,
@@ -716,20 +773,25 @@ fun HudIsland(
     val wakePulse by animateFloatAsState(if (wakeOn) busLvl else 0f)
     val hud by HudStateBus.state.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
-    // Floating dynamic island: title pill + action capsule hover over the
-    // chats, which dim behind them. Same controls as the old top bar.
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box {
-            Row(
-                Modifier.premiumGlass(RoundedCornerShape(50))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                GlassCircleButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    // Compact island: one pill, chats flow up both sides. Title opens the
+    // thread directory, the dot toggles wake, the reactor swaps in to stop speech.
+    Box(modifier) {
+        Row(
+            Modifier.premiumGlass(RoundedCornerShape(50))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GlassCircleButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
+            }
+            if (hud.speaking) {
+                HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.clickable(onClick = onChats)
+                ) {
                     Text("J.A.R.V.I.S", color = PremiumMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     Text(
                         hudStatusLine(online, wakeOn),
@@ -737,50 +799,44 @@ fun HudIsland(
                         fontSize = 9.sp
                     )
                 }
-                GlassCircleButton(onClick = onSettings) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
-                }
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("+ New chat") },
-                    onClick = { menuOpen = false; onNewChat() }
+            Box(
+                Modifier.size(26.dp)
+                    .clip(CircleShape)
+                    .background(if (wakeOn) JarvisRed else Color(0xFF374151))
+                    .graphicsLayer {
+                        val sc = 1f + 0.18f * wakePulse
+                        scaleX = sc
+                        scaleY = sc
+                    }
+                    .clickable(onClick = onWake),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier.size(8.dp)
+                        .background(Color.White.copy(alpha = if (wakeOn) 0.9f else 0.35f), CircleShape)
                 )
-                DropdownMenuItem(
-                    text = { Text("Memory") },
-                    onClick = { menuOpen = false; onMemory() }
-                )
-                DropdownMenuItem(
-                    text = { Text("Lists") },
-                    onClick = { menuOpen = false; onList() }
-                )
-                DropdownMenuItem(
-                    text = { Text(if (ttsOn) "Voice on" else "Voice off") },
-                    onClick = { menuOpen = false; onToggleTts() }
-                )
+            }
+            GlassCircleButton(onClick = onSettings) {
+                Icon(Icons.Filled.Settings, contentDescription = "Settings", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
             }
         }
-        Spacer(Modifier.height(6.dp))
-        Row(
-            Modifier.premiumGlass(RoundedCornerShape(50)).padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = JarvisGlassFill,
+            border = BorderStroke(1.dp, JarvisGlassEdge),
+            modifier = Modifier.width(224.dp)
         ) {
-            TextButton(onClick = onChats) {
-                Text("CHATS", fontSize = 12.sp, color = PremiumNeon)
-            }
-            TextButton(onClick = onWake) {
-                Text(
-                    if (wakeOn) "WAKE ON" else "WAKE",
-                    fontSize = 12.sp,
-                    color = if (wakeOn) JarvisRed else PremiumNeon,
-                    modifier = Modifier.graphicsLayer { val sc = 1f + 0.18f * wakePulse; scaleX = sc; scaleY = sc }
-                )
-            }
-        }
-        if (hud.speaking) {
-            Spacer(Modifier.height(6.dp))
-            HeaderMiniReactor(isSpeaking = true, onInterrupt = onInterrupt)
+            GlassMenuRow(Icons.Filled.Add, "+ New chat", active = true) { menuOpen = false; onNewChat() }
+            GlassMenuRow(Icons.Filled.Memory, "Memory") { menuOpen = false; onMemory() }
+            GlassMenuRow(Icons.Filled.List, "Lists") { menuOpen = false; onList() }
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+            GlassMenuRow(
+                if (ttsOn) Icons.Filled.VolumeUp else Icons.Filled.VolumeOff,
+                if (ttsOn) "Voice on" else "Voice off"
+            ) { menuOpen = false; onToggleTts() }
         }
     }
 }
@@ -1190,112 +1246,158 @@ fun ChatsDialog(vm: JarvisViewModel) {
     var renameText by remember { mutableStateOf("") }
     var confirmClear by remember { mutableStateOf(false) }
     var armDelete by remember { mutableStateOf<String?>(null) }
-    HudDialog(
-        onDismissRequest = { vm.showChats = false },
-        title = { Text("💬 Chats") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (vm.chats.size > 1) {
-                    HudTextField(
-                        value = q,
-                        onValueChange = { q = it },
-                        placeholder = { Text("Search chats...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+    JarvisGlassDialog(onDismissRequest = { vm.showChats = false }) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    Modifier.size(32.dp)
+                        .background(PremiumNeon.copy(alpha = 0.1f), CircleShape)
+                        .border(1.dp, PremiumNeon.copy(alpha = 0.2f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Message, contentDescription = null, tint = PremiumNeon, modifier = Modifier.size(14.dp))
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { vm.exportChat() }) { Text("📤 Share open chat", fontSize = 13.sp) }
-                }
-                val shown = remember(q, vm.chats.size) {
-                    if (q.isBlank()) vm.chats.toList()
-                    else vm.chats.filter { it.title.contains(q, ignoreCase = true) }
-                }
-                if (shown.isEmpty()) {
-                    Text(
-                        if (vm.chats.isEmpty()) "No chats yet." else "No matches.",
-                        color = mut, fontSize = 14.sp
-                    )
-                } else {
-                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                        items(shown, key = { it.id }) { c ->
-                            val active = c.id == vm.activeChatId
+                Text("Chats", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = { vm.exportChat() }) {
+                Icon(Icons.Filled.Share, contentDescription = null, tint = Color(0xFF9CA3AF), modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Export", fontSize = 12.sp, color = Color(0xFF9CA3AF))
+            }
+        }
+        if (vm.chats.size > 1) {
+            OutlinedTextField(
+                value = q, onValueChange = { q = it },
+                placeholder = { Text("Search chats...") }, singleLine = true,
+                shape = RoundedCornerShape(12.dp), colors = glassFieldColors(),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        val shown = remember(q, vm.chats.size) {
+            if (q.isBlank()) vm.chats.toList()
+            else vm.chats.filter { it.title.contains(q, ignoreCase = true) }
+        }
+        if (shown.isEmpty()) {
+            Text(
+                if (vm.chats.isEmpty()) "No chats yet." else "No matches.",
+                color = mut, fontSize = 14.sp
+            )
+        } else {
+            LazyColumn(
+                Modifier.heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(shown, key = { it.id }) { c ->
+                    val active = c.id == vm.activeChatId
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .border(
+                                1.dp,
+                                if (active) PremiumNeon.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.05f),
+                                RoundedCornerShape(16.dp)
+                            )
+                            .clickable { vm.switchChat(c.id) }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                c.title, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                                color = if (active) PremiumNeon else Color.White, maxLines = 1
+                            )
                             Row(
-                                Modifier.fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { vm.switchChat(c.id) }
-                                    .background(if (active) (BotGray) else Color.Transparent)
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        c.title,
-                                        fontSize = 14.sp,
-                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        "${c.msgs.count { it.r == "user" }} messages" +
-                                            if (active) " • open" else "",
-                                        fontSize = 12.sp, color = mut
-                                    )
-                                }
-                                IconButton(onClick = { renameTarget = c; renameText = c.title }) {
-                                    Text("✎", fontSize = 18.sp, color = mut)
-                                }
-                                IconButton(onClick = {
-                                    if (armDelete == c.id) { vm.deleteChat(c.id); armDelete = null }
-                                    else armDelete = c.id
-                                }) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = if (armDelete == c.id) "Tap again to delete" else "Delete chat",
-                                        tint = if (armDelete == c.id) Color.Red else mut
-                                    )
-                                }
+                                Box(
+                                    Modifier.size(6.dp)
+                                        .background(if (active) PremiumNeon else Color(0xFF6B7280), CircleShape)
+                                )
+                                Text(
+                                    "${c.msgs.count { it.r == "user" }} messages" +
+                                        if (active) " • Active" else "",
+                                    fontSize = 11.sp, color = Color(0xFF6B7280)
+                                )
                             }
+                        }
+                        IconButton(onClick = { renameTarget = c; renameText = c.title }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Rename chat", tint = mut, modifier = Modifier.size(16.dp))
+                        }
+                        IconButton(onClick = {
+                            if (armDelete == c.id) { vm.deleteChat(c.id); armDelete = null }
+                            else armDelete = c.id
+                        }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = if (armDelete == c.id) "Tap again to delete" else "Delete chat",
+                                tint = if (armDelete == c.id) Color.Red else mut,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = {
-                    if (confirmClear) { vm.clearChats(); confirmClear = false }
-                    else confirmClear = true
-                }) { Text(if (confirmClear) "Tap again to clear all" else "🗑 Clear all") }
-                TextButton(onClick = { vm.newChat() }) { Text("＋ New chat") }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { vm.showChats = false }) { Text("Close") }
         }
-    )
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.1f)))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = {
+                if (confirmClear) { vm.clearChats(); confirmClear = false }
+                else confirmClear = true
+            }) {
+                Icon(
+                    Icons.Filled.Delete, contentDescription = null,
+                    tint = Color(0xFFEF4444).copy(alpha = 0.8f), modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (confirmClear) "Tap again to purge all" else "Purge All",
+                    fontSize = 13.sp, color = Color(0xFFEF4444).copy(alpha = 0.8f)
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { vm.newChat() }) {
+                    Text("+ New Thread", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = PremiumNeon)
+                }
+                TextButton(onClick = { vm.showChats = false }) {
+                    Text("Close", fontSize = 13.sp, color = Color(0xFF9CA3AF))
+                }
+            }
+        }
+    }
 
     if (renameTarget != null) {
-        HudDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("Rename chat") },
-            text = {
-                HudTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
+        JarvisGlassDialog(onDismissRequest = { renameTarget = null }) {
+            Text("Rename chat", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = renameText, onValueChange = { renameText = it },
+                singleLine = true, shape = RoundedCornerShape(12.dp), colors = glassFieldColors(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { renameTarget = null }) {
+                    Text("Cancel", color = Color(0xFF9CA3AF))
+                }
                 TextButton(onClick = {
                     renameTarget?.let { vm.renameChat(it.id, renameText) }
                     renameTarget = null
-                }) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
+                }) {
+                    Text("Save", color = PremiumNeon, fontWeight = FontWeight.SemiBold)
+                }
             }
-        )
+        }
     }
 }
 
@@ -1466,30 +1568,41 @@ private fun BoxScope.CalibrationOverlay(
 private fun ProfileDialog(vm: JarvisViewModel) {
     var name by remember { mutableStateOf("") }
     var about by remember { mutableStateOf("") }
-    HudDialog(
-        onDismissRequest = { vm.skipProfile() },
-        title = { Text("Who am I serving?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "Tell me your name — I'll remember you and pick up the rest as we chat.",
-                    fontSize = 14.sp
-                )
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it.take(40) },
-                    label = { Text("Your name") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = about, onValueChange = { about = it.take(200) },
-                    label = { Text("Anything about you (city, interests…)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+    JarvisGlassDialog(onDismissRequest = { vm.skipProfile() }) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(Icons.Filled.Fingerprint, contentDescription = null, tint = PremiumNeon, modifier = Modifier.size(22.dp))
+            Text("Who am I serving?", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Text(
+            "Establish your identity profile. System memory will adapt to your context across all sessions.",
+            color = PremiumMuted, fontSize = 13.sp, lineHeight = 18.sp
+        )
+        OutlinedTextField(
+            value = name, onValueChange = { name = it.take(40) },
+            placeholder = { Text("Designation (e.g., Raj Thakur)") },
+            singleLine = true, shape = RoundedCornerShape(12.dp), colors = glassFieldColors(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = about, onValueChange = { about = it.take(200) },
+            placeholder = { Text("Append system context (city, primary interests, environment…)") },
+            minLines = 3, shape = RoundedCornerShape(12.dp), colors = glassFieldColors(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { vm.skipProfile() }) {
+                Text("Bypass", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF6B7280))
             }
-        },
-        confirmButton = { TextButton(onClick = { vm.saveProfile(name, about) }) { Text("Remember me") } },
-        dismissButton = { TextButton(onClick = { vm.skipProfile() }) { Text("Skip") } }
-    )
+            NeonPillButton("Commit Profile") { vm.saveProfile(name, about) }
+        }
+    }
 }
 
 @Composable

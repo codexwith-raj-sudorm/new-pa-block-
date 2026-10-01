@@ -47,30 +47,19 @@ fun coreStateLabel(listening: Boolean, thinking: Boolean, speaking: Boolean, con
     else -> "STANDBY"
 }
 
+/** Compact ping tag for the hub readout ("42 ms" -> "42MS"). Pure, tested. */
+fun fmtPingTag(ping: String): String =
+    ping.uppercase().replace(" ", "").ifBlank { "\u2014" }
+
+/** Voice language tag for the hub readout. Pure, tested. */
+fun voiceTag(hindi: Boolean): String = if (hindi) "VOICE \u2022 HI" else "VOICE \u2022 EN"
+
 /** Full revolution time (ms) for the reactor rings. Pure, tested. */
 fun arcSpinMs(thinking: Boolean, listening: Boolean): Int = when {
     thinking -> 1200
     listening -> 2600
     else -> 9000
 }
-
-/** Readout line for the HUD hero. Pure, tested. */
-fun hudReadoutLine(temp: String, ping: String, batt: Int): String {
-    val t = temp.ifBlank() { "\u2014" }
-    val p = ping.ifBlank() { "\u2014" }
-    val b = if (batt < 0) "\u2014" else "$batt%"
-    return "SYS $t \u2022 NET $p \u2022 PWR $b"
-}
-
-/** Deterministic per-bar height from mic level (0.08..1). Pure, tested. */
-fun acousticBarHeight(level: Float, index: Int): Float {
-    val l = level.coerceIn(0f, 1f)
-    val frac = (sin(index * 12.9898f) * 43758.5453f).let { it - kotlin.math.floor(it) }
-    return (0.08f + 0.92f * l * (0.35f + 0.65f * frac)).coerceIn(0.08f, 1f)
-}
-
-/** Every 5th bar is cyan (reference contrast rhythm). Pure, tested. */
-fun acousticBarCyan(index: Int): Boolean = index % 5 == 0
 
 /**
  * Reactive arc-core: tick ring, counter-rotating coil arcs, glowing core that

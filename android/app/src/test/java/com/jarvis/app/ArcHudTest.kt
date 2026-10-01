@@ -1,13 +1,11 @@
 package com.jarvis.app
 
-import com.jarvis.app.frontend.design.acousticBarCyan
-import com.jarvis.app.frontend.design.acousticBarHeight
 import com.jarvis.app.frontend.design.arcSpinMs
 import com.jarvis.app.frontend.design.coreStateLabel
-import com.jarvis.app.frontend.design.hudReadoutLine
+import com.jarvis.app.frontend.design.fmtPingTag
 import com.jarvis.app.frontend.design.hudStatusLine
+import com.jarvis.app.frontend.design.voiceTag
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ArcHudTest {
@@ -38,23 +36,10 @@ class ArcHudTest {
     }
 
     @Test
-    fun acousticBars() {
-        for (i in 0 until 24) {
-            val h = acousticBarHeight(0.7f, i)
-            assertTrue(h >= 0.08f && h <= 1f)
-            assertEquals(h, acousticBarHeight(0.7f, i), 0f)
-            assertEquals(0.08f, acousticBarHeight(0f, i), 0f)
-        }
-        assertTrue(acousticBarCyan(0))
-        assertTrue(acousticBarCyan(5))
-        assertTrue(!acousticBarCyan(1))
-        assertTrue(!acousticBarCyan(6))
-    }
-
-    @Test
-    fun readoutFormats() {
-        assertEquals("SYS 31°C • NET 42ms • PWR 87%", hudReadoutLine("31°C", "42ms", 87))
-        assertEquals("SYS — • NET — • PWR —", hudReadoutLine("", "", -1))
-        assertEquals("SYS 29°C • NET — • PWR 100%", hudReadoutLine("29°C", "", 100))
+    fun pingAndVoiceTags() {
+        assertEquals("42MS", fmtPingTag("42 ms"))
+        assertEquals("—", fmtPingTag(""))
+        assertEquals("VOICE • EN", voiceTag(false))
+        assertEquals("VOICE • HI", voiceTag(true))
     }
 }

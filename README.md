@@ -77,8 +77,9 @@ android/                  # native app (this is the main product now)
     backend/net/          # GitHub API + encrypted token storage
   app/src/test/...        # unit tests (calculator, router)
   ...
-.github/workflows/android.yml  # CI: tests + debug APK artifact
-app.py, templates/        # Flask web version (legacy fallback, kept for reference)
+.github/workflows/android.yml  # CI: tests + stable-signed release APK
+.github/workflows/keycheck.yml  # CI: manual baked-key health check
+renovate.json               # Renovate: grouped Gradle + Actions updates
 ```
 
 ## Dev notes

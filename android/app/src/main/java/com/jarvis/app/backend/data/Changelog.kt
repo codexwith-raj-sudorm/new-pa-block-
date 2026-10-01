@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        66, "6.15", listOf(
+            "Compact island pill, chats flow up both sides",
+            "Unified glass menu, identity handshake and chats from your mockup"
+        )
+    ),
+    ChangelogEntry(
         65, "6.14", listOf(
             "Stable app signing: new builds update in place, chats/keys/permissions stay"
         )
