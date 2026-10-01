@@ -88,6 +88,11 @@
         <receiver android:name=".backend.system.ReminderReceiver" android:exported="false" />
         <receiver android:name=".backend.system.StandbyWatchdog" android:exported="false" />
         <receiver android:name=".backend.system.StandbyWindowReceiver" android:exported="false" />
+        <receiver android:name=".backend.system.BatteryReflexReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BATTERY_LOW" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".backend.system.BootReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

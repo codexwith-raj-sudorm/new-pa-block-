@@ -549,6 +549,25 @@ fun ConfigPanel(vm: JarvisViewModel) {
                             }
                         }
                     }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ConfigSection("PROACTIVE INTELLIGENCE")
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                                .border(1.dp, Color(0x0DFFFFFF), RoundedCornerShape(16.dp))
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Unprompted voice reflexes", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Battery + message alerts, DND and pocket aware",
+                                    color = Color(0xFF9CA3AF), fontSize = 10.sp
+                                )
+                            }
+                            NeonToggle(vm.proactiveOn) { vm.setProactiveOn(!vm.proactiveOn) }
+                        }
+                    }
                 }
                 Row(
                     Modifier.fillMaxWidth().padding(24.dp),

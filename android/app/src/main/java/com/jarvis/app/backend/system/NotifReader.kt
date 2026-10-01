@@ -31,6 +31,13 @@ class NotifReader : NotificationListenerService() {
             val text = (ex.getCharSequence("android.text") ?: "").toString().trim()
             if (title.isEmpty() && text.isEmpty()) return
             push(NotifItem(sbn.packageName, title.take(120), text.take(200), sbn.postTime))
+            if (isMessageNotif(sbn.packageName) && text.isNotBlank()) {
+                fireProactive(
+                    this, KIND_MESSAGE, "msg:" + title.take(40),
+                    "New message from $title: ${text.take(160)}",
+                    title.ifBlank { "Unknown" }.take(40), PROACTIVE_MSG_COOLDOWN_MS
+                )
+            }
         } catch (_: Exception) {
         }
     }

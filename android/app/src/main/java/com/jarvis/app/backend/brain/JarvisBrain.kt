@@ -1059,6 +1059,18 @@ class Store(context: Context) {
         get() = p.getInt("standby_end", 1080)
         set(v) = p.edit().putInt("standby_end", v).apply()
 
+    var proactiveOn: Boolean
+        get() = p.getBoolean("proactive", true)
+        set(v) = p.edit().putBoolean("proactive", v).apply()
+
+    var proactiveLastAt: Long
+        get() = p.getLong("pro_at", 0L)
+        set(v) = p.edit().putLong("pro_at", v).apply()
+
+    var proactiveLastKey: String
+        get() = p.getString("pro_key", "") ?: ""
+        set(v) = p.edit().putString("pro_key", v).apply()
+
     var hindiListen: Boolean
         get() = p.getBoolean("listen_hi", false)
         set(v) = p.edit().putBoolean("listen_hi", v).apply()
@@ -1712,6 +1724,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var standbyWindowOn by mutableStateOf(store.standbyWinOn)
     var standbyStartMin by mutableStateOf(store.standbyStart)
     var standbyEndMin by mutableStateOf(store.standbyEnd)
+    var proactiveOn by mutableStateOf(store.proactiveOn)
         private set
 
     private var tts: TextToSpeech? = null
@@ -2887,6 +2900,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             enforceStandbyWindow(appCtx)
             syncWakeState()
         }
+    }
+
+    fun setProactiveOn(on: Boolean) {
+        proactiveOn = on
+        store.proactiveOn = on
     }
 
     private fun pauseWakeService() {

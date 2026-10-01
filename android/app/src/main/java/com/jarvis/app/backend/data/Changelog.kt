@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        70, "6.19", listOf(
+            "Proactive reflexes: Jarvis speaks up for low battery + incoming messages",
+            "Gemini persona voice with offline fallback lines, ducked under music",
+            "DND, cooldown, call and pocket guardrails; toggle in Settings"
+        )
+    ),
+    ChangelogEntry(
         69, "6.18", listOf(
             "Dynamic Island: black pill drops from the camera cutout when standby arms",
             "Collapses to a green dot; the wake word strikes it back open with haptics",
