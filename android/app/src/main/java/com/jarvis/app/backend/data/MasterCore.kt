@@ -19,23 +19,22 @@ const val BAKED_MASTER_ABOUT = "Raj Thakur from West Bengal, India is the creato
 const val MASTER_SELF_NAME = "Raj"
 const val MASTER_SELF_ABOUT = "West Bengal, India"
 
-/** Personalized master welcome greeting (pure, tested). */
+/** Master welcome greeting (pure, tested). Jarvis addresses the master as sir. */
 fun masterGreet(name: String): String =
-    "Welcome back, Master " + firstName(name) + ". I am Jarvis, ready to serve."
+    "Welcome back, sir. I am Jarvis, ready to serve."
 
 /** First word of a full name ("Raj Thakur" -> "Raj"). Pure, tested. */
 fun firstName(full: String): String =
     full.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
 
-/** "Good morning, Master Raj." Pure, tested. */
+/** "Good morning, sir." Pure, tested. */
 fun wakeGreet(hour: Int, fullName: String): String {
     val g = when (hour) {
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"
         else -> "Good evening"
     }
-    val first = firstName(fullName)
-    return if (first.isEmpty()) "$g, Master." else "$g, Master $first."
+    return "$g, sir."
 }
 
 /** Day-part bucket for once-per-part wake greetings. Pure, tested. */

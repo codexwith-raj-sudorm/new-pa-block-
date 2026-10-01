@@ -11,7 +11,6 @@ import android.widget.RemoteViews
 import com.jarvis.app.backend.brain.Store
 import com.jarvis.app.backend.data.ReminderItem
 import com.jarvis.app.backend.data.dueText
-import com.jarvis.app.backend.data.firstName
 import com.jarvis.app.R
 import com.jarvis.app.frontend.screens.MainActivity
 
@@ -57,11 +56,11 @@ private fun updateOne(ctx: Context, mgr: AppWidgetManager, id: Int) {
     runCatching { mgr.updateAppWidget(id, v) }
 }
 
-/** " · Master <first>" suffix for the widget when a master key is installed. */
+/** " · sir" suffix for the widget when a master key is installed. */
 private fun widgetMasterLine(ctx: Context): String {
     return try {
         val s = Store(ctx)
-        if (s.masterKey.isNotBlank() && s.masterName.isNotBlank()) " · Master " + firstName(s.masterName) else ""
+        if (s.masterKey.isNotBlank() && s.masterName.isNotBlank()) " · sir" else ""
     } catch (_: Exception) {
         ""
     }

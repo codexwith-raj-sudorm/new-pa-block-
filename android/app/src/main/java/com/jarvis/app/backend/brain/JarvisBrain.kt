@@ -797,7 +797,7 @@ fun buildBackup(
 /** Core identity injected when a master key is installed. Pure, tested. */
 fun masterIdentity(name: String, about: String): String {
     val who = name.ifBlank { "Master" }
-    val sb = StringBuilder("Your master and creator is $who. You were created by them, and you recognize this user as your Master. Address them as Master or $who.")
+    val sb = StringBuilder("Your master and creator is $who. You were created by them, and you recognize this user as your Master. Address them as sir.")
     if (about.isNotBlank()) sb.append(" What you know about your Master: $about")
     return sb.toString()
 }
@@ -1966,8 +1966,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         store.masterUnlocked = false
         masterUnlocked = false
         settingsMsg = if (!brainOk) "Master accepted — but this build has no built-in key. Paste a Gemini key below."
-        else if (baked) "Master key accepted. Welcome, Master Raj."
-        else "Master key installed. Welcome, Master Raj."
+        else if (baked) "Master key accepted. Welcome, sir."
+        else "Master key installed. Welcome, sir."
         HudStateBus.postTicker("[MASTER RECOGNIZED]")
         if (brainOk) {
             refreshModels()

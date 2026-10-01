@@ -10,6 +10,7 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 val CHANGELOG = listOf(
     ChangelogEntry(
         64, "6.13", listOf(
+            "Jarvis addresses you as sir",
             "Any master key unlocks the built-in brain and repo access"
         )
     ),
