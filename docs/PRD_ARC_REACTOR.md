@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Version | 1.0 |
-| Status | Implemented (v5.1 + local reactor-interrupt update, unreleased) |
+| Version | 6.21 |
+| Status | Implemented (v6.21 — stable, in production) |
 | Owner | Raj Thakur |
 | Components | `GoldenBrainCoreView`, `StarkGoldenBubble`, `ReactorWidget`, `StarkWidgetProvider`, header mini-reactor |
 

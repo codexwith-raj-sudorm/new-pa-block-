@@ -1,3 +1,7 @@
+# Jarvis Design — v6.21
+
+> Visual design system: early volumetric/HUD specs (amber/gold) + premium green-glass HUD that actually shipped (see `android/app/src/main/java/com/jarvis/app/frontend/design/`). Inline HTML mockups are the prototype source.
+
 Visual Design Specification (Design.md)
 1. Visual Identity & Aesthetic Direction
 The visual identity is modeled directly on the Stark Industries Holographic Neural Matrix (as seen in Avengers: Age of Ultron). The interface avoids conventional flat 2D cards, scrolling feeds, or boxed containers in favor of an ephemeral 3D volumetric hologram suspended in an infinite dark viewport.

@@ -1,3 +1,9 @@
+# Jarvis Architecture — v6.21
+
+> System architecture + §§6–11 build specs. Sections 1–5 are the core system; §§6–11 are the ambient/onboarding/media specs added in 6.15–6.21. HTML prototypes are inline — open in a browser to preview. AEGIS → Jarvis.
+
+---
+
 Architecture Document
 1. High-Level System Architecture
 The Jarvis Assistant Client (new-pa-block) relies heavily on Android's native Assist API rather than standard Activities or background overlays. The system is decoupled into three primary operational layers:

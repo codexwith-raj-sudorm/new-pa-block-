@@ -1,188 +1,64 @@
-1. build.gradle.kts (App-level)
-The dependency catalog locks in the latest Compose Bill of Materials (2026.09.00), Material 3, and Coroutines, ensuring the AI does not hallucinate outdated UI components.
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-}
+# Jarvis Scaffold — v6.21 actual layout
 
-android {
-    namespace = "com.jarvis.app"
-    compileSdk = 35
+> The real module layout. This replaces the early VoiceInteractionService scaffold that never shipped — the current product is a standard Activity + Compose app with a foreground wake service.
 
-    defaultConfig {
-        applicationId = "com.jarvis.app"
-        minSdk = 29
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
-    }
+## Top-level
 
-    buildFeatures {
-        compose = true
-    }
-    
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.15" //
-    }
-}
+```
+new-pa-block-/
+├── android/                  # Gradle project (the product)
+│   ├── build.gradle          # plugin versions only (AGP 8.5.2, Kotlin 2.0.20)
+│   ├── settings.gradle       # include(":app")
+│   ├── gradle.properties     # 2g heap, AndroidX, official code style
+│   └── app/
+│       ├── build.gradle      # namespace com.jarvis.app, SDK 26/34, versionCode 72 (6.21)
+│       │                     # BuildConfig: DEFAULT_GEMINI_KEY / DEFAULT_MASTER / DEFAULT_GITHUB_TOKEN
+│       │                     # signingConfig release (keystore.p12 + PKCS12)
+│       └── src/main/
+│           ├── AndroidManifest.xml
+│           ├── res/          # drawable, layout, mipmap-anydpi-v26, values, xml
+│           └── java/com/jarvis/app/
+├── docs/                     # product specs + inline HTML mockups (see docs/README.md)
+├── .github/workflows/        # android.yml (tests+APK) · keycheck.yml (manual)
+├── FEATURES.md               # full feature list
+├── renovate.json             # grouped Gradle + Actions
+├── README.md
+└── LICENSE
+```
 
-dependencies {
-    // Jetpack Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00") //
-    implementation(composeBom)
-    
-    // Core Compose
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    
-    // Android Lifecycle & Activity
-    implementation("androidx.activity:activity-compose:1.9.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-    
-    // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    
-    // Networking (For Phase 5 - Zero-Cost LLM)
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-}
+## Source modules (100 .kt files, 43 test files)
 
-2. res/xml/assistant_service_config.xml
-Registers the system bindings required for Android to recognize the app as a default digital assistant.
-<?xml version="1.0" encoding="utf-8"?>
-<voice-interaction-service 
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:sessionService="com.jarvis.app.service.JarvisVoiceSessionService"
-    android:recognitionService="com.jarvis.app.service.JarvisRecognitionService"
-    android:supportsAssist="true"
-    android:supportsLocalInteraction="true" />
+```
+backend/ai/           # AiProviders (Gemini + OpenAI-compat), GenImage, VoicePersonas
+backend/brain/        # JarvisBrain (ViewModel + router + changelog glue), Playback (media router)
+backend/data/         # Changelog, JarvisVault (Encrypted prefs), Lists, MasterCore,
+                      # Reminders, SchedMsg, VaultDb + StarkVaultDb (Room)
+backend/device/       # DeviceControl, StarkDeviceController, SoundMuter, StarkSounds
+backend/net/          # Github (API + token storage)
+backend/system/       # AssistMode, BootReceiver, BriefingReceiver, BubbleLevelBus,
+                      # HudState, JarvisAccess, NotifReader, Proactive, ReminderReceiver,
+                      # SchedMsgReceiver, ScreenshotService, SharedVm, Standby,
+                      # StandbyIsland, StandbyWindow, WakeService, WakeTile
+backend/voice/        # VoiceCapture, VoiceLoop, VoicePrintDsp
+frontend/design/      # ArcCoreHud, AssistIsland, ConfigPanel, FluidJarvisTheme,
+                      # HeaderMiniReactor, HudTheme, JarvisAuth (§10), JarvisMedia (§11),
+                      # JarvisNav (§9), PremiumHome, WakeHarmonic
+frontend/screens/     # MainActivity, AssistActivity, ShotActivity, StarkShareActivity, WakeHudActivity
+frontend/widgets/     # BriefingWidget, ReactorWidget, StarkWidgetProvider
+```
 
-3. AndroidManifest.xml
-Declares the required BIND_VOICE_INTERACTION permissions, making the service hookable via the Android system UI.
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.jarvis.app">
+## Key runtime wiring
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+- **App entry:** `MainActivity` hosts Compose `MainScreen` — drawer (`JarvisNav`), floating header, profile hub, chat, voice, standby, island, media chooser, auth gate.
+- **Brain:** `JarvisBrain` is the `AndroidViewModel` — holds chats, memories, lists, reminders, wake/standby/proactive/media state, commit-per-release setters, `buildSystem()` prompt.
+- **Wake:** `WakeService` (IMPORTANCE_MIN `jarvis_standby` channel) + `StandbyWindow` alarms + `BootReceiver` + watchdog + `BubbleLevelBus` for island waveform.
+- **Proactive:** `Proactive` background receiver + `NotifReader` hook → `fireProactive` (main-thread, cooldown, DND/call/speech/busy/pocket guardrails).
+- **Media:** `Playback` pure router (`parsePlayMedia`, `pickMediaPackage`) → `JarvisBrain.handleMediaCommand` → `MEDIA_PLAY_FROM_SEARCH` / `ACTION_SEARCH` intents, spoken handoff + 800ms beat.
 
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="Jarvis"
-        android:theme="@android:style/Theme.Translucent.NoTitleBar">
+## Build & test
 
-        <!-- Phase 1: Background Interaction Service -->
-        <service
-            android:name=".service.JarvisVoiceInteractionService"
-            android:permission="android.permission.BIND_VOICE_INTERACTION"
-            android:exported="true">
-            <meta-data
-                android:name="android.voice_interaction"
-                android:resource="@xml/assistant_service_config" />
-            <intent-filter>
-                <action android:name="android.service.voice.VoiceInteractionService" />
-            </intent-filter>
-        </service>
+- CI runs `gradle clean :app:testDebugUnitTest --console=plain` (all 262 tests must be JVM-pure), then assembles Release if `ANDROID_KEYSTORE_B64` exists else Debug, uploading `jarvis.apk`.
+- Local builds need no SDK in this sandbox — CI is the verifier.
+- Version bump = `android/app/build.gradle` `versionCode`/`versionName` + prepend `Changelog.kt` entry + `ChangelogTest` size guard.
+```
 
-        <!-- Phase 1: Foreground Session Service (UI Container) -->
-        <service
-            android:name=".service.JarvisVoiceSessionService"
-            android:permission="android.permission.BIND_VOICE_INTERACTION"
-            android:exported="true" />
-
-        <!-- Temporary activity to launch Android Assistant Settings -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-    </application>
-</manifest>
-
-4. JarvisVoiceInteractionService.kt
-The persistent background service the Android OS keeps alive to handle hardware triggers.
-package com.jarvis.app.service
-
-import android.service.voice.VoiceInteractionService
-import android.util.Log
-
-class JarvisVoiceInteractionService : VoiceInteractionService() {
-    
-    override fun onReady() {
-        super.onReady()
-        Log.d("JarvisService", "VoiceInteractionService is bound and ready.")
-    }
-
-    override fun onShutdown() {
-        super.onShutdown()
-        Log.d("JarvisService", "VoiceInteractionService shutting down.")
-    }
-}
-
-5. JarvisVoiceSessionService.kt
-The factory class Android calls to generate a new UI session window when a user swipes the corner or long-presses the power button.
-package com.jarvis.app.service
-
-import android.os.Bundle
-import android.service.voice.VoiceInteractionSession
-import android.service.voice.VoiceInteractionSessionService
-
-class JarvisVoiceSessionService : VoiceInteractionSessionService() {
-    
-    override fun onNewSession(args: Bundle?): VoiceInteractionSession {
-        return JarvisVoiceSession(this)
-    }
-}
-
-6. JarvisVoiceSession.kt
-The active visual window. Currently inflates a placeholder Compose UI. Phase 2 will replace this with the 3D Neural Matrix.
-package com.jarvis.app.service
-
-import android.content.Context
-import android.os.Bundle
-import android.service.voice.VoiceInteractionSession
-import android.view.View
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
-
-class JarvisVoiceSession(context: Context) : VoiceInteractionSession(context) {
-
-    override fun onCreateContentView(): View {
-        return ComposeView(context).apply {
-            setContent {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0x92030710)), // MatrixBackdrop (92% opacity dark navy)
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "JARVIS SYSTEM HOOK ACTIVE", color = Color(0xFFFFD166))
-                }
-            }
-        }
-    }
-
-    override fun onShow(args: Bundle?, showFlags: Int) {
-        super.onShow(args, showFlags)
-        // Request visual context for Phase 3
-        setUiEnabled(true)
-    }
-
-    override fun onHide() {
-        super.onHide()
-        // Cleanup resources
-    }
-}
-
-To complete Phase 1, install the app, open Settings > Apps > Default Apps > Digital Assistant app, and select Jarvis. Long-pressing the power button will display the transparent JARVIS SYSTEM HOOK ACTIVE overlay.

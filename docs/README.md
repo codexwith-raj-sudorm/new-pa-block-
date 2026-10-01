@@ -13,4 +13,4 @@ Product + design specifications. The app source of truth is `../android/`; these
 | `memory.md` | Memory-subsystem notes |
 | `scaffold.md` | Scaffold / module layout notes |
 
-Conventions: mockups are plain HTML pasted inline (open in any browser to preview); specs say AEGIS in places — the shipped product name is **Jarvis**.
+Conventions: mockups are plain HTML pasted inline (open in any browser to preview); All specs refreshed to v6.21 on 2026-10-01; specs say AEGIS in places — the shipped product name is **Jarvis**.

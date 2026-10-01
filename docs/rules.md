@@ -1,21 +1,44 @@
-Rules Document (Rules.md)
-1. Zero-Cost & Open-Source Requirement
- * Strict Prohibition of Paid Services: The application must never integrate commercial LLM providers that require billing or credit card registration (e.g., OpenAI, Anthropic, standard Google Cloud AI).
- * Allowed Remote APIs: Use strictly free-tier endpoints such as Arena AI. Ensure that the API client respects rate limits and handles prompt iterations efficiently (capping multi-step logic to a safe maximum of 5 iterations to avoid token looping).
- * Local Inference Integration: If utilizing on-device LLMs, bridge the Android application to a local server environment (e.g., running an Ollama or Flask backend via Termux). Models must be quantized and lightweight enough to execute efficiently on entry-level hardware like a Vivo Y20i without causing thermal throttling or aggressive OS memory kills.
-2. VoiceInteractionService Best Practices
- * Keep the Background Service Lightweight: The JarvisVoiceInteractionService runs continuously. It must remain exceptionally lightweight to prevent Android from terminating it. Never execute heavy operations or UI rendering in this class.
- * Isolate UI in the Session Service: All heavy-weight operations, including inflating the Compose UI, managing the 3D Canvas, and processing visual logic, must be isolated within VoiceInteractionSessionService, which runs in a separate process.
- * Audio Hardware Arbitration: Always release the AudioRecord microphone lock immediately when transitioning from the "Listening" state to the "Thinking" state to avoid blocking the hardware from other apps.
-3. UI/UX & Presentation Rules
- * No Screen-Based Interfaces: The system must not present traditional Android activities, chat lists, or text input fields.
- * 3D Canvas Rendering Only: The visual interface is strictly limited to the JarvisNeuralMatrix Compose 3D overlay.
- * Non-Blocking Overlay: The VoiceInteractionSession window must be transparent and allow the user to see the underlying application. It must automatically tear down and invoke hide() the moment the text-to-speech engine fires the completion callback.
-4. State Management & Concurrency
- * Unidirectional Data Flow: Use Kotlin StateFlow to push states (Idle, Listening, Thinking, Speaking) from the ViewModel to the Compose UI. Do not allow the UI to mutate its own state.
- * Coroutines for Background Tasks: All network requests, context parsing, and heavy computation must run on Dispatchers.IO. All UI updates and canvas invalidations must execute on Dispatchers.Main.
- * State Interruption: If a user triggers the assistant while it is already processing a previous query, the system must immediately cancel the active Coroutine Job, flush the audio buffer, and reset to the "Listening" state.
-5. Security & Privacy Constraints
- * On-Demand Context: Screen scraping via AssistStructure and AssistContent must only execute when explicitly triggered by the user. Do not continuously poll the screen.
- * Secure Flag Respect: The app must gracefully handle null or blocked view nodes when interacting with applications that utilize FLAG_SECURE (e.g., banking or password managers).
- * Local Logging Only: To maintain privacy, do not send crash logs, voice data, or on-screen text to remote telemetry servers. Keep all debugging logs local.
+# Jarvis House Rules — v6.21
+
+> How we work on Jarvis. Violating these has broken builds before — read before you change anything.
+
+## 1. Product integrity
+
+- **BYOK, no paid SDK in git:** never commit a real Gemini / OpenAI / GitHub token. Built-in keys come from CI secrets (`GEMINI_API_KEY`, `GH_READ_TOKEN`, `MASTER_IDENTITY`) injected as `BuildConfig` fields (Base64 + reversed for Gemini). Obfuscation ≠ encryption — warn in README.
+- **Encrypted storage:** user keys + master key live in `EncryptedSharedPreferences` (see `JarvisVault` / `MasterCore`). No plaintext prefs.
+- **Hardware-safe refusals:** never actually toggle torch/brightness/Wi-Fi. Reply honestly that it's unsupported (tested in `DeviceTest` / `StarkLogicTest`).
+- **Sir, always:** when a Master identity is installed, address the owner as "sir" in greetings, tickers, and spoken replies.
+
+## 2. Voice & wake discipline
+
+- **Beep hygiene:** every mic open must be wrapped by `SoundMuter` (all streams muted) — or users hear the Google beep.
+- **Priya is locked:** pitch 0.68, rate 0.93 — same in app and `WakeService`. Don't expose a voice picker.
+- **Wake hygiene:** `WakeService` channel is `jarvis_standby` (IMPORTANCE_MIN), `PARTIAL_WAKE_LOCK`, `EXTRA_PREFER_OFFLINE`, `showWhenLocked`+`turnScreenOn` for the pop. Watchdog + `BootReceiver` must honor the standby window.
+- **Never store a large local model:** one ~5 MB speaker-ID model is allowed; Porcupine/Vosk/Whisper are out (house `keep-system` vote).
+
+## 3. UI rules
+
+- **No AEGIS strings:** the product is **Jarvis** — absorb any AEGIS mockup as Jarvis (design_md says AEGIS in places, ship as Jarvis).
+- **HUD only — but chat exists:** green-glass theme (`HudTheme` + `PremiumHome`), no second design skin. Keep the 4-item menu (New chat, Memory, Lists, Voice); everything else goes to Settings → More.
+- **Island is compact:** one small pill, chats flow around it — nothing hidden beneath (house `compact-pill` vote).
+- **Hold-summon:** zero dimming, island floats over the visible screen.
+
+## 4. Engineering hygiene
+
+- **Tests before push:** `gradle :app:testDebugUnitTest` (262 tests) + keep `android/app/src/test` pure (no `android.*` imports). Add a test with every feature.
+- **Changelog is the source of truth:** `backend/data/Changelog.kt` `CHANGELOG` list (newest first) powers "What's new" + `ChangelogTest`. Prepend, never append.
+- **Docs live in `docs/*.md`:** specs say `*_md` historically — current paths are `docs/*.md` (see `docs/README.md`). Don't recreate `*_md`.
+- **Don't push without asking:** prepare/commit locally, push only on approval — but this session explicitly asks for push+build after the reorg.
+- **Rebase discipline:** never parallel-edit the same file (proven race in §6 that lost 15+ edits). Use one sequential Python assert-then-write script per file set.
+
+## 5. Master key discipline
+
+- **Baked identity:** `MASTER_IDENTITY` JSON `{"k":"key","n":"name","a":"about"}` bakes Raj identity. Activation stamps name, locks the baked Gemini key to owner-grade only, hides the master section until 5× title tap.
+- **Cards travel:** `JARVIS-MASTER:` cards import on any device; same leak warning as Gemini keys.
+- **Updates are in-place:** stable signing (`keystore.p12` from `ANDROID_KEYSTORE_B64`) — new APKs must not lose chats/keys/permissions.
+
+## 6. Git & CI
+
+- **Branch is fixed:** `arena/01a08a6b-new-pa-block` — never switch or push elsewhere (Arena tracks this session).
+- **Commits:** conventional style (`feat:`, `chore:`, `docs:`, `§N … (code/name)`), co-author trailer `arena-agent` on feature commits. Keep history neat — squash WIPs before push.
+- **CI:** `android.yml` (tests → assemble signed release or debug fallback) + `keycheck.yml` (manual baked-key health). Pin Ubuntu 24.04, Gradle 8.14.5, JDK 17, AGP 8.5.2.
