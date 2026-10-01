@@ -10,6 +10,7 @@ import com.jarvis.app.backend.data.masterGreet
 import com.jarvis.app.backend.data.wakeBucket
 import com.jarvis.app.backend.data.wakeGreet
 import com.jarvis.app.backend.data.wakeGreetStamp
+import com.jarvis.app.frontend.design.clearanceLabel
 
 class MasterTest {
     @Test fun identityNamesMaster() {

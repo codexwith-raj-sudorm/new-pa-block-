@@ -13,7 +13,9 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val store = Store(context)
-        if (store.wakeEnabled) {
+        val inWin = !store.standbyWinOn ||
+            inStandbyWindow(nowMinuteOfDay(), store.standbyStart, store.standbyEnd)
+        if (store.wakeEnabled && inWin) {
             runCatching {
                 val i = Intent(context, WakeService::class.java).setAction(WakeService.ACTION_START)
                 if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(i)
@@ -32,6 +34,12 @@ class BootReceiver : BroadcastReceiver() {
         }
         if (store.dailyBriefing) runCatching { armDailyBriefing(context, true) }
         runCatching { armStandbyWatchdog(context, store.wakeEnabled) }
+        runCatching {
+            armStandbyWindow(
+                context, store.wakeEnabled && store.standbyWinOn,
+                store.standbyStart, store.standbyEnd
+            )
+        }
         runCatching { StarkWidgetProvider.refreshAll(context) }
         runCatching { refreshReactorWidgets(context) }
     }

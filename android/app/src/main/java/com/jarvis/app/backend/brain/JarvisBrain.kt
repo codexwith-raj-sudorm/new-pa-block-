@@ -159,6 +159,11 @@ import com.jarvis.app.backend.system.WakeService
 import com.jarvis.app.backend.system.armReminderAlarm
 import com.jarvis.app.backend.system.armSchedMsgAlarm
 import com.jarvis.app.backend.system.armStandbyWatchdog
+import com.jarvis.app.backend.system.armStandbyWindow
+import com.jarvis.app.backend.system.enforceStandbyWindow
+import com.jarvis.app.backend.system.fmtWindowTime
+import com.jarvis.app.backend.system.inStandbyWindow
+import com.jarvis.app.backend.system.nowMinuteOfDay
 import com.jarvis.app.backend.system.cancelSchedMsgAlarm
 import com.jarvis.app.backend.system.convoExpired
 import com.jarvis.app.backend.system.formatNotifs
@@ -1042,6 +1047,18 @@ class Store(context: Context) {
         get() = p.getBoolean("wake", false)
         set(v) = p.edit().putBoolean("wake", v).apply()
 
+    var standbyWinOn: Boolean
+        get() = p.getBoolean("standby_win", false)
+        set(v) = p.edit().putBoolean("standby_win", v).apply()
+
+    var standbyStart: Int
+        get() = p.getInt("standby_start", 480)
+        set(v) = p.edit().putInt("standby_start", v).apply()
+
+    var standbyEnd: Int
+        get() = p.getInt("standby_end", 1080)
+        set(v) = p.edit().putInt("standby_end", v).apply()
+
     var hindiListen: Boolean
         get() = p.getBoolean("listen_hi", false)
         set(v) = p.edit().putBoolean("listen_hi", v).apply()
@@ -1692,6 +1709,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var permRequest by mutableStateOf<String?>(null)
     var wakeOn by mutableStateOf(WakeService.isRunning)
+    var standbyWindowOn by mutableStateOf(store.standbyWinOn)
+    var standbyStartMin by mutableStateOf(store.standbyStart)
+    var standbyEndMin by mutableStateOf(store.standbyEnd)
         private set
 
     private var tts: TextToSpeech? = null
@@ -2783,6 +2803,16 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             wakeOn = true
             store.wakeEnabled = true
             armStandbyWatchdog(appCtx, true)
+            if (store.standbyWinOn) {
+                armStandbyWindow(appCtx, true, store.standbyStart, store.standbyEnd)
+                enforceStandbyWindow(appCtx)
+                if (!WakeService.isRunning) {
+                    toast(
+                        "Standby armed — listening " + fmtWindowTime(store.standbyStart) +
+                            "–" + fmtWindowTime(store.standbyEnd)
+                    )
+                }
+            }
             if (!store.batteryAsked) {
                 store.batteryAsked = true
                 if (!batteryUnrestricted()) requestBatteryUnrestricted()
@@ -2795,13 +2825,68 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             wakeOn = false
             store.wakeEnabled = false
             armStandbyWatchdog(appCtx, false)
+            armStandbyWindow(appCtx, false, 0, 0)
         }
         StarkWidgetProvider.refreshAll(appCtx)
         refreshReactorWidgets(appCtx)
     }
 
     fun syncWakeState() {
-        wakeOn = WakeService.isRunning
+        // Armed-for-window counts as on: the mic wakes at the next edge.
+        wakeOn = WakeService.isRunning || (store.wakeEnabled && store.standbyWinOn)
+    }
+
+    /** §6 failsafe: manual open re-syncs state + re-arms alarms (idempotent, never double-starts). */
+    fun resyncStandby() {
+        syncWakeState()
+        val appCtx = getApplication<Application>()
+        if (!store.wakeEnabled) return
+        armStandbyWatchdog(appCtx, true)
+        if (store.standbyWinOn) {
+            armStandbyWindow(appCtx, true, store.standbyStart, store.standbyEnd)
+            enforceStandbyWindow(appCtx)
+            syncWakeState()
+        } else if (!WakeService.isRunning) {
+            resumeWakeService()
+        }
+    }
+
+    fun setStandbyWindow(on: Boolean) {
+        val appCtx = getApplication<Application>()
+        standbyWindowOn = on
+        store.standbyWinOn = on
+        armStandbyWindow(appCtx, on && store.wakeEnabled, store.standbyStart, store.standbyEnd)
+        if (on && store.wakeEnabled) {
+            enforceStandbyWindow(appCtx)
+            syncWakeState()
+            if (!WakeService.isRunning) {
+                toast(
+                    "Standby armed — listening " + fmtWindowTime(store.standbyStart) +
+                        "–" + fmtWindowTime(store.standbyEnd)
+                )
+            }
+        }
+    }
+
+    fun setStandbyStart(min: Int) {
+        standbyStartMin = min
+        store.standbyStart = min
+        rearmStandbyWindow()
+    }
+
+    fun setStandbyEnd(min: Int) {
+        standbyEndMin = min
+        store.standbyEnd = min
+        rearmStandbyWindow()
+    }
+
+    private fun rearmStandbyWindow() {
+        val appCtx = getApplication<Application>()
+        armStandbyWindow(appCtx, store.standbyWinOn && store.wakeEnabled, store.standbyStart, store.standbyEnd)
+        if (store.standbyWinOn && store.wakeEnabled) {
+            enforceStandbyWindow(appCtx)
+            syncWakeState()
+        }
     }
 
     private fun pauseWakeService() {

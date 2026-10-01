@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        68, "6.17", listOf(
+            "Time-boxed standby: the listener lives only inside your window",
+            "Wake pop: Jarvis seizes the screen over the lock screen",
+            "Stealth notification + offline-first wake recognition"
+        )
+    ),
+    ChangelogEntry(
         67, "6.16", listOf(
             "Gesture navigation: edge-swipe drawer with chats, memory, lists + voice/wake toggles",
             "Floating header (menu, status pill, avatar) + top-right profile hub",

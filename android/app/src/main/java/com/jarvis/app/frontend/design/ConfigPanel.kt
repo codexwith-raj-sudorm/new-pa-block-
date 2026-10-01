@@ -1,6 +1,8 @@
 package com.jarvis.app.frontend.design
 
+import android.app.TimePickerDialog
 import android.widget.Toast
+import com.jarvis.app.backend.system.fmtWindowTime
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -496,6 +498,55 @@ fun ConfigPanel(vm: JarvisViewModel) {
                                 Text("JARVIS answers physical device triggers", color = Color(0xFF9CA3AF), fontSize = 10.sp)
                             }
                             NeonToggle(gestureOn) { openGestureSettings() }
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ConfigSection("STANDBY WINDOW")
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                                .border(1.dp, Color(0x0DFFFFFF), RoundedCornerShape(16.dp))
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Time-boxed standby", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (vm.standbyWindowOn) {
+                                        "Listening " + fmtWindowTime(vm.standbyStartMin) + "–" + fmtWindowTime(vm.standbyEndMin)
+                                    } else {
+                                        "Off — wake listens 24x7"
+                                    },
+                                    color = Color(0xFF9CA3AF), fontSize = 10.sp
+                                )
+                            }
+                            NeonToggle(vm.standbyWindowOn) { vm.setStandbyWindow(!vm.standbyWindowOn) }
+                        }
+                        if (vm.standbyWindowOn) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                NeonGhostButton(
+                                    "Start " + fmtWindowTime(vm.standbyStartMin),
+                                    Modifier.weight(1f)
+                                ) {
+                                    val m = vm.standbyStartMin
+                                    TimePickerDialog(
+                                        setCtx,
+                                        { _, h, min -> vm.setStandbyStart(h * 60 + min) },
+                                        m / 60, m % 60, true
+                                    ).show()
+                                }
+                                NeonGhostButton(
+                                    "End " + fmtWindowTime(vm.standbyEndMin),
+                                    Modifier.weight(1f)
+                                ) {
+                                    val m = vm.standbyEndMin
+                                    TimePickerDialog(
+                                        setCtx,
+                                        { _, h, min -> vm.setStandbyEnd(h * 60 + min) },
+                                        m / 60, m % 60, true
+                                    ).show()
+                                }
+                            }
                         }
                     }
                 }

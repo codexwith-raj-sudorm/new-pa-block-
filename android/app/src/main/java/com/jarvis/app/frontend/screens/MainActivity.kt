@@ -167,6 +167,11 @@ class MainActivity : ComponentActivity() {
             }
         }
         handleWakeIntent(intent)
+        // §6 failsafe: manual open re-syncs standby + re-arms alarms (idempotent).
+        try {
+            sharedJarvisVm(application).resyncStandby()
+        } catch (_: Exception) {
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

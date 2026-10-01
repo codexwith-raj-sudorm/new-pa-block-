@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -106,7 +107,7 @@ class WakeService : Service() {
         const val ACTION_WAKE_COMMAND = "com.jarvis.app.WAKE_COMMAND"
         const val ACTION_HUSH = "com.jarvis.app.HUSH"
         private const val NOTIF_ID = 41
-        private const val CHANNEL_ID = "jarvis_wake"
+        private const val CHANNEL_ID = "jarvis_standby"
 
         @Volatile
         var isRunning = false
@@ -146,6 +147,7 @@ class WakeService : Service() {
         bubbleDockCmd.value = side
     }
     private var started = false
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -208,7 +210,12 @@ class WakeService : Service() {
         pausedByApp = false
         errorTimes.clear()
         try {
-            val notif = buildNotification("Say \"Hey Jarvis\" — tap to open")
+            val winLabel = if (store.standbyWinOn) {
+                "Armed • " + fmtWindowTime(store.standbyStart) + "–" + fmtWindowTime(store.standbyEnd) + " — tap to open"
+            } else {
+                "Say \"Hey Jarvis\" — tap to open"
+            }
+            val notif = buildNotification(winLabel)
             if (Build.VERSION.SDK_INT >= 29) {
                 startForeground(NOTIF_ID, notif, 128) // FOREGROUND_SERVICE_TYPE_MICROPHONE
             } else {
@@ -219,6 +226,16 @@ class WakeService : Service() {
             shutDown()
             return
         }
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "jarvis:standby").also {
+                // 12h failsafe cap; the window STOP edge releases far sooner.
+                it.acquire(12 * 60 * 60 * 1000L)
+            }
+        } catch (_: Exception) {
+            wakeLock = null
+        }
+        StandbyBus.set(true)
         addBubble()
         muteBlip(800) // cover any start beep on arming
         refreshReactorWidgets(this)
@@ -232,6 +249,12 @@ class WakeService : Service() {
     private fun shutDown(userStopped: Boolean = false) {
         started = false
         isRunning = false
+        StandbyBus.set(false)
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (_: Exception) {
+        }
+        wakeLock = null
         if (userStopped) runCatching { store.wakeEnabled = false }
         if (userStopped) runCatching { armStandbyWatchdog(this, false) }
         stopCallWatch()
@@ -328,6 +351,8 @@ class WakeService : Service() {
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 60_000)
                 putExtra("android.speech.extra.DICTATION_MODE", true)
+                // §6: prefer on-device recognition — no audio leaves the phone for wake.
+                putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             }
             muteBlip(900) // cover the start beep on EVERY restart, all streams
             r.startListening(intent)
@@ -351,9 +376,30 @@ class WakeService : Service() {
         // deferred — spoken over the Gemini round trip once the command lands,
         // or as a reprompt if the listen fails. No deaf window.
         hushSpeech()
-        // Hands-free first: no activity pop — the headless command listen
-        // takes the order; the notification offers a manual open instead.
+        haltLoop() // release the mic for the handoff
+        // §6 awakening: seize the screen when the OS allows it; the app
+        // session pauses us and resumes us on end. Otherwise headless.
+        if (tryPopAppForWake()) return
         startCommandListen()
+    }
+
+    /**
+     * Pull the app front (NEW_TASK + SINGLE_TOP onto the singleTop MainActivity).
+     * True when the pop lands — the app owns the mic now. Background-start
+     * blocks are normal: false keeps the headless command listen.
+     */
+    private fun tryPopAppForWake(): Boolean {
+        return try {
+            val i = Intent(this, MainActivity::class.java)
+                .setAction(ACTION_WAKE_COMMAND)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            startActivity(i)
+            pausedByApp = true
+            HudStateBus.postTicker("[WAKE: POP]")
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     /**
@@ -876,8 +922,11 @@ class WakeService : Service() {
         try {
             if (Build.VERSION.SDK_INT >= 26) {
                 val m = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                // v6.16 channel was IMPORTANCE_LOW (fixed at creation) — drop it
+                // so the stealth channel below actually takes effect on upgrade.
+                runCatching { m.deleteNotificationChannel("jarvis_wake") }
                 m.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "Jarvis wake word", NotificationManager.IMPORTANCE_LOW)
+                    NotificationChannel(CHANNEL_ID, "Jarvis standby", NotificationManager.IMPORTANCE_MIN)
                 )
             }
         } catch (_: Exception) {
@@ -904,8 +953,8 @@ class WakeService : Service() {
     private fun buildNotification(text: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_jarvis)
-            .setColor(0xFF1F6FEB.toInt())
-            .setContentTitle("Jarvis is listening")
+            .setColor(0xFF3FB950.toInt())
+            .setContentTitle("Jarvis standby")
             .setContentText(text)
             .setContentIntent(openIntent())
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopIntent())

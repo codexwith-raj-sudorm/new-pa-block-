@@ -72,6 +72,18 @@ object InterruptBus {
 }
 
 /**
+ * Time-boxed standby (§6): true while the wake listener is live.
+ * The window receiver + service publish, the §8 island observes.
+ */
+object StandbyBus {
+    private val _armed = MutableStateFlow(false)
+    val armed: StateFlow<Boolean> = _armed.asStateFlow()
+    fun set(v: Boolean) {
+        _armed.value = v
+    }
+}
+
+/**
  * Contextual eye color as ARGB (pure, unit-tested).
  * Priority: thinking > listening > speaking > offline > standby.
  */

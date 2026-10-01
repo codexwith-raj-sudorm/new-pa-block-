@@ -82,6 +82,14 @@ class StandbyWatchdog : BroadcastReceiver() {
         try {
             val store = Store(context.applicationContext)
             if (!store.wakeEnabled) return
+            if (store.standbyWinOn &&
+                !inStandbyWindow(nowMinuteOfDay(), store.standbyStart, store.standbyEnd)
+            ) {
+                // Outside the window: stay down; the window alarm re-arms us.
+                runCatching { context.stopService(Intent(context, WakeService::class.java)) }
+                armStandbyWatchdog(context, true)
+                return
+            }
             if (!WakeService.isRunning) {
                 val i = Intent(context, WakeService::class.java).setAction(WakeService.ACTION_START)
                 if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(i)
