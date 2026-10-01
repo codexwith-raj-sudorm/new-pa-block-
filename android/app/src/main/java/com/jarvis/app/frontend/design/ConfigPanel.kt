@@ -529,26 +529,28 @@ fun ConfigPanel(vm: JarvisViewModel) {
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 NeonGhostButton(
                                     "Start " + fmtWindowTime(vm.standbyStartMin),
+                                    {
+                                        val m = vm.standbyStartMin
+                                        TimePickerDialog(
+                                            setCtx,
+                                            { _, h, min -> vm.setStandbyStart(h * 60 + min) },
+                                            m / 60, m % 60, true
+                                        ).show()
+                                    },
                                     Modifier.weight(1f)
-                                ) {
-                                    val m = vm.standbyStartMin
-                                    TimePickerDialog(
-                                        setCtx,
-                                        { _, h, min -> vm.setStandbyStart(h * 60 + min) },
-                                        m / 60, m % 60, true
-                                    ).show()
-                                }
+                                )
                                 NeonGhostButton(
                                     "End " + fmtWindowTime(vm.standbyEndMin),
+                                    {
+                                        val m = vm.standbyEndMin
+                                        TimePickerDialog(
+                                            setCtx,
+                                            { _, h, min -> vm.setStandbyEnd(h * 60 + min) },
+                                            m / 60, m % 60, true
+                                        ).show()
+                                    },
                                     Modifier.weight(1f)
-                                ) {
-                                    val m = vm.standbyEndMin
-                                    TimePickerDialog(
-                                        setCtx,
-                                        { _, h, min -> vm.setStandbyEnd(h * 60 + min) },
-                                        m / 60, m % 60, true
-                                    ).show()
-                                }
+                                )
                             }
                         }
                     }

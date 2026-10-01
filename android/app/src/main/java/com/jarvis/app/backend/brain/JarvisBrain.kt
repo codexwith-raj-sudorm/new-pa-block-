@@ -117,7 +117,6 @@ import com.jarvis.app.backend.device.OpenApp
 import com.jarvis.app.backend.device.OpenChat
 import com.jarvis.app.backend.device.deviceCmdYieldsScreen
 import com.jarvis.app.backend.device.tgResolveLink
-import com.jarvis.app.backend.device.PlayMedia
 import com.jarvis.app.backend.device.SetAlarm
 import com.jarvis.app.backend.device.SetTimer
 import com.jarvis.app.backend.device.Silence
@@ -1732,7 +1731,6 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var proactiveOn by mutableStateOf(store.proactiveOn)
     var mediaAppPref by mutableStateOf(store.mediaAppPref)
     var mediaPick by mutableStateOf<MediaPick?>(null)
-        private set
 
     private var tts: TextToSpeech? = null
     private var recognizer: SpeechRecognizer? = null
@@ -3876,7 +3874,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             is SetTimer -> setTimer(cmd.seconds)
             is NavigateTo -> navigateTo(cmd.query)
             is WebSearch -> webSearch(cmd.query)
-            is PlayMedia -> playMedia(cmd.query)
+            is com.jarvis.app.backend.device.PlayMedia -> playMedia(cmd.query)
         }
     }
 
