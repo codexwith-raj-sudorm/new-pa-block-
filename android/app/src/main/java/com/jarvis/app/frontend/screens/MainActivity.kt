@@ -11,6 +11,7 @@ import com.jarvis.app.frontend.design.ConfigPanel
 import com.jarvis.app.frontend.design.HudDialog
 import com.jarvis.app.frontend.design.HudTextField
 import com.jarvis.app.frontend.design.GlassCircleButton
+import com.jarvis.app.frontend.design.AuthGate
 import com.jarvis.app.frontend.design.JarvisHeader
 import com.jarvis.app.frontend.design.NavDrawerContent
 import com.jarvis.app.frontend.design.ProfileHubOverlay
@@ -735,6 +736,7 @@ fun JarvisScreen() {
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
     if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, { onWakeTap() })
+    else if (vm.showAuthGate) AuthGate(clearanceLabel(vm.masterInstalled, vm.isBakedMaster), vm::completeAuthGate)
     else if (vm.showProfile) ProfileDialog(vm)
     else if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)

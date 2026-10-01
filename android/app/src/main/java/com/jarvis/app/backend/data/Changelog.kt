@@ -9,6 +9,12 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        71, "6.20", listOf(
+            "Neural-link onboarding: glass auth module with 3-phase establish sequence",
+            "Identity confirmation with avatar, verified badge and clearance pill"
+        )
+    ),
+    ChangelogEntry(
         70, "6.19", listOf(
             "Proactive reflexes: Jarvis speaks up for low battery + incoming messages",
             "Gemini persona voice with offline fallback lines, ducked under music",
