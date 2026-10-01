@@ -1071,6 +1071,10 @@ class Store(context: Context) {
         get() = p.getString("pro_key", "") ?: ""
         set(v) = p.edit().putString("pro_key", v).apply()
 
+    var mediaAppPref: String
+        get() = p.getString("media_app", "") ?: ""
+        set(v) = p.edit().putString("media_app", v).apply()
+
     var hindiListen: Boolean
         get() = p.getBoolean("listen_hi", false)
         set(v) = p.edit().putBoolean("listen_hi", v).apply()
@@ -1726,6 +1730,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var standbyStartMin by mutableStateOf(store.standbyStart)
     var standbyEndMin by mutableStateOf(store.standbyEnd)
     var proactiveOn by mutableStateOf(store.proactiveOn)
+    var mediaAppPref by mutableStateOf(store.mediaAppPref)
+    var mediaPick by mutableStateOf<MediaPick?>(null)
         private set
 
     private var tts: TextToSpeech? = null
@@ -3548,8 +3554,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                 val hist = messages.dropLast(1).takeLast(40)
                     .map { (if (it.role == "user") "user" else "model") to it.text }
                 val reply = chatSmart(system, hist, text)
-                deliverReply(sendChatId, reply)
-                if (fromVoice) speak(reply, voiceCmd = true)
+                val media = parsePlayMedia(reply)
+                if (media != null) {
+                    handleMediaCommand(sendChatId, media)
+                } else {
+                    deliverReply(sendChatId, reply)
+                    if (fromVoice) speak(reply, voiceCmd = true)
+                }
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
             } catch (e: Exception) {
                 deliverReply(sendChatId, "⚠️ ${e.message}")
@@ -3560,6 +3571,91 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         return true
+    }
+
+    // ---- zero-API media router (§11) ----
+
+    /** Installed playback candidates for [platform] (labels resolved by UI). */
+    fun installedMediaPkgs(platform: String): List<String> {
+        val appCtx = getApplication<Application>()
+        val cands = if (platform == MEDIA_PLATFORM_YOUTUBE) YOUTUBE_CANDIDATES else MUSIC_CANDIDATES
+        return try {
+            cands.filter { appCtx.packageManager.getLaunchIntentForPackage(it) != null }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun installedMediaSet(): Set<String> {
+        val appCtx = getApplication<Application>()
+        return try {
+            (MUSIC_CANDIDATES + YOUTUBE_CANDIDATES)
+                .filter { appCtx.packageManager.getLaunchIntentForPackage(it) != null }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    /** Intercepted play_media: ack bubble + voice, then fire or ask. */
+    private fun handleMediaCommand(sendChatId: String, media: PlayMedia) {
+        val target = pickMediaPackage(media.platform, store.mediaAppPref, installedMediaSet())
+        if (target != null) {
+            deliverReply(sendChatId, "\uD83C\uDFB5 Loading \u201C" + media.query + "\u201D on " + mediaAppLabel(target) + "\u2026")
+            speak(mediaAck(media.platform))
+            viewModelScope.launch {
+                delay(800)
+                fireMediaIntent(target, media.platform, media.query)
+            }
+        } else {
+            deliverReply(sendChatId, "\uD83C\uDFB5 \u201C" + media.query + "\u201D — pick an app below.")
+            speak("Which app should I play it on?")
+            mediaPick = MediaPick(media.query, media.platform)
+        }
+    }
+
+    /** Chooser selection: optionally remember, then fire unless just managing. */
+    fun playMediaOn(pkg: String?, remember: Boolean) {
+        val pick = mediaPick
+        mediaPick = null
+        if (pkg == null) return
+        if (remember || pick?.manage == true) {
+            store.mediaAppPref = pkg
+            mediaAppPref = pkg
+        }
+        if (pick == null || pick.manage || pick.query.isBlank()) return
+        speak(mediaAck(pick.platform))
+        viewModelScope.launch {
+            delay(800)
+            fireMediaIntent(pkg, pick.platform, pick.query)
+        }
+    }
+
+    private fun fireMediaIntent(pkg: String, platform: String, query: String) {
+        val appCtx = getApplication<Application>()
+        try {
+            // Free-form query: no media-focus extra (optional, receivers route on QUERY).
+            val i = if (platform == MEDIA_PLATFORM_YOUTUBE) {
+                Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, query)
+            } else {
+                Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
+                    .putExtra(SearchManager.QUERY, query)
+            }
+            if (pkg != MEDIA_PREF_SYSTEM) i.setPackage(pkg)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (i.resolveActivity(appCtx.packageManager) != null) {
+                appCtx.startActivity(i)
+            } else if (platform == MEDIA_PLATFORM_YOUTUBE) {
+                // No YouTube handler: no-key web fallback.
+                appCtx.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(youtubeSearchUrl(query)))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            } else {
+                toast("No music app found to play this")
+            }
+        } catch (_: Exception) {
+            toast("Couldn\u2019t start playback")
+        }
     }
 
     /** Route an async reply to the chat it was sent from (user may have switched). */
@@ -4486,7 +4582,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         else profileIdentity(store.userName, store.userAbout)
         val master = if (who.isNotEmpty()) "$who\n" else ""
         val base = master + "You are Jarvis, a friendly personal AI assistant chatting with your owner on their phone. " +
-            "Be warm, a little witty, and helpful. Keep answers short enough for a phone screen unless asked for detail."
+            "Be warm, a little witty, and helpful. Keep answers short enough for a phone screen unless asked for detail." +
+            " If the user asks to play a song or video, DO NOT generate a conversational response. " +
+            "Instead, reply strictly in this JSON format: {\"action\": \"play_media\", \"platform\": \"[youtube or music]\", \"query\": \"[search term]\"}."
         if (facts.isEmpty()) return base
         return base + "\nThings you remember about your owner:\n" + facts.take(10).joinToString("\n") { "- $it" }
     }

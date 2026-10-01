@@ -9,6 +9,13 @@ data class ChangelogEntry(val code: Int, val name: String, val features: List<St
 
 val CHANGELOG = listOf(
     ChangelogEntry(
+        72, "6.21", listOf(
+            "Zero-API media router: 'play X' opens your music or YouTube app directly",
+            "First-time app chooser with remember; System default anytime",
+            "Spoken handoff plus web fallback when no app can play it"
+        )
+    ),
+    ChangelogEntry(
         71, "6.20", listOf(
             "Neural-link onboarding: glass auth module with 3-phase establish sequence",
             "Identity confirmation with avatar, verified badge and clearance pill"

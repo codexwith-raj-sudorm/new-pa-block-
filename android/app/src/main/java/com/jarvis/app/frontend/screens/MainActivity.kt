@@ -13,6 +13,7 @@ import com.jarvis.app.frontend.design.HudTextField
 import com.jarvis.app.frontend.design.GlassCircleButton
 import com.jarvis.app.frontend.design.AuthGate
 import com.jarvis.app.frontend.design.JarvisHeader
+import com.jarvis.app.frontend.design.MediaChooserDialog
 import com.jarvis.app.frontend.design.NavDrawerContent
 import com.jarvis.app.frontend.design.ProfileHubOverlay
 import com.jarvis.app.frontend.design.clearanceLabel
@@ -742,6 +743,11 @@ fun JarvisScreen() {
     if (vm.showBriefing) BriefingDialog(vm)
     if (vm.showHooks) HooksDialog(vm)
     if (vm.showReminders) RemindersDialog(vm)
+    val mediaPick = vm.mediaPick
+    if (mediaPick != null) MediaChooserDialog(
+        mediaPick.query, mediaPick.manage, vm.installedMediaPkgs(mediaPick.platform),
+        { pkg, rem -> vm.playMediaOn(pkg, rem) }, { vm.mediaPick = null }
+    )
 }
 
 private fun voiceAvailable(context: android.content.Context): Boolean {

@@ -1,6 +1,9 @@
 package com.jarvis.app.frontend.design
 
 import android.app.TimePickerDialog
+import com.jarvis.app.backend.brain.mediaAppLabel
+import com.jarvis.app.backend.brain.MediaPick
+import com.jarvis.app.backend.brain.MEDIA_PLATFORM_MUSIC
 import android.widget.Toast
 import com.jarvis.app.backend.system.fmtWindowTime
 import androidx.compose.animation.core.CubicBezierEasing
@@ -566,6 +569,26 @@ fun ConfigPanel(vm: JarvisViewModel) {
                                 )
                             }
                             NeonToggle(vm.proactiveOn) { vm.setProactiveOn(!vm.proactiveOn) }
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ConfigSection("MEDIA ROUTER")
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                                .border(1.dp, Color(0x0DFFFFFF), RoundedCornerShape(16.dp))
+                                .clickable { vm.mediaPick = MediaPick("", MEDIA_PLATFORM_MUSIC, manage = true) }
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Playback app", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    mediaAppLabel(vm.mediaAppPref),
+                                    color = Color(0xFF9CA3AF), fontSize = 10.sp
+                                )
+                            }
+                            Text("Change", color = PremiumNeon, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
