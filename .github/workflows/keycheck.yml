@@ -1,0 +1,29 @@
+# Manual-only: verifies the CI Gemini secret (the exact key baked into the
+# APK) is set and responding. Prints only the HTTP status, never the key.
+# Run: Actions tab -> keycheck -> Run workflow (or: gh workflow run keycheck).
+name: keycheck
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/keycheck.yml
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error ::GEMINI_API_KEY secret is unset - nothing is baked into the APK."
+            exit 1
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 25 \
+            "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=$GEMINI_API_KEY")
+          echo "gemini_models_http=$code"
+          if [ "$code" = "200" ]; then
+            echo "Gemini API key is set and responding (HTTP 200)."
+          else
+            echo "::error ::Gemini key check failed (HTTP $code). 400/401 = bad key, 429 = quota spent."
+            exit 1
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

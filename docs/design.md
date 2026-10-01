@@ -1,0 +1,1741 @@
+# Jarvis Design — v6.21
+
+> Visual design system: early volumetric/HUD specs (amber/gold) + premium green-glass HUD that actually shipped (see `android/app/src/main/java/com/jarvis/app/frontend/design/`). Inline HTML mockups are the prototype source.
+
+Visual Design Specification (Design.md)
+1. Visual Identity & Aesthetic Direction
+The visual identity is modeled directly on the Stark Industries Holographic Neural Matrix (as seen in Avengers: Age of Ultron). The interface avoids conventional flat 2D cards, scrolling feeds, or boxed containers in favor of an ephemeral 3D volumetric hologram suspended in an infinite dark viewport.
+Core Visual Principles
+ * Pure Volumetric Space: Visual elements exist as projected points, vector rings, and glowing synaptic filaments suspended in 3D coordinate space.
+ * OLED Depth & Contrast: Deep space tones maximize optical contrast while conserving battery on mobile OLED displays.
+ * Audio-Kinetic Motion: Every graphic component reacts organically to audio dynamics (microphone input levels and TTS synthesis energy).
+2. Color Palette & Token Specifications
+The color system uses an energy-tiered amber-gold spectrum. Brighter, hotter colors signify proximity, high activity, and core focus; deeper, lower-saturation ambers denote background depth and ambient structure.
+| Token Name | Hex Code | RGB | Purpose / Usage |
+|---|---|---|---|
+| MatrixHotWhite | #FFF6D6 | (255, 246, 214) | Core node ignition, foreground synaptic sparks, active focal points |
+| MatrixBrightAmber | #FFD166 | (255, 209, 102) | Primary synaptic links, foreground latitude lines, active status readout |
+| MatrixDeepGold | #FF9E00 | (255, 158, 0) | Base orbital rings, mid-ground nodes, standard vector strokes |
+| MatrixSynapseFaint | #44FFAA00 | (255, 170, 0, 27%) | Distant synaptic web connections, ambient field lines |
+| MatrixCoreGlow | #22FF9E00 | (255, 158, 0, 13%) | Radial ambient volumetric fog behind the sphere core |
+| MatrixBackdrop | #030710 | (3, 7, 16, 92%) | Translucent overlay curtain dimming the underlying Android apps |
+3. Typography System
+The interface uses minimal, monospaced typography designed to emulate military/tactical telemetry displays. Text is strictly auxiliary and does not compete with the 3D hologram.
+ * Primary Font Family: System Monospace (FontFamily.Monospace / JetBrains Mono)
+ * Font Weights: FontWeight.Medium (readouts) and FontWeight.Bold (state headers)
+Text Styles
+ * State Label (HeaderTelemetry):
+   * Size: 12.sp
+   * Weight: FontWeight.Bold
+   * Letter Spacing: 2.5.sp
+   * Transform: ALL CAPS
+   * Color: MatrixBrightAmber
+ * Transcribed Query / Voice Echo (SubReadout):
+   * Size: 15.sp
+   * Weight: FontWeight.Normal
+   * Letter Spacing: 0.5.sp
+   * Max Lines: 2 (ellipsized)
+   * Color: MatrixHotWhite
+ * System Metrics / Latency (DataTag):
+   * Size: 10.sp
+   * Weight: FontWeight.Medium
+   * Letter Spacing: 1.5.sp
+   * Color: MatrixDeepGold
+4. 3D Holographic Matrix Geometry
+The central neural matrix is built using 3D isometric projection onto a 2D Jetpack Compose hardware-accelerated Canvas:
+               [ Y-Axis Revolution ]
+                        ▲
+                        │  / 22° Pitch (X-Tilt)
+                  .----─┼─----.
+               .-/   \  │  /   \-.
+              /   \   \ │ /   /   \
+             │     \   \│/   /     │ ─── Latitude Rings (Dashed Ovals)
+             │───────\──┼──/───────│
+              \   /   / │ \   \   /
+               .-\   /  │  \   /-.
+                  '----─┼─----'
+                        │  \ -15° Roll (Z-Tilt)
+
+Component Geometry Specifications
+ * Spherical Point Cloud: 90 equidistant neural nodes distributed across a sphere using the Fibonacci Spiral (Golden Ratio) algorithm.
+ * Perspective Camera:
+   * Virtual camera distance: 800f.
+   * Projection scale factor: k = \frac{d_{\text{camera}}}{d_{\text{camera}} - z_{\text{projected}}}.
+ * Depth Fog & Occlusion:
+   * Nodes located at positive Z (facing user) scale up to 1.3\times, shifting color toward MatrixHotWhite.
+   * Nodes located at negative Z (rear) scale down to 0.7\times, shifting color toward MatrixDeepGold with lowered alpha (0.2 to 0.4).
+ * Synaptic Filaments: Dynamic vector lines connecting node pairs within a squared proximity threshold (\le 0.55 \cdot r_{\text{sphere}}). Stroke width dynamically scales with node depth (1.0 \cdot k\text{ dp}).
+ * Planetary Latitude Rings: Three concentric elliptical rings positioned at latitude levels y \in \{-0.55, 0.0, 0.55\}. Dashed paths (dashPathEffect([15f, 25f, 40f, 15f])) rotate counter-clockwise to the core spin.
+5. Visual State Machine & Motion Physics
+| State | Revolution Speed (Y-Axis) | Radial Pulse & Scale | Core Color Dominance | Synaptic Web Density |
+|---|---|---|---|---|
+| LISTENING | Slow, graceful (7000ms per cycle) | Scales dynamically with microphone RMS amplitude (1.0\times to 1.45\times) | MatrixDeepGold + MatrixBrightAmber | Moderate; links brighten near active nodes |
+| THINKING | High-speed acceleration (2500ms per cycle) | Tightened core radius (0.85\times base), rapid oscillation | Shifts toward incandescent MatrixBrightAmber | High; connections flash in rapid succession |
+| SPEAKING | Medium speed (4500ms per cycle) | Rhythmic shockwave pulses matched to TTS output buffer | Core bursts into MatrixHotWhite | Dynamic expanding waves rippling outward |
+| DISMISS | Decelerating spin | Exponential scale-down (1.0\times \rightarrow 0.0\times) with spring damping | Rapid alpha fade to 0.0 | Collapses inwards into single point |
+6. Layout Composition & Safe Insets
+ * Container Model: Zero-margin full-screen overlay managed directly via VoiceInteractionSession.
+ * Center Anchor: The JarvisNeuralMatrix is positioned dead center (Alignment.Center), with an allocation bounding box of 360\text{ dp} \times 360\text{ dp}.
+ * Bottom Telemetry Deck: Anchored at Alignment.BottomCenter with a fixed padding of 64.dp from the navigation bar, ensuring visibility above gestures and system soft keys.
+ * Background Dimming: Modifier.background(MatrixBackdrop) applies a 92\% dark tint over the foreground app, retaining visual context while ensuring holographic legibility.
+
+
+new main screen ui design 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>J.A.R.V.I.S // Premium UI</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Using Inter for that clean, Apple-esque premium feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        neon: '#17c964',       /* The vibrant solid green */
+                        darkbg: '#000000',     /* Pure black */
+                        glass: 'rgba(30, 30, 35, 0.45)' /* Dark frosted glass */
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 1. The Massive Ambient Background Glow */
+        .ambient-glow {
+            position: fixed;
+            top: 40%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vw; height: 80vw;
+            max-width: 400px; max-height: 400px;
+            background: radial-gradient(circle, rgba(23,201,100,0.25) 0%, rgba(0,0,0,0) 70%);
+            filter: blur(60px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* 2. The Animated Organic Swirl Core */
+        .swirl-core {
+            position: fixed;
+            top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 280px; height: 280px;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .swirl-ring {
+            position: absolute;
+            width: 100%; height: 100%;
+            border: 3px solid #17c964;
+            /* Irregular border radius creates the organic shape */
+            border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+            box-shadow: 0 0 25px rgba(23,201,100,0.5), inset 0 0 15px rgba(23,201,100,0.4);
+            animation: morph 12s linear infinite;
+            mix-blend-mode: screen;
+            filter: blur(1px);
+        }
+        .swirl-ring:nth-child(2) {
+            animation-duration: 18s;
+            animation-direction: reverse;
+            border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
+            border-color: #10b981;
+            width: 90%; height: 90%;
+            top: 5%; left: 5%;
+        }
+        .swirl-ring:nth-child(3) {
+            animation-duration: 15s;
+            border-radius: 50% 50% 60% 40% / 40% 60% 50% 50%;
+            border-color: #34d399;
+            width: 80%; height: 80%;
+            top: 10%; left: 10%;
+            opacity: 0.7;
+        }
+        @keyframes morph {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.05); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        /* 3. True Premium Glassmorphism */
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Hide scrollbar */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+
+<body class="flex justify-center w-full min-h-[100dvh] relative overflow-hidden">
+    
+    <!-- Background Elements -->
+    <div class="ambient-glow"></div>
+    <div class="swirl-core">
+        <div class="swirl-ring"></div>
+        <div class="swirl-ring"></div>
+        <div class="swirl-ring"></div>
+    </div>
+
+    <!-- Main App Container -->
+    <main class="w-full max-w-[414px] h-[100dvh] relative flex flex-col z-10">
+        
+        <!-- Header -->
+        <header class="w-full px-6 py-4 flex justify-between items-center shrink-0 z-20">
+            <div class="w-10 h-10 rounded-full glass-card flex items-center justify-center">
+                <i class="fa-solid fa-bars text-sm text-gray-300"></i>
+            </div>
+            <div class="flex flex-col items-center">
+                <span class="text-xs text-gray-400 font-medium tracking-wide">J.A.R.V.I.S</span>
+            </div>
+            <div class="w-10 h-10 rounded-full glass-card flex items-center justify-center">
+                <i class="fa-solid fa-gear text-sm text-gray-300"></i>
+            </div>
+        </header>
+
+        <!-- Chat / Content Area -->
+        <div class="flex-1 min-h-0 overflow-y-auto no-scrollbar px-5 pt-4 pb-32 flex flex-col gap-6 z-20">
+            
+            <!-- Hero Text (Visible when chat is empty) -->
+            <div class="w-full text-center mt-2 mb-10">
+                <span class="text-[11px] text-gray-400 tracking-wider mb-2 block">LOCAL SYSTEM ACTIVE |</span>
+                <h1 class="text-3xl font-medium tracking-tight text-white leading-tight">
+                    What Can I Do for<br>You Today?
+                </h1>
+            </div>
+
+            <!-- Profile / Context Card (Like the right reference image) -->
+            <div class="w-full glass-card rounded-3xl p-5 flex flex-col relative overflow-hidden">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 rounded-full bg-neon flex items-center justify-center text-black text-xl font-semibold">
+                        R
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium text-white">Raj Thakur</h3>
+                        <p class="text-[11px] text-gray-400">Authorized User</p>
+                    </div>
+                    <button class="ml-auto w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-300">
+                        <i class="fa-regular fa-star text-xs"></i>
+                    </button>
+                </div>
+                
+                <div class="flex gap-3 mb-5">
+                    <div class="flex-1 h-10 rounded-2xl bg-neon/10 border border-neon/20 flex items-center justify-center text-neon">
+                        <i class="fa-solid fa-shield-halved text-sm"></i>
+                    </div>
+                    <div class="flex-1 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-gray-300">
+                        <i class="fa-solid fa-terminal text-sm"></i>
+                    </div>
+                    <div class="flex-1 h-10 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-gray-300">
+                        <i class="fa-solid fa-folder-open text-sm"></i>
+                    </div>
+                </div>
+
+                <div class="w-full h-[1px] bg-white/10 mb-4"></div>
+                <p class="text-sm text-gray-300 font-light leading-relaxed">
+                    Environment initialized. Model loaded successfully. Ready to execute local scripts.
+                </p>
+            </div>
+
+            <!-- Solid Green Action Button (Like the left reference image) -->
+            <div class="w-full flex justify-end">
+                <button class="bg-neon text-black font-medium px-8 py-3.5 rounded-full shadow-[0_0_20px_rgba(23,201,100,0.3)] hover:scale-105 transition-transform">
+                    Execute Script
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Sleek Bottom Input Pill -->
+        <div class="absolute bottom-6 left-5 right-5 z-30">
+            <div class="w-full glass-card rounded-full p-1.5 flex items-center">
+                <button class="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors">
+                    <i class="fa-regular fa-keyboard"></i>
+                </button>
+                
+                <input 
+                    type="text" 
+                    placeholder="Message JARVIS..." 
+                    class="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 text-[15px] px-3 font-light"
+                    autocomplete="off"
+                >
+                
+                <button class="w-10 h-10 rounded-full border border-neon text-neon flex items-center justify-center bg-neon/10 shadow-[0_0_10px_rgba(23,201,100,0.2)]">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+            </div>
+        </div>
+
+    </main>
+</body>
+</html>
+
+
+
+2. new overlay icon design 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JARVIS // Smooth Island Overlay</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        neon: '#17c964',
+                        darkbg: '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 1. Background & Dimming */
+        .mock-bg {
+            position: absolute;
+            inset: 0;
+            background: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop') center/cover;
+            z-index: 0;
+            transition: filter 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+        }
+        .backdrop.active { opacity: 1; pointer-events: auto; }
+
+        /* 2. Device Edge Glow Animation */
+        .edge-glow-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 9999;
+            box-shadow: inset 0 0 0px transparent;
+        }
+        @keyframes border-flash {
+            0% { box-shadow: inset 0 0 0px transparent, inset 0 0 0px transparent; }
+            15% { 
+                box-shadow: 
+                    inset 0 0 50px rgba(23, 201, 100, 0.8),
+                    inset 0 0 15px #17c964;
+            }
+            50% { 
+                box-shadow: 
+                    inset 0 0 20px rgba(23, 201, 100, 0.3),
+                    inset 0 0 5px rgba(23, 201, 100, 0.4); 
+            }
+            100% { box-shadow: inset 0 0 0px transparent, inset 0 0 0px transparent; }
+        }
+        .fire-edge-glow {
+            animation: border-flash 2.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+
+        /* 3. Dormant Trigger Icon */
+        .trigger-fab {
+            position: absolute;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) scale(1);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(30, 30, 35, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(23, 201, 100, 0.25);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s ease;
+        }
+        .trigger-fab::before {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            background: #17c964;
+            border-radius: 50%;
+            filter: blur(8px);
+            animation: pulse-core 2s ease-in-out infinite alternate;
+        }
+        .trigger-fab::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            border-radius: 50%;
+            z-index: 2;
+        }
+        .trigger-fab.hidden {
+            transform: translateX(-50%) scale(0.5);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 4. Floating Island Bottom Sheet (Smaller & Rounded) */
+        .bottom-sheet {
+            position: absolute;
+            bottom: 24px;
+            left: 16px;
+            width: calc(100% - 32px); /* Leaves margin on both sides */
+            background: rgba(18, 18, 22, 0.85);
+            backdrop-filter: blur(32px);
+            -webkit-backdrop-filter: blur(32px);
+            border-radius: 32px; /* Smooth rounded curves */
+            border: 1px solid rgba(255, 255, 255, 0.08); /* Static subtle border */
+            padding: 24px 20px; /* Reduced padding for a smaller footprint */
+            z-index: 30;
+            transform: translateY(120%);
+            transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+        }
+        .bottom-sheet.active { transform: translateY(0); }
+
+        /* 5. Flowing Border Animation */
+        .animated-border {
+            position: absolute;
+            inset: -1px; /* Overlays perfectly on the static border */
+            border-radius: 32px;
+            padding: 2px; /* Thickness of the animated light */
+            background: linear-gradient(to bottom, transparent 30%, #17c964 50%, transparent 70%);
+            background-size: 100% 300%;
+            
+            /* CSS Masking to only show the border line */
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            
+            pointer-events: none;
+            opacity: 0;
+            z-index: -1;
+            background-position: 0% 0%;
+        }
+        
+        /* Fires when the sheet becomes active */
+        .bottom-sheet.active .animated-border {
+            /* Moves the gradient to simulate tracing from bottom to top on both sides */
+            animation: flowSides 1.5s ease-in-out forwards;
+            animation-delay: 0.1s;
+        }
+
+        @keyframes flowSides {
+            0% { background-position: 0% 0%; opacity: 0; }
+            10% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { background-position: 0% 100%; opacity: 0; }
+        }
+
+        /* 6. The Animated AI Core (Scaled down slightly) */
+        .ai-core-container {
+            position: relative;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .core-glow {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #17c964;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #17c964, inset 0 0 8px #fff;
+            animation: pulse-core 1.5s ease-in-out infinite alternate;
+        }
+        .core-track {
+            position: absolute;
+            width: 100%; height: 100%;
+            border: 2px dashed rgba(23, 201, 100, 0.4);
+            border-radius: 50%;
+            animation: spin 10s linear infinite;
+        }
+        .core-track.inner {
+            width: 70%; height: 70%;
+            border: 2px dotted rgba(23, 201, 100, 0.9);
+            animation: spin 7s linear infinite reverse;
+        }
+
+        /* Animations */
+        @keyframes pulse-core {
+            0% { transform: scale(0.85); opacity: 0.8; }
+            100% { transform: scale(1.15); opacity: 1; }
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes listening-dots {
+            0% { content: ''; }
+            33% { content: '.'; }
+            66% { content: '..'; }
+            100% { content: '...'; }
+        }
+        .dot-anim::after {
+            content: '';
+            animation: listening-dots 1.5s infinite steps(1);
+        }
+
+        /* 7. Rounded Action Buttons */
+        .btn-primary {
+            background: #17c964;
+            box-shadow: 0 4px 20px rgba(23, 201, 100, 0.25);
+            color: #000000;
+            border-radius: 9999px; /* Full pill shape */
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border-radius: 9999px; /* Full pill shape */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. The Edge Lighting Overlay -->
+    <div id="device-edge" class="edge-glow-overlay"></div>
+
+    <!-- 2. Mock Wallpaper & Backdrop -->
+    <div class="mock-bg" id="wallpaper"></div>
+    <div class="backdrop" id="backdrop"></div>
+
+    <!-- 3. The Dormant Trigger Icon -->
+    <div class="trigger-fab" id="trigger-btn"></div>
+
+    <!-- 4. Floating Island Sheet -->
+    <div class="bottom-sheet" id="assistant-sheet">
+        
+        <!-- The Flowing Border Element -->
+        <div class="animated-border"></div>
+        
+        <!-- Telemetry Data Line -->
+        <div class="absolute top-5 right-5 flex items-center gap-2 text-[9px] font-mono text-gray-500 uppercase tracking-widest">
+            <div class="w-1.5 h-1.5 bg-neon rounded-full shadow-[0_0_5px_#17c964] animate-pulse"></div>
+            JARVIS Link
+        </div>
+
+        <!-- Header Section -->
+        <div class="flex items-center gap-5 mb-6 mt-1">
+            <!-- Animated Core -->
+            <div class="ai-core-container shrink-0">
+                <div class="core-track"></div>
+                <div class="core-track inner"></div>
+                <div class="core-glow"></div>
+            </div>
+            
+            <!-- Typography Stack -->
+            <div class="flex flex-col justify-center">
+                <h2 class="font-mono text-[10px] font-bold tracking-[0.2em] text-gray-500 uppercase mb-1">
+                    JARVIS // ASSIST
+                </h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-neon font-semibold text-xl tracking-wide drop-shadow-[0_0_8px_rgba(23,201,100,0.5)]">LISTENING</span>
+                    <span class="text-neon font-semibold text-xl dot-anim"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rounded Buttons Section -->
+        <div class="flex gap-3 w-full">
+            <button class="btn-primary flex-grow font-semibold text-[13px] tracking-wide py-3.5 transition-transform active:scale-95">
+                ASK ABOUT SCREEN
+            </button>
+            <button class="btn-secondary w-20 shrink-0 font-medium text-[13px] tracking-wide py-3.5 transition-transform active:scale-95 hover:bg-white/10">
+                OPEN
+            </button>
+        </div>
+        
+    </div>
+
+    <script>
+        const triggerBtn = document.getElementById('trigger-btn');
+        const assistantSheet = document.getElementById('assistant-sheet');
+        const backdrop = document.getElementById('backdrop');
+        const wallpaper = document.getElementById('wallpaper');
+        const edgeOverlay = document.getElementById('device-edge');
+
+        // Trigger App Overlay
+        triggerBtn.addEventListener('click', () => {
+            // Hide trigger, show panel
+            triggerBtn.classList.add('hidden');
+            assistantSheet.classList.add('active');
+            backdrop.classList.add('active');
+            wallpaper.style.filter = 'blur(6px) scale(1.02) brightness(0.7)';
+
+            // Fire Device Edge Glow Animation
+            edgeOverlay.classList.remove('fire-edge-glow');
+            void edgeOverlay.offsetWidth; // Trigger reflow
+            edgeOverlay.classList.add('fire-edge-glow');
+        });
+
+        // Close Overlay
+        backdrop.addEventListener('click', () => {
+            assistantSheet.classList.remove('active');
+            backdrop.classList.remove('active');
+            triggerBtn.classList.remove('hidden');
+            wallpaper.style.filter = 'none';
+        });
+
+        // Swipe down to close
+        let touchStartY = 0;
+        assistantSheet.addEventListener('touchstart', e => {
+            touchStartY = e.changedTouches[0].screenY;
+        }, {passive: true});
+        
+        assistantSheet.addEventListener('touchend', e => {
+            let touchEndY = e.changedTouches[0].screenY;
+            if (touchEndY - touchStartY > 40) {
+                assistantSheet.classList.remove('active');
+                backdrop.classList.remove('active');
+                triggerBtn.classList.remove('hidden');
+                wallpaper.style.filter = 'none';
+            }
+        }, {passive: true});
+    </script>
+
+</body>
+</html>
+
+
+3. wake mode screen new design 
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS // Harmonic Core Active</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        /* 1. Ambient Background */
+        .ambient-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(23, 201, 100, 0.08) 0%, transparent 70%);
+            z-index: 0;
+        }
+
+        /* 2. Glassmorphic Components */
+        .glass-pill {
+            background: rgba(15, 15, 18, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 9999px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+
+        /* 3. The Central Architecture */
+        .core-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 4. Harmonic Resonance Field (Expanding Ripples) */
+        .resonance-wave {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 1px solid rgba(23, 201, 100, 0.5);
+            box-shadow: 
+                0 0 20px rgba(23, 201, 100, 0.2),
+                inset 0 0 20px rgba(23, 201, 100, 0.1);
+            /* Smooth, easing expansion */
+            animation: ripple-out 9s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+        }
+        
+        /* Stagger the waves to create a continuous pulse */
+        .wave-1 { animation-delay: 0s; }
+        .wave-2 { animation-delay: 3s; }
+        .wave-3 { animation-delay: 6s; }
+
+        @keyframes ripple-out {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(2.8); opacity: 0; border-width: 0px; }
+        }
+
+        /* 5. Floating Data Nodes */
+        .data-ring {
+            position: absolute;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            animation: spin-slow 30s linear infinite;
+            pointer-events: none;
+        }
+        .data-ring-inner {
+            width: 180px;
+            height: 180px;
+            animation: spin-slow 20s linear infinite reverse;
+        }
+        .data-node {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ffffff, 0 0 15px #17c964;
+        }
+        /* Positioning the tiny nodes randomly on their invisible tracks */
+        .n1 { top: 0; left: 50%; transform: translateX(-50%); }
+        .n2 { bottom: 15%; right: 10%; }
+        .n3 { top: 20%; left: 10%; }
+        .n4 { bottom: 5%; left: 40%; }
+        
+        @keyframes spin-slow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 6. The Glass Containment Sphere */
+        .containment-orb {
+            position: absolute;
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), rgba(0,0,0,0.5));
+            border: 1px solid rgba(23, 201, 100, 0.3);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            box-shadow: 
+                inset 0 0 25px rgba(23, 201, 100, 0.2),
+                0 0 50px rgba(23, 201, 100, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: levitate 6s ease-in-out infinite alternate;
+            z-index: 10;
+        }
+
+        /* 7. The Hyper-Intelligent Entity (Inner Core) */
+        .intelligent-entity {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ffffff 10%, #17c964 60%, transparent 100%);
+            filter: drop-shadow(0 0 10px #ffffff) drop-shadow(0 0 35px #17c964);
+            animation: deep-thought 4s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
+        }
+
+        @keyframes levitate {
+            0% { transform: translateY(-5px); }
+            100% { transform: translateY(5px); }
+        }
+
+        @keyframes deep-thought {
+            0% { 
+                transform: scale(0.95); 
+                filter: drop-shadow(0 0 5px #ffffff) drop-shadow(0 0 20px rgba(23,201,100,0.6));
+                opacity: 0.85;
+            }
+            100% { 
+                transform: scale(1.1); 
+                filter: drop-shadow(0 0 15px #ffffff) drop-shadow(0 0 50px #17c964);
+                opacity: 1;
+            }
+        }
+
+        /* Subdued Waveform */
+        .waveform-line {
+            height: 1px;
+            width: 100%;
+            background: linear-gradient(90deg, transparent, rgba(23, 201, 100, 0.6), transparent);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+
+    <div class="ambient-bg"></div>
+
+    <main class="w-full max-w-[414px] h-[100dvh] relative flex flex-col z-10 px-6 py-10 justify-between">
+        
+        <!-- TOP: Telemetry Header -->
+        <header class="flex justify-between items-start w-full z-20 pt-4">
+            <div class="flex flex-col gap-1 text-[9px] font-mono text-gray-500 tracking-[0.2em] uppercase">
+                <span class="text-neon flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 bg-neon rounded-full shadow-[0_0_8px_#17c964] animate-pulse"></div>
+                    JARVIS.NEURAL // WAKE.01
+                </span>
+                <span>AUTH: Raj Thakur</span>
+            </div>
+            <div class="text-[9px] font-mono text-gray-500 tracking-[0.2em]">
+                FREQ: 433.0 Hz
+            </div>
+        </header>
+
+        <!-- CENTER: Main Interface -->
+        <div class="flex flex-col items-center justify-center flex-1 w-full gap-12 z-20">
+            
+            <div class="flex flex-col items-center gap-3">
+                <h2 class="text-gray-300 tracking-[0.4em] font-light text-sm animate-pulse">LISTENING</h2>
+                <div class="w-12 h-[1px] bg-neon shadow-[0_0_10px_#17c964]"></div>
+            </div>
+
+            <!-- The Neural Architecture -->
+            <div class="core-container">
+                
+                <!-- Harmonic Resonance Ripples -->
+                <div class="resonance-wave wave-1"></div>
+                <div class="resonance-wave wave-2"></div>
+                <div class="resonance-wave wave-3"></div>
+
+                <!-- Floating Data Nodes -->
+                <div class="data-ring">
+                    <div class="data-node n1"></div>
+                    <div class="data-node n2"></div>
+                </div>
+                <div class="data-ring data-ring-inner">
+                    <div class="data-node n3"></div>
+                    <div class="data-node n4"></div>
+                </div>
+                
+                <!-- The Entity inside the Glass Orb -->
+                <div class="containment-orb">
+                    <div class="intelligent-entity"></div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- BOTTOM: Transcription & Controls -->
+        <div class="w-full flex flex-col items-center gap-6 z-20 pb-4">
+            
+            <!-- Live Transcription -->
+            <div class="flex flex-col items-center gap-4 w-full">
+                <p class="text-gray-400 font-light text-lg italic tracking-wide h-6">"..."</p>
+                <div class="waveform-line"></div>
+            </div>
+
+            <!-- System Stats -->
+            <div class="flex justify-between items-center w-full px-2 text-[9px] font-mono tracking-widest text-gray-500">
+                <span class="text-neon">• 69MS</span>
+                <span>GEMINI-PRO</span>
+                <span>VOICE • EN •</span>
+            </div>
+
+            <!-- Action Controls (Rounded Glass Pill) -->
+            <div class="glass-pill w-full px-6 py-3.5 flex justify-between items-center mt-2">
+                <!-- Mute Button -->
+                <button class="w-12 h-12 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-full transition-colors outline-none">
+                    <i class="fa-solid fa-microphone-slash text-lg"></i>
+                </button>
+                
+                <!-- Expand -->
+                <button class="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-white transition-colors outline-none">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[15px]"></i>
+                </button>
+                
+                <!-- Close -->
+                <button class="w-12 h-12 flex items-center justify-center text-gray-400 hover:text-white transition-colors outline-none">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+        </div>
+    </main>
+</body>
+</html>
+
+
+4. wake mode floating bubble new Design
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS // Hub Bubble Component</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #050505;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            gap: 50px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* 
+           THE GEOMETRIC HUB CONTAINER 
+           A heavily rounded diamond/squircle shape
+        */
+        .hub-bubble {
+            position: relative;
+            width: 72px;
+            height: 72px;
+            background: rgba(20, 20, 25, 0.8);
+            backdrop-filter: blur(12px);
+            /* Shape definition: Rounded Diamond */
+            border-radius: 24px;
+            transform: rotate(45deg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Counter-rotate inner elements to keep them upright */
+        .hub-inner {
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* The Outer Dashed Track */
+        .hub-track {
+            position: absolute;
+            width: 130%;
+            height: 130%;
+            border: 2px dashed;
+            border-radius: 50%;
+            opacity: 0.6;
+            transition: border-color 0.4s ease;
+        }
+
+        /* The Central Glowing Core */
+        .hub-core {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            transition: all 0.4s ease;
+        }
+
+        /* Label beneath the hub */
+        .hub-label {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-45deg); /* Counter-rotate label */
+            font-size: 10px;
+            letter-spacing: 0.1em;
+            color: #a1a1aa;
+            white-space: nowrap;
+            transition: color 0.4s ease;
+        }
+
+        /* ==========================================
+           STATE 1: IDLE (BLUE)
+           Slow breathing, slow track rotation
+           ========================================== */
+        .state-idle .hub-track {
+            border-color: #3b82f6; /* Blue */
+            animation: spin 15s linear infinite;
+        }
+        .state-idle .hub-core {
+            background: #3b82f6;
+            box-shadow: 0 0 15px #3b82f6, inset 0 0 8px rgba(255,255,255,0.5);
+            animation: breathe-slow 3s ease-in-out infinite alternate;
+        }
+
+        /* ==========================================
+           STATE 2: WAKE RECOGNIZED (GREEN)
+           Instant pop, rapid flash
+           ========================================== */
+        .state-wake {
+            transform: rotate(45deg) scale(1.15); /* Pop out effect */
+            border-color: rgba(23, 201, 100, 0.4);
+        }
+        .state-wake .hub-track {
+            border-color: #17c964; /* Neon Green */
+            animation: spin 4s linear infinite; /* Speeds up */
+        }
+        .state-wake .hub-core {
+            background: #17c964;
+            box-shadow: 0 0 25px #17c964, inset 0 0 10px #fff;
+            animation: flash-rapid 0.3s ease-in-out infinite alternate;
+        }
+        .state-wake .hub-label {
+            color: #17c964;
+            text-shadow: 0 0 8px rgba(23, 201, 100, 0.5);
+        }
+
+        /* ==========================================
+           STATE 3: LISTENING (WHITE)
+           Pulsing waveform effect
+           ========================================== */
+        .state-listening {
+            transform: rotate(45deg) scale(1.05);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .state-listening .hub-track {
+            border: 2px dotted #ffffff; /* Track changes to dots */
+            animation: spin 8s linear infinite reverse; /* Reverses direction */
+        }
+        .state-listening .hub-core {
+            background: #ffffff;
+            box-shadow: 0 0 20px #ffffff;
+            animation: pulse-wave 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .state-listening .hub-label {
+            color: #ffffff;
+        }
+
+        /* Keyframes */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes breathe-slow { 
+            0% { transform: scale(0.9); opacity: 0.7; }
+            100% { transform: scale(1.1); opacity: 1; }
+        }
+        @keyframes flash-rapid {
+            0% { transform: scale(1); opacity: 0.9; }
+            100% { transform: scale(1.3); opacity: 1; }
+        }
+        @keyframes pulse-wave {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(255,255,255,0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(255,255,255,0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+        }
+
+        /* Demo Buttons UI (Not part of the component) */
+        .controls { display: flex; gap: 10px; margin-top: 40px; }
+        button { background: #222; color: #fff; border: 1px solid #444; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #333; }
+    </style>
+</head>
+<body>
+
+    <!-- The Hub Bubble Component -->
+    <div class="hub-bubble state-idle" id="hub-component">
+        <div class="hub-inner">
+            <div class="hub-track"></div>
+            <div class="hub-core"></div>
+            <div class="hub-label" id="hub-text">[SYS: IDLE]</div>
+        </div>
+    </div>
+
+    <!-- Testing Controls (To preview the states) -->
+    <div class="controls">
+        <button onclick="setState('state-idle', '[SYS: IDLE]')">Idle (Blue)</button>
+        <button onclick="setState('state-wake', '[WAKE: RECOGNIZED]')">Wake (Green)</button>
+        <button onclick="setState('state-listening', '[MIC: LIVE]')">Listening (White)</button>
+    </div>
+
+    <script>
+        function setState(stateClass, labelText) {
+            const hub = document.getElementById('hub-component');
+            const text = document.getElementById('hub-text');
+            
+            // Reset states
+            hub.classList.remove('state-idle', 'state-wake', 'state-listening');
+            
+            // Apply new state
+            hub.classList.add(stateClass);
+            text.innerText = labelText;
+        }
+    </script>
+</body>
+</html>
+
+5.new settings design 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>JARVIS // System Configuration</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        neon: '#17c964',
+                        darkbg: '#000000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Mock background of the main chat UI blurred out */
+        .mock-bg {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 30%, rgba(23, 201, 100, 0.15) 0%, transparent 60%), #050505;
+            filter: blur(8px);
+            z-index: 0;
+        }
+
+        /* Hide scrollbar but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Glassmorphic Panel Base */
+        .glass-panel {
+            background: rgba(15, 15, 18, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Custom Input Styling */
+        .jarvis-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            color: #ffffff;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .jarvis-input:focus {
+            border-color: rgba(23, 201, 100, 0.6);
+            box-shadow: 0 0 15px rgba(23, 201, 100, 0.15);
+            background: rgba(0, 0, 0, 0.6);
+        }
+        .jarvis-input::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Custom Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #17c964;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: rgba(23, 201, 100, 0.2);
+            border-color: rgba(23, 201, 100, 0.5);
+        }
+        .toggle-checkbox:checked + .toggle-label:after {
+            transform: translateX(100%);
+            background-color: #17c964;
+            box-shadow: 0 0 10px #17c964;
+        }
+        .toggle-label {
+            width: 44px;
+            height: 24px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .toggle-label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background-color: #a1a1aa;
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        /* Panel Entrance Animation */
+        @keyframes slide-up-fade {
+            0% { transform: translateY(20px) scale(0.98); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .animate-entrance {
+            animation: slide-up-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-[100dvh]">
+
+    <div class="mock-bg"></div>
+
+    <!-- Main Configuration Panel -->
+    <main class="w-full max-w-[414px] h-[92vh] glass-panel rounded-t-[32px] sm:rounded-[32px] flex flex-col z-10 relative animate-entrance self-end sm:self-center border-b-0 sm:border-b">
+        
+        <!-- Header -->
+        <header class="px-6 py-5 border-b border-white/5 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-neon/10 border border-neon/30 flex items-center justify-center text-neon shadow-[0_0_15px_rgba(23,201,100,0.2)]">
+                    <i class="fa-solid fa-sliders text-xs"></i>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="text-[15px] font-semibold tracking-wide text-white">System Config</h1>
+                    <span class="text-[9px] font-mono text-neon uppercase tracking-widest">Network Secure</span>
+                </div>
+            </div>
+            <button class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors bg-white/5">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto no-scrollbar px-6 py-6 flex flex-col gap-8 pb-32">
+            
+            <!-- SECTION 1: Master Key (Active State) -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Security Clearance
+                </h2>
+                
+                <div class="bg-black/30 border border-neon/20 rounded-2xl p-4 relative overflow-hidden group">
+                    <!-- Subtle background glow -->
+                    <div class="absolute -right-10 -top-10 w-32 h-32 bg-neon/10 blur-3xl rounded-full"></div>
+                    
+                    <div class="flex items-center gap-3 mb-4 relative z-10">
+                        <i class="fa-solid fa-key text-neon text-sm"></i>
+                        <span class="text-sm font-medium text-white">Master Mode Active</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 mb-5 relative z-10">
+                        <div class="w-1.5 h-1.5 bg-neon rounded-full animate-pulse shadow-[0_0_5px_#17c964]"></div>
+                        <span class="text-[11px] font-mono text-gray-300">Identity Confirmed: <span class="text-white font-semibold">Raj Thakur</span></span>
+                    </div>
+
+                    <div class="flex gap-3 relative z-10">
+                        <button class="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors">
+                            Revoke Key
+                        </button>
+                        <button class="flex-1 py-2.5 rounded-xl bg-neon/10 border border-neon/20 text-neon text-xs font-semibold hover:bg-neon/20 transition-colors">
+                            Export Card
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: AI Provider (Expanded Custom API State) -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Neural Engine
+                </h2>
+                
+                <!-- Segmented Control -->
+                <div class="bg-black/40 p-1 rounded-xl flex border border-white/5">
+                    <button class="flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400 hover:text-white transition-colors">
+                        Gemini Core
+                    </button>
+                    <button class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white/10 border border-white/10 text-white shadow-sm">
+                        Custom API
+                    </button>
+                </div>
+
+                <p class="text-[11px] text-gray-400 leading-relaxed font-light">
+                    Supports OpenAI-compatible endpoints (Groq, xAI, DeepSeek, Ollama). Fails over to Gemini automatically.
+                </p>
+
+                <div class="flex flex-col gap-3">
+                    <input type="password" placeholder="Other-AI Key (sk-...)" class="jarvis-input">
+                    <input type="text" placeholder="Base URL (Blank = OpenAI)" class="jarvis-input">
+                    <input type="text" placeholder="Model (e.g. gpt-4o-mini)" value="gpt-4o-mini" class="jarvis-input">
+                </div>
+            </section>
+
+            <!-- SECTION 3: External Tokens -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Integrations
+                </h2>
+                
+                <div class="flex flex-col gap-2">
+                    <label class="text-[11px] text-gray-300 ml-1">Gemini API Key (Optional)</label>
+                    <input type="password" placeholder="Paste your key (AIza...)" class="jarvis-input">
+                </div>
+
+                <div class="flex flex-col gap-2 mt-2">
+                    <div class="flex justify-between items-end">
+                        <label class="text-[11px] text-gray-300 ml-1">GitHub PAT (Repo Access)</label>
+                        <span class="text-[9px] font-mono text-neon flex items-center gap-1">
+                            <i class="fa-solid fa-check"></i> Active via Master
+                        </span>
+                    </div>
+                    <input type="password" placeholder="github_pat_..." value="github_pat_11AXYZ..." class="jarvis-input text-gray-500" readonly>
+                    <p class="text-[10px] text-gray-500 mt-1 ml-1">Tokens are encrypted locally. Read-only permissions required.</p>
+                </div>
+            </section>
+
+            <!-- SECTION 4: Hardware & Gestures -->
+            <section class="flex flex-col gap-4">
+                <h2 class="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase border-b border-white/5 pb-2">
+                    Hardware Interface
+                </h2>
+                
+                <div class="flex items-center justify-between bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-sm text-white font-medium">Hold-Gesture Override</span>
+                        <span class="text-[10px] text-gray-400">JARVIS answers physical device triggers</span>
+                    </div>
+                    
+                    <!-- Toggle Switch -->
+                    <div class="relative inline-block w-11 h-6 align-middle select-none">
+                        <input type="checkbox" name="toggle" id="gesture-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10 opacity-0" checked/>
+                        <label for="gesture-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Sticky Footer Actions -->
+        <div class="absolute bottom-0 left-0 w-full p-6 pt-12 bg-gradient-to-t from-[rgba(15,15,18,1)] via-[rgba(15,15,18,0.9)] to-transparent rounded-b-[32px] pointer-events-none">
+            <div class="flex gap-3 pointer-events-auto">
+                <button class="flex-1 py-3.5 rounded-full bg-white/5 border border-white/10 text-gray-300 text-sm font-semibold hover:bg-white/10 transition-colors">
+                    Abort
+                </button>
+                <button class="flex-1 py-3.5 rounded-full bg-neon text-black text-sm font-semibold hover:scale-[1.02] transition-transform shadow-[0_0_20px_rgba(23,201,100,0.3)]">
+                    Commit Changes
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+</html>
+
+6 . new app icon 
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS // Animated Widget Icon</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body { 
+            background-color: #050505; 
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* 
+           THE WIDGET CONTAINER 
+           Matches the squircle shape of modern Android icons
+        */
+        .jarvis-animated-widget {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            background: linear-gradient(145deg, #1f2024 0%, #0d0d0f 100%);
+            border-radius: 36px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 
+                inset 0 1px 1px rgba(255, 255, 255, 0.15),
+                inset 0 -1px 1px rgba(0, 0, 0, 0.8),
+                0 20px 40px rgba(0, 0, 0, 0.8),
+                0 0 60px rgba(23, 201, 100, 0.15);
+            /* A very slow levitation to make the whole widget feel alive */
+            animation: float-widget 6s ease-in-out infinite alternate;
+        }
+
+        /* 
+           THE CONTINUOUS ORBITAL TRACK
+        */
+        .icon-orbit {
+            position: absolute;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #17c964;
+            border-right-color: rgba(23, 201, 100, 0.4);
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+            border-left-color: rgba(23, 201, 100, 0.1);
+            filter: drop-shadow(0 0 8px #17c964);
+            /* Smooth, continuous 360 rotation */
+            animation: spin-forward 4s linear infinite;
+        }
+
+        /* 
+           THE INNER TELEMETRY TRACK
+        */
+        .icon-orbit-inner {
+            position: absolute;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: 1px dashed rgba(23, 201, 100, 0.5);
+            /* Counter-rotation for mechanical complexity */
+            animation: spin-backward 12s linear infinite;
+        }
+
+        /* 
+           THE PULSING QUANTUM CORE
+        */
+        .icon-core {
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #ffffff;
+            /* The breathing glow effect */
+            animation: core-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
+        }
+
+        /* 
+           ANIMATION KEYFRAMES
+        */
+        @keyframes spin-forward {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes spin-backward {
+            0% { transform: rotate(360deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        @keyframes core-pulse {
+            0% { 
+                transform: scale(0.95);
+                box-shadow: 
+                    0 0 10px #ffffff,
+                    0 0 20px rgba(23, 201, 100, 0.6),
+                    0 0 40px rgba(23, 201, 100, 0.4);
+            }
+            100% { 
+                transform: scale(1.1);
+                box-shadow: 
+                    0 0 20px #ffffff,
+                    0 0 40px #17c964,
+                    0 0 80px rgba(23, 201, 100, 0.8);
+            }
+        }
+
+        @keyframes float-widget {
+            0% { transform: translateY(-4px); }
+            100% { transform: translateY(4px); }
+        }
+
+        /* App Label */
+        .app-label {
+            margin-top: 32px;
+            font-size: 15px;
+            letter-spacing: 0.05em;
+            color: #e4e4e7;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="flex flex-col items-center">
+        <!-- Animated Widget Component -->
+        <div class="jarvis-animated-widget">
+            <div class="icon-orbit"></div>
+            <div class="icon-orbit-inner"></div>
+            <div class="icon-core"></div>
+        </div>
+        
+        <span class="app-label">JARVIS</span>
+    </div>
+
+</body>
+</html>
+
+new chat,menu, personal info design 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS // Unified UI Components</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'], },
+                    colors: { neon: '#17c964', darkbg: '#000000', }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { 
+            background-color: #000000; 
+            color: #ffffff;
+            /* Subtle background glow to simulate the app environment */
+            background-image: radial-gradient(circle at 50% 30%, rgba(23, 201, 100, 0.05) 0%, transparent 70%);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* The core AEGIS glassmorphism standard */
+        .aegis-glass {
+            background: rgba(15, 15, 18, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+        }
+
+        /* Native Input Styling */
+        .aegis-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 16px;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        .aegis-input:focus {
+            border-color: rgba(23, 201, 100, 0.6);
+            box-shadow: 0 0 15px rgba(23, 201, 100, 0.15);
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .aegis-input::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+        /* Dropdown Menu Item Styling */
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #d4d4d8; /* Gray-300 */
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
+        }
+        .menu-item i { width: 16px; text-align: center; color: #71717a; transition: color 0.2s; }
+        .menu-item:hover i { color: #17c964; }
+        .menu-item.active { color: #17c964; }
+        .menu-item.active i { color: #17c964; }
+    </style>
+</head>
+<body class="min-h-screen p-8 flex flex-col items-center gap-12 pb-24 overflow-y-auto">
+
+    <div class="w-full max-w-sm flex flex-col gap-12">
+        
+        <!-- ==========================================
+             COMPONENT 1: THE MENU BAR DROPDOWN
+             Upgraded from flat gray to frosted glass
+             ========================================== -->
+        <section class="flex flex-col gap-3">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">01 // Navigation Overlay</span>
+            
+            <div class="aegis-glass w-56 rounded-2xl overflow-hidden flex flex-col py-2 self-start border border-white/10">
+                <button class="menu-item active">
+                    <i class="fa-solid fa-plus"></i> New chat
+                </button>
+                <button class="menu-item">
+                    <i class="fa-solid fa-brain"></i> Memory
+                </button>
+                <button class="menu-item">
+                    <i class="fa-solid fa-list-check"></i> Lists
+                </button>
+                <div class="h-[1px] w-full bg-white/5 my-1"></div>
+                <button class="menu-item">
+                    <i class="fa-solid fa-volume-high"></i> Voice on
+                </button>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             COMPONENT 2: IDENTITY / SYSTEM CALIBRATION
+             Replaces the dark blue/amber modal
+             ========================================== -->
+        <section class="flex flex-col gap-3 mt-8">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">02 // Identity Handshake</span>
+            
+            <div class="aegis-glass w-full rounded-[28px] p-7 flex flex-col border border-white/10">
+                <div class="flex items-center gap-3 mb-2">
+                    <i class="fa-solid fa-fingerprint text-neon"></i>
+                    <h2 class="text-white text-[17px] font-semibold tracking-wide">Who am I serving?</h2>
+                </div>
+                
+                <p class="text-[13px] text-gray-400 leading-relaxed mb-6">
+                    Establish your identity profile. System memory will adapt to your context across all sessions.
+                </p>
+                
+                <div class="flex flex-col gap-3 mb-8">
+                    <input type="text" placeholder="Designation (e.g., Raj Thakur)" class="aegis-input font-medium">
+                    <textarea placeholder="Append system context (city, primary interests, environment constraints...)" class="aegis-input h-24 resize-none"></textarea>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <button class="text-gray-500 text-[13px] font-semibold hover:text-white px-2 transition-colors">
+                        Bypass
+                    </button>
+                    <button class="bg-neon text-black text-[13px] font-bold px-6 py-2.5 rounded-xl hover:scale-[1.02] transition-transform shadow-[0_0_15px_rgba(23,201,100,0.2)]">
+                        Commit Profile
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             COMPONENT 3: CHATS DIRECTORY
+             Replaces the bulky purple modal and red icons
+             ========================================== -->
+        <section class="flex flex-col gap-3 mt-8">
+            <span class="text-[10px] font-mono text-neon tracking-widest uppercase">03 // Thread Directory</span>
+            
+            <div class="aegis-glass w-full rounded-[28px] p-7 flex flex-col border border-white/10">
+                
+                <!-- Header -->
+                <div class="flex justify-between items-center mb-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-neon/10 border border-neon/20 flex items-center justify-center text-neon">
+                            <i class="fa-solid fa-message text-xs"></i>
+                        </div>
+                        <h2 class="text-white text-[17px] font-semibold tracking-wide">Chats</h2>
+                    </div>
+                    <button class="text-gray-400 hover:text-neon text-[12px] font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> Export
+                    </button>
+                </div>
+
+                <!-- Chat Thread Card -->
+                <div class="bg-black/50 border border-white/5 rounded-2xl p-4 flex justify-between items-center mb-6 hover:border-neon/30 hover:bg-black/70 transition-all cursor-pointer group">
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-white text-[14px] font-medium group-hover:text-neon transition-colors">Local Script Testing</h3>
+                        <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                            <span class="w-1.5 h-1.5 rounded-full bg-neon"></span>
+                            <span>4 messages • Active</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4 text-gray-500">
+                        <button class="hover:text-white transition-colors"><i class="fa-solid fa-pen text-sm"></i></button>
+                        <button class="hover:text-red-500 transition-colors"><i class="fa-solid fa-trash text-sm"></i></button>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="flex justify-between items-center border-t border-white/10 pt-5">
+                    <button class="text-red-500/80 hover:text-red-400 text-[13px] font-medium flex items-center gap-2 transition-colors">
+                        <i class="fa-solid fa-trash-can"></i> Purge All
+                    </button>
+                    
+                    <div class="flex items-center gap-5">
+                        <button class="text-neon text-[13px] font-semibold hover:brightness-125 transition-all">
+                            + New Thread
+                        </button>
+                        <button class="text-gray-400 text-[13px] font-medium hover:text-white transition-colors">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+</body>
+</html>
+
+
