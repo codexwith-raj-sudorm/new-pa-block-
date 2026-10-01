@@ -533,7 +533,7 @@ fun JarvisScreen() {
                 onMemory = { vm.showMemory = true },
                 onList = { vm.showList = true },
                 onToggleTts = vm::toggleTts,
-                onWake = { onWakeTap() }
+                onToggleWake = { onWakeTap() }
             )
         },
         drawerState = drawerState,

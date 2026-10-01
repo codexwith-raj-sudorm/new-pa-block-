@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.Dp
 
 /** Premium green tokens (from docs/design_md "Premium UI" mockup). */
 val PremiumNeon = Color(0xFF17C964)
+val JarvisRed = Color(0xFFF43F5E)
 val PremiumJade = Color(0xFF10B981)
 val PremiumMint = Color(0xFF34D399)
 val PremiumGlass = Color(0x731E1E23)
