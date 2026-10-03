@@ -101,7 +101,7 @@ class GestureDebouncer(
         }
 
         if (candidateFrames < stableFrames || emittedForPose) return null
-        if (nowMs - lastEventMs < cooldownMs) return null
+        if (lastEventMs != Long.MIN_VALUE && nowMs - lastEventMs < cooldownMs) return null
 
         val event = when (usable) {
             "Closed_Fist" -> GestureEvent.Click
