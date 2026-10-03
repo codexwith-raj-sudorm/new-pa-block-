@@ -492,6 +492,26 @@ fun ConfigPanel(vm: JarvisViewModel) {
                             }
                             NeonToggle(gestureOn) { openGestureSettings() }
                         }
+                        Text(
+                            "Local hand tracking with a visible camera session. Open palm moves the pointer; a held closed fist requests one tap.",
+                            color = Color(0xFF9CA3AF), fontSize = 10.sp
+                        )
+                        NeonGhostButton(
+                            "Open Gesture Control",
+                            {
+                                try {
+                                    setCtx.startActivity(
+                                        android.content.Intent(
+                                            setCtx,
+                                            com.jarvis.app.frontend.screens.GestureActivity::class.java
+                                        )
+                                    )
+                                } catch (_: Exception) {
+                                    Toast.makeText(setCtx, "Couldn't open gesture control", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            Modifier.fillMaxWidth()
+                        )
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ConfigSection("STANDBY WINDOW")
