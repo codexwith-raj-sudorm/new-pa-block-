@@ -30,7 +30,7 @@
 - 6.16 Gesture nav (drawer + floating header + profile hub)
 - 6.15 Restack (hygiene + design purge + glass + compact island)
 - 6.14 Stable signing (in-place updates) + Renovate
-- 6.13 Sir + any master key unlocks baked brain
+- 6.13 Sir + private/dev master unlocks optional built-in brain
 
 See `android/app/src/main/java/com/jarvis/app/backend/data/Changelog.kt` for the full 1.0→6.21 history (newest first).
 

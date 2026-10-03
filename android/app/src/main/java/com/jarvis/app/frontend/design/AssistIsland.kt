@@ -195,7 +195,6 @@ fun AssistIslandSheet(
     listening: Boolean,
     thinking: Boolean,
     onCoreTap: () -> Unit,
-    onAskScreen: () -> Unit,
     onOpen: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -302,8 +301,20 @@ fun AssistIslandSheet(
                 )
             }
             Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                NeonPillButton("ASK ABOUT SCREEN", Modifier.weight(1f), onAskScreen)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Say “what's on my screen” for visual context.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(12.dp))
                 GhostPillButton("OPEN", Modifier.width(80.dp), onOpen)
             }
         }

@@ -28,29 +28,24 @@ Full list: [FEATURES.md](FEATURES.md) · in-app history: Settings → updates ·
 1. Open this repo on GitHub → **Actions** tab → latest green `android` run
 2. Download **jarvis-apk** under Artifacts (it's a `.zip` — unzip it)
 3. Open the `.apk` → **Install** (allow “install unknown apps” if asked)
-4. Open **Jarvis** and chat! 🎉 (Paste your own free key from `aistudio.google.com` in ⚙️ Settings — or install the owner Master Key to use the baked-in key.)
+4. Open **Jarvis** and chat! 🎉 Paste your own free key from `aistudio.google.com` in ⚙️ Settings (public/release APKs do not activate baked owner keys).
 
 Every push to this branch rebuilds the APK automatically. Updates install in place — chats, keys and permissions stay.
 
-## Built-in default key (owner setup)
+## AI key policy
 
-The APK bakes in a locked default key from the `GEMINI_API_KEY` repo secret (never in git).
-It activates only while an owner-grade Master Key is installed; other users paste their own key in ⚙️ Settings.
-In ⚙️ Settings the built-in key can't be viewed, changed, removed or overridden.
+Public/release APKs are BYOK: they ship with empty built-in Gemini/GitHub/Master secrets, so each user pastes their own free key from `aistudio.google.com` in ⚙️ Settings.
 
-1. Create a key at `aistudio.google.com` → **restrict it to the Generative Language API**
-2. Repo → **Settings → Secrets and variables → Actions** → New repository secret `GEMINI_API_KEY`
-3. Re-run the latest `android` workflow (⋯ → Re-run jobs) → the new APK has the key baked in
+Private/dev builds can still inject convenience keys from local/CI environment variables (`GEMINI_API_KEY`, `GH_READ_TOKEN`, `MASTER_IDENTITY`, `MASTER_KEY`). Those keys are lightly obfuscated, not encrypted, and are never a public-distribution security boundary.
 
-⚠️ Obfuscation ≠ encryption: anyone decompiling the APK can recover the key.
-Mitigations: API-restrict the key, keep the APK private, rotate the key if it leaks.
+⚠️ If you make a private build with injected keys, restrict them by API/scope, keep that APK private, and rotate immediately if it leaks.
 
 ## Master identity on every device (no retyping)
 
 Two ways — pick either:
 - **Master Card (easiest):** on your main phone go to ⚙️ → Master Key → **Share master card** → send it to your other device → on the other device paste it into **Import**. Done — Master recognized, zero typing.
-- **Baked-in (zero-touch):** set a repo secret `MASTER_IDENTITY` to `{"k":"your-key","n":"Your Name","a":"about you"}` → rebuild → every install from that APK recognizes you automatically.
-- Same warning as the Gemini key: anyone holding the card or APK can read it — keep both private.
+- **Private/dev baked-in (zero-touch):** set `MASTER_IDENTITY`/`MASTER_KEY` in your private build environment → rebuild a debug/private APK → every install from that private APK recognizes you automatically.
+- Same warning as API keys: anyone holding the card or private APK can read the owner secret — keep both private.
 
 ## Project layout
 
@@ -69,7 +64,7 @@ android/                  # native app (the product)
     backend/net/          # GitHub API + encrypted token storage
   app/src/test/...        # 262 unit tests, JVM-pure
 docs/                     # product specs + inline HTML mockups (see docs/README.md)
-.github/workflows/        # android.yml (tests + APK) · keycheck.yml (baked-key health)
+.github/workflows/        # android.yml (tests + APK) · keycheck.yml (private/dev key health)
 FEATURES.md               # full feature list
 renovate.json             # grouped Gradle + Actions updates
 ```

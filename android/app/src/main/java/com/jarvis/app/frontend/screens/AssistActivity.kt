@@ -33,6 +33,8 @@ import kotlinx.coroutines.delay
  * the current app — tap outside or swipe down to dismiss.
  */
 class AssistActivity : ComponentActivity() {
+    private var openingJarvis = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -69,7 +71,7 @@ class AssistActivity : ComponentActivity() {
                 // floats over it. The transparent layer only catches outside taps.
                 Box(
                     Modifier.fillMaxSize()
-                        .clickable { finish() }
+                        .clickable { closeOverlay() }
                 )
                 EdgeFlashOverlay(fireTick = 0)
                 Box(
@@ -91,9 +93,8 @@ class AssistActivity : ComponentActivity() {
                                 }
                             }
                         },
-                        onAskScreen = { vm.askAboutScreen() },
                         onOpen = { openJarvis() },
-                        onClose = { finish() }
+                        onClose = { closeOverlay() }
                     )
                 }
             }
@@ -116,14 +117,28 @@ class AssistActivity : ComponentActivity() {
         }
     }
 
+    private fun closeOverlay() {
+        sharedJarvisVm(application as Application).abortProcessing()
+        finish()
+    }
+
     private fun openJarvis() {
         try {
             startActivity(
                 Intent(this, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
+            openingJarvis = true
         } catch (_: Exception) {
+            openingJarvis = false
         }
         finish()
+    }
+
+    override fun onDestroy() {
+        if (!openingJarvis) {
+            sharedJarvisVm(application as Application).abortProcessing()
+        }
+        super.onDestroy()
     }
 }

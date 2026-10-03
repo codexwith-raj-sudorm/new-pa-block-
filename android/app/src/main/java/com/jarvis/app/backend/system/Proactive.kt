@@ -188,7 +188,7 @@ fun resolveProactiveText(appCtx: Context, kind: String, detail: String, arg: Str
         val store = Store(appCtx)
         val name = store.masterName.ifBlank { store.userName }.ifBlank { "sir" }
         val key = store.apiKey.ifBlank {
-            if (store.masterKey.isNotBlank()) unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY) else ""
+            if (BuildConfig.DEBUG && store.masterKey.isNotBlank()) unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY) else ""
         }
         val g = if (key.isNotBlank()) {
             geminiUtterance(key, store.model, proactivePrompt(kind, detail, name))

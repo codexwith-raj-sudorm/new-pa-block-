@@ -1,20 +1,16 @@
-# Manual-only: verifies the CI Gemini secret (the exact key baked into the
-# APK) is set and responding. Prints only the HTTP status, never the key.
-# Run: Actions tab -> keycheck -> Run workflow (or: gh workflow run keycheck).
+# Manual-only: verifies the CI Gemini secret used by private/dev builds is set
+# and responding. Release APKs keep built-in key fields empty. Prints only HTTP status.
 name: keycheck
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/keycheck.yml
 jobs:
   check:
     runs-on: ubuntu-24.04
     steps:
       - run: |
           if [ -z "$GEMINI_API_KEY" ]; then
-            echo "::error ::GEMINI_API_KEY secret is unset - nothing is baked into the APK."
-            exit 1
+            echo "::warning ::GEMINI_API_KEY secret is unset - private/dev builds will have no convenience key."
+            exit 0
           fi
           code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 25 \
             "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1&key=$GEMINI_API_KEY")

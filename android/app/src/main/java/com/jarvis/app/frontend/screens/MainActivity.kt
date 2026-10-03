@@ -505,6 +505,12 @@ fun JarvisScreen() {
     var calibStep by remember { mutableStateOf(0) }
     val heroScroll = rememberScrollState()
     val listState = rememberLazyListState()
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val cutoutTop = WindowInsets.displayCutout.asPaddingValues().calculateTopPadding()
+    val safeTop = maxOf(statusTop, cutoutTop)
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val chatTopPadding = 72.dp + safeTop
+    val chatBottomPadding = 132.dp + navBottom
     val heroVisible = premiumHeroVisible(vm.messages.count { it.role == "user" }, vm.busy)
     // A chat that already has messages has no hero targets - retire silently.
     if (vm.showCalib && !heroVisible) {
@@ -557,8 +563,8 @@ fun JarvisScreen() {
                 )
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 12.dp, top = 88.dp, end = 12.dp, bottom = 180.dp),
+                    modifier = Modifier.fillMaxSize().imePadding(),
+                    contentPadding = PaddingValues(start = 12.dp, top = chatTopPadding, end = 12.dp, bottom = chatBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(vm.messages, key = { it.time }) { Bubble(it, vm::retryLast, vm::speakText) }
@@ -570,7 +576,7 @@ fun JarvisScreen() {
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).padding(top = 88.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp).padding(top = chatTopPadding).imePadding(),
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {

@@ -13,7 +13,7 @@
 | P5 Webhooks & shell | Smart webhooks, QS tile + shortcuts, notification reader, Hindi mic, screen control, scheduled messages, voiceprint guard, image gen | 3.4–5.0 |
 | P6 Permissions & debut | Floating share sheet, empty fresh chats, instant-mic wake + fuzzy match, orbital icon, encrypted secrets, bounded chat, master-gate | 5.9–6.6 |
 | P7 Theming & debut | Honest hardware refusals, owner-card, onboarding/calibration, chrome polish, dockable bubble, clear summon, island+dim, stable identity | 6.7–6.11 |
-| P8 Baked brain & signing | Any-master unlocks baked brain, sir everywhere, stable signing (in-place updates) + Renovate, hygiene restack | 6.12–6.15 |
+| P8 Private/dev brain & signing | Private/dev master unlocks optional built-in brain, sir everywhere, stable signing (in-place updates) + Renovate, hygiene restack | 6.12–6.15 |
 | P9 Ambient systems | Gesture nav (§9) | 6.16 |
 | P10 Ambient systems | Time-boxed standby (§6) | 6.17 |
 | P11 Ambient systems | Dynamic Island (§8) | 6.18 |

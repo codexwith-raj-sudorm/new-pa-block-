@@ -1,15 +1,11 @@
 package com.jarvis.app.backend.data
 
 /**
- * Baked master identity: the one true master, recognized on every device
- * without typing details. Entering [BAKED_MASTER_KEY] in Settings installs
- * master mode with this identity on any install.
- *
- * NOTE: this ships inside the APK/source — anyone holding it can read the
- * key. It is an identity switch, not a security boundary. Keep the APK
- * private, like the built-in Gemini key.
+ * Owner identity metadata only. The owner/master secret is intentionally not
+ * committed in source; private/dev builds may inject one through Gradle
+ * BuildConfig from local CI secrets, while release/public builds must rely on
+ * user-supplied credentials.
  */
-const val BAKED_MASTER_KEY = "JARVIS-RAJ-MASTER-77"
 const val BAKED_MASTER_NAME = "Raj Thakur"
 const val BAKED_MASTER_ABOUT = "Raj Thakur from West Bengal, India is the creator " +
     "of Jarvis and its one true Master. He is building Jarvis as his dream " +

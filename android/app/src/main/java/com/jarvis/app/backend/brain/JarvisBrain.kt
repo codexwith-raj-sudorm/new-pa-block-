@@ -49,12 +49,17 @@ import com.jarvis.app.backend.data.StarkVaultDb
 import com.jarvis.app.frontend.widgets.StarkWidgetProvider
 import com.jarvis.app.backend.device.StarkDeviceController
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
+import kotlin.coroutines.coroutineContext
+import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -66,22 +71,24 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import com.jarvis.app.backend.ai.AI_GEMINI
 import com.jarvis.app.backend.ai.AI_OPENAI
 import com.jarvis.app.backend.ai.EngineVoiceInfo
 import com.jarvis.app.backend.ai.OPENAI_DEFAULT_MODEL
+import com.jarvis.app.backend.ai.executeCancellable
 import com.jarvis.app.backend.ai.genImageModels
 import com.jarvis.app.backend.ai.genImagePromptOf
 import com.jarvis.app.backend.ai.genImageRequestBody
 import com.jarvis.app.backend.ai.openAiChatBody
 import com.jarvis.app.backend.ai.openAiEndpoint
+import com.jarvis.app.backend.ai.openAiBaseValidationError
 import com.jarvis.app.backend.ai.parseGenImageData
 import com.jarvis.app.backend.ai.resolvePersonaVoices
 import com.jarvis.app.backend.data.AddNote
 import com.jarvis.app.backend.data.AddTodo
 import com.jarvis.app.backend.data.AtTime
 import com.jarvis.app.backend.data.BAKED_MASTER_ABOUT
-import com.jarvis.app.backend.data.BAKED_MASTER_KEY
 import com.jarvis.app.backend.data.BAKED_MASTER_NAME
 import com.jarvis.app.backend.data.CHANGELOG
 import com.jarvis.app.backend.data.ChangelogEntry
@@ -169,6 +176,7 @@ import com.jarvis.app.backend.system.formatNotifs
 import com.jarvis.app.backend.system.isAccessEnabled
 import com.jarvis.app.backend.system.isNearbyVoice
 import com.jarvis.app.backend.system.openAutoStartSettings
+import com.jarvis.app.backend.system.screenVisionPackageBlocked
 import com.jarvis.app.backend.system.sendSmsNow
 import com.jarvis.app.backend.system.visionPromptFor
 import com.jarvis.app.backend.system.watchErrorNeedsReprompt
@@ -1110,6 +1118,10 @@ class Store(context: Context) {
         get() = p.getBoolean("onboarded", false)
         set(v) = p.edit().putBoolean("onboarded", v).apply()
 
+    var screenVisionDisclosureShown: Boolean
+        get() = p.getBoolean("screen_vision_disclosure", false)
+        set(v) = p.edit().putBoolean("screen_vision_disclosure", v).apply()
+
     var masterKey: String
         get() = secGet("master_key")
         set(v) { secPut("master_key", v) }
@@ -1475,12 +1487,12 @@ object GeminiApi {
         return (head + rest).ifEmpty { pool }
     }
 
-    suspend fun listModels(apiKey: String): List<String> = withContext(Dispatchers.IO) {
+    suspend fun listModels(apiKey: String, onCallCreated: ((Call) -> Unit)? = null): List<String> = withContext(Dispatchers.IO) {
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
             .get()
             .build()
-        client.newCall(req).execute().use { resp ->
+        client.executeCancellable(req, onCallCreated).use { resp ->
             val txt = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 if (resp.code in 400..403 && ("API key" in txt || "API_KEY" in txt)) {
@@ -1498,7 +1510,8 @@ object GeminiApi {
         models: List<String>,
         system: String,
         history: List<Pair<String, String>>,
-        user: String
+        user: String,
+        onCallCreated: ((Call) -> Unit)? = null
     ): Pair<String, String> = withContext(Dispatchers.IO) {
         val usable = history.dropWhile { it.first != "user" }
         val contents = JSONArray()
@@ -1524,8 +1537,11 @@ object GeminiApi {
         val errs = mutableListOf<String>()
         for (m in models) {
             val res = try {
-                callOnce(m, apiKey, body)
+                callOnce(m, apiKey, body, onCallCreated)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                coroutineContext.ensureActive()
                 Triple(false, "", "Network error: ${e.message?.take(100)}")
             }
             if (res.first) return@withContext res.second to m
@@ -1541,7 +1557,8 @@ object GeminiApi {
         models: List<String>,
         system: String,
         user: String,
-        imageBase64: String
+        imageBase64: String,
+        onCallCreated: ((Call) -> Unit)? = null
     ): Pair<String, String> = withContext(Dispatchers.IO) {
         val body = JSONObject()
             .put(
@@ -1569,8 +1586,11 @@ object GeminiApi {
         val errs = mutableListOf<String>()
         for (m in models) {
             val res = try {
-                callOnce(m, apiKey, body)
+                callOnce(m, apiKey, body, onCallCreated)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                coroutineContext.ensureActive()
                 Triple(false, "", "Network error: ${e.message?.take(100)}")
             }
             if (res.first) return@withContext res.second to m
@@ -1581,7 +1601,12 @@ object GeminiApi {
     }
 
     /** Image generation: tries image models first, returns (mime, bytes). */
-    suspend fun generateImage(apiKey: String, models: List<String>, prompt: String): Pair<String, ByteArray> =
+    suspend fun generateImage(
+        apiKey: String,
+        models: List<String>,
+        prompt: String,
+        onCallCreated: ((Call) -> Unit)? = null
+    ): Pair<String, ByteArray> =
         withContext(Dispatchers.IO) {
             val body = genImageRequestBody(prompt)
             val errs = mutableListOf<String>()
@@ -1590,7 +1615,7 @@ object GeminiApi {
                     val req = Request.Builder()
                         .url("https://generativelanguage.googleapis.com/v1beta/models/$m:generateContent?key=$apiKey")
                         .post(body.toRequestBody(JSON)).build()
-                    imgClient.newCall(req).execute().use { resp ->
+                    imgClient.executeCancellable(req, onCallCreated).use { resp ->
                         val txt = resp.body?.string() ?: ""
                         if (!resp.isSuccessful) {
                             if (resp.code == 400 && ("API key" in txt || "API_KEY" in txt))
@@ -1604,7 +1629,10 @@ object GeminiApi {
                     }
                 } catch (e: JarvisError) {
                     throw e
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    coroutineContext.ensureActive()
                     errs.add("$m -> Network error: ${e.message?.take(100)}")
                 }
             }
@@ -1618,14 +1646,15 @@ object GeminiApi {
         model: String,
         system: String,
         history: List<Pair<String, String>>,
-        user: String
+        user: String,
+        onCallCreated: ((Call) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         val req = Request.Builder()
             .url(openAiEndpoint(base))
             .header("Authorization", "Bearer $key")
             .post(openAiChatBody(model, system, history, user).toRequestBody(JSON))
             .build()
-        client.newCall(req).execute().use { resp ->
+        client.executeCancellable(req, onCallCreated).use { resp ->
             val txt = resp.body?.string() ?: ""
             if (!resp.isSuccessful) throw JarvisError("Other-AI error (HTTP ${resp.code}): ${txt.take(160)}")
             val text = try {
@@ -1639,12 +1668,17 @@ object GeminiApi {
         }
     }
 
-    private fun callOnce(model: String, apiKey: String, body: String): Triple<Boolean, String, String> {
+    private suspend fun callOnce(
+        model: String,
+        apiKey: String,
+        body: String,
+        onCallCreated: ((Call) -> Unit)? = null
+    ): Triple<Boolean, String, String> {
         val req = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey")
             .post(body.toRequestBody(JSON))
             .build()
-        client.newCall(req).execute().use { resp ->
+        client.executeCancellable(req, onCallCreated).use { resp ->
             val txt = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 if (resp.code == 400 && ("API key" in txt || "API_KEY" in txt)) {
@@ -1671,6 +1705,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private val store = Store(app)
     private val audio: AudioManager = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val http = OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build()
+    private val busyGate = AtomicBoolean(false)
+    @Volatile private var activeHttpCall: Call? = null
+    @Volatile private var activeAiJob: Job? = null
 
     val messages = mutableStateListOf<ChatMessage>()
     val availableModels = mutableStateListOf<String>()
@@ -1776,31 +1813,71 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE).build()
     }
 
-    // Owner key, baked at build time from the GEMINI_API_KEY repo secret
-    // (stored reversed+Base64 so it isn't plainly greppable inside the APK).
-    // It is completely invisible in the UI: no screen mentions it.
+    private fun trackActiveCall(call: Call) {
+        activeHttpCall = call
+    }
+
+    private fun rememberActiveJob(job: Job): Job {
+        activeAiJob?.cancel()
+        activeAiJob = job
+        job.invokeOnCompletion {
+            if (activeAiJob === job) {
+                activeAiJob = null
+                activeHttpCall = null
+            }
+        }
+        return job
+    }
+
+    private fun tryStartProcessing(): Boolean = busyGate.compareAndSet(false, true)
+
+    private fun markProcessingBusy() {
+        busy = true
+    }
+
+    private fun finishProcessing() {
+        busyGate.set(false)
+        busy = false
+    }
+
+    private fun releaseProcessingSlot() {
+        busyGate.set(false)
+    }
+
+    fun abortProcessing() {
+        val job = activeAiJob
+        activeAiJob = null
+        job?.cancel()
+        activeHttpCall?.cancel()
+        activeHttpCall = null
+        finishProcessing()
+        voiceNote = null
+        HudStateBus.update(thinking = false, listening = false)
+    }
+
+    // Optional owner key, injected only for private/dev builds. It is never used
+    // by release builds; public APKs must use a user-supplied API key.
     // NOTE: obfuscation, not encryption — anyone decompiling the APK can recover it.
-    // Real protection = restrict the key in Google Cloud + keep the APK private.
     private val builtinKey: String = unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY)
-    /** False when CI built without the GEMINI_API_KEY secret. */
-    val builtinKeyPresent: Boolean get() = builtinKey.isNotBlank()
+    private val builtinMasterKey: String = unobscureKey(BuildConfig.DEFAULT_MASTER_KEY)
+    /** False when no private/dev Gemini key is injected, or for release builds. */
+    val builtinKeyPresent: Boolean get() = BuildConfig.DEBUG && builtinKey.isNotBlank()
 
-    /** User's own key if pasted, else the built-in key — only once the Master Key is installed. */
-    private val effectiveKey: String get() = apiKey.ifBlank { if (masterInstalled) builtinKey else "" }
+    /** User's own key if pasted, else the private/dev built-in key once Master is installed. */
+    private val effectiveKey: String get() = apiKey.ifBlank { if (BuildConfig.DEBUG && masterInstalled) builtinKey else "" }
 
-    // Owner GitHub token, baked from the GH_READ_TOKEN repo secret (same obfuscation).
-    // Only usable once the Master Key is installed — that activation is the unlock.
-    // NOTE: obfuscation, not encryption — use a read-only token and keep the APK private.
+    // Optional owner GitHub token, injected only for private/dev builds (same obfuscation).
     private val builtinGh: String = unobscureKey(BuildConfig.DEFAULT_GITHUB_TOKEN)
 
-    /** Pasted token first, else the baked token once the Master Key is installed. */
+    /** Pasted token first, else the private/dev baked token once the Master Key is installed. */
     val effectiveGithubToken: String
-        get() = githubToken.ifBlank { if (masterInstalled) builtinGh else "" }
+        get() = githubToken.ifBlank { if (BuildConfig.DEBUG && masterInstalled) builtinGh else "" }
 
     fun githubStatus(): String = when {
         githubToken.isNotBlank() -> "✓ Custom token active"
-        builtinGh.isNotBlank() && masterInstalled -> "✓ Repo access active via Master Key"
-        builtinGh.isNotBlank() -> "Install Master Key to activate repo access"
+        BuildConfig.DEBUG && builtinGh.isNotBlank() && masterInstalled -> "✓ Repo access active via Master Key"
+        BuildConfig.DEBUG && builtinGh.isNotBlank() -> "Install Master Key to activate repo access"
+        !BuildConfig.DEBUG && builtinGh.isNotBlank() -> "Built-in repo access disabled in release builds"
         else -> ""
     }
 
@@ -1848,6 +1925,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        abortProcessing()
         try {
             tts?.stop()
             tts?.shutdown()
@@ -2000,12 +2078,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             settingsMsg = "Master key needs at least 4 characters."
             return
         }
-        val baked = k == BAKED_MASTER_KEY
+        val ownerCard = ownerCardKey()
+        val baked = (builtinMasterKey.isNotBlank() && k == builtinMasterKey) || (ownerCard.isNotBlank() && k == ownerCard)
         store.masterKey = k
         store.masterBaked = baked
         showProfile = false
-        store.masterName = (if (baked) BAKED_MASTER_NAME else MASTER_SELF_NAME).take(40)
-        store.masterAbout = (if (baked) BAKED_MASTER_ABOUT else about.trim().ifBlank { MASTER_SELF_ABOUT }).take(500)
+        store.masterName = (if (baked) name.trim().ifBlank { BAKED_MASTER_NAME } else MASTER_SELF_NAME).take(40)
+        store.masterAbout = (if (baked) about.trim().ifBlank { BAKED_MASTER_ABOUT } else about.trim().ifBlank { MASTER_SELF_ABOUT }).take(500)
         masterInstalled = true
         masterName = store.masterName
         masterAbout = store.masterAbout
@@ -2091,7 +2170,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Key inside the baked owner card ("" when none/undecodable). Never throws. */
+    /** Key inside the optional owner card ("" when none/undecodable). Never throws. */
     private fun ownerCardKey(): String = try {
         val b64 = BuildConfig.DEFAULT_MASTER
         if (b64.isBlank()) ""
@@ -2101,10 +2180,13 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun installBakedMaster() {
+        val ownerKey = ownerCardKey()
         if (store.masterKey.isNotBlank()) {
-            // Upgrade reconciliation: a baked or owner-card key stays owner-grade.
+            // Upgrade reconciliation: optional private/dev keys stay owner-grade.
             val k = store.masterKey
-            if (k == BAKED_MASTER_KEY || (k.isNotEmpty() && k == ownerCardKey())) store.masterBaked = true
+            if ((builtinMasterKey.isNotBlank() && k == builtinMasterKey) || (ownerKey.isNotBlank() && k == ownerKey)) {
+                store.masterBaked = true
+            }
             return
         }
         val b64 = BuildConfig.DEFAULT_MASTER
@@ -2120,9 +2202,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         // Zombie check: a reinstall wipes the encrypted key while backup may
-        // restore the name — a previous master install restores from code.
-        if (store.masterName.isNotBlank() || store.masterBaked) {
-            installMaster(BAKED_MASTER_KEY, BAKED_MASTER_NAME, BAKED_MASTER_ABOUT)
+        // restore the name. Restore only when the build supplied a private/dev
+        // owner key; public builds stay in normal mode and ask for a fresh key.
+        val restoreKey = ownerKey.ifBlank { builtinMasterKey }
+        if ((store.masterName.isNotBlank() || store.masterBaked) && restoreKey.isNotBlank()) {
+            installMaster(restoreKey, BAKED_MASTER_NAME, BAKED_MASTER_ABOUT)
             settingsMsg = "Master identity restored after reinstall."
         }
         // Truly fresh (no remnants): stay in normal mode, profile onboarding runs.
@@ -2154,7 +2238,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun fireHook(h: HookAction): String = withContext(Dispatchers.IO) {
         val b = Request.Builder().url(h.url)
         if (h.method == "POST") b.post("{}".toRequestBody("application/json; charset=utf-8".toMediaType()))
-        http.newCall(b.build()).execute().use { resp ->
+        http.executeCancellable(b.build(), ::trackActiveCall).use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("HTTP " + resp.code)
             "Done — " + h.name + " triggered."
         }
@@ -2181,25 +2265,55 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var lastWatchUsedCache = false
 
     /** Async vision answer for "what's on my screen". Falls back to text read. */
-    private suspend fun watchScreen(question: String): String {
+    private suspend fun watchScreen(question: String, onCallCreated: ((Call) -> Unit)? = null): String {
         if (!brainOk) return AccessBridge.read() ?: needAccess()
+        val app = getApplication<Application>()
+        val activePkg = AccessBridge.activePackage()
+        if (activePkg == null) {
+            return if (isAccessEnabled(app)) {
+                "I can't verify the foreground app yet, so I won't send a screenshot to a remote AI. Try again in a moment."
+            } else {
+                needAccess()
+            }
+        }
+        if (screenVisionPackageBlocked(activePkg)) {
+            return "This looks like a sensitive app, so I won't capture or send this screen to a remote AI."
+        }
+        if (!store.screenVisionDisclosureShown) {
+            store.screenVisionDisclosureShown = true
+            return "Privacy note: screen vision sends a screenshot to your selected remote AI provider so I can answer. I will not send protected or blank frames. Ask again to continue."
+        }
         val img = captureScreenForWatch()
         if (img == null) {
+            val err = lastWatchErr.orEmpty()
+            if (err.contains("protected", ignoreCase = true) || err.contains("blank", ignoreCase = true)) {
+                return "This screen appears to be protected by Android security controls, so I can't inspect it. I won't send a blank or protected frame to the AI."
+            }
             val t = AccessBridge.read()
             return if (t != null) "Couldn't capture the screen for vision — here's the text I can read:\n$t"
             else needAccess()
+        }
+        val postCapturePkg = AccessBridge.activePackage()
+        if (postCapturePkg == null) {
+            return "I can't verify the foreground app after capture, so I won't send this screenshot to a remote AI."
+        }
+        if (screenVisionPackageBlocked(postCapturePkg)) {
+            return "This looks like a sensitive app, so I won't capture or send this screen to a remote AI."
         }
         return try {
             val system = "You are Jarvis describing the user's phone screen.\n" + buildSystem(store.facts())
             val prompt = visionPromptFor(question)
             val (reply, _) = try {
-                GeminiApi.chatWithImage(effectiveKey, resolveModels(false), system, prompt, img)
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(false, onCallCreated), system, prompt, img, onCallCreated)
             } catch (e: GeminiApi.JarvisError) {
                 if (!e.message.orEmpty().contains("404")) throw e
-                GeminiApi.chatWithImage(effectiveKey, resolveModels(true), system, prompt, img)
+                GeminiApi.chatWithImage(effectiveKey, resolveModels(true, onCallCreated), system, prompt, img, onCallCreated)
             }
             reply
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            coroutineContext.ensureActive()
             "Couldn't analyze the screen (${e.message?.take(120)})." +
                 (AccessBridge.read()?.let { "\n\nHere's the text I can read:\n$it" } ?: "")
         }
@@ -2207,22 +2321,28 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** One-tap "ask about screen" for the assist overlay: captures, answers, speaks. */
     fun askAboutScreen(question: String = "What's on my screen?") {
-        viewModelScope.launch {
-            if (busy) return@launch
-            busy = true
+        if (!tryStartProcessing()) return
+        rememberActiveJob(viewModelScope.launch {
+            markProcessingBusy()
             voiceNote = "Looking at your screen…"
             requestCaptureHide()
             delay(assistCaptureSettleMs())
             try {
-                val ans = watchScreen(question.ifBlank { "What's on my screen?" })
+                val ans = watchScreen(question.ifBlank { "What's on my screen?" }, ::trackActiveCall)
                 voiceNote = ans
                 speakText(ans)
+            } catch (e: CancellationException) {
+                voiceNote = null
+                throw e
             } catch (e: Exception) {
+                coroutineContext.ensureActive()
                 voiceNote = "Couldn't analyze the screen (${e.message?.take(100)})."
             } finally {
-                busy = false
+                activeHttpCall = null
+                finishProcessing()
+                HudStateBus.update(thinking = false)
             }
-        }
+        })
     }
 
     /** Summarize shared text (share-sheet action). */
@@ -2419,7 +2539,10 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var speakChunks = 1
 
     private fun stopSpeaking() {
+        speakGen++ // invalidate late TTS callbacks from the interrupted generation
+        speakChunks = 1
         SpeechState.speaking = false
+        HudStateBus.update(speaking = false)
         try {
             tts?.stop()
         } catch (_: Exception) {
@@ -3181,6 +3304,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         provider: String = aiProvider, oaiKey: String = openaiKey,
         oaiBase: String = openaiBase, oaiModel: String = openaiModel
     ) {
+        val endpointError = openAiBaseValidationError(oaiBase, allowLocal = BuildConfig.DEBUG)
+        if (endpointError != null) {
+            settingsMsg = endpointError
+            return
+        }
         val oldEff = effectiveKey
         val wasOk = brainOk
         store.apiKey = key
@@ -3234,18 +3362,20 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun resolveModels(force: Boolean): List<String> {
+    private suspend fun resolveModels(force: Boolean, onCallCreated: ((Call) -> Unit)? = null): List<String> {
         val fresh = System.currentTimeMillis() - store.modelsCachedAt() < 24 * 3600 * 1000L
         if (!force) {
             val cached = store.cachedModels()
             if (cached.isNotEmpty() && fresh) return GeminiApi.pickModels(model, cached)
         }
         return try {
-            val available = GeminiApi.listModels(effectiveKey)
+            val available = GeminiApi.listModels(effectiveKey, onCallCreated)
             store.saveModels(available)
             availableModels.clear()
             availableModels.addAll(available.ifEmpty { Models.FALLBACK })
             GeminiApi.pickModels(model, available.ifEmpty { Models.FALLBACK })
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             val cached = store.cachedModels()
             GeminiApi.pickModels(model, cached.ifEmpty { Models.FALLBACK })
@@ -3427,22 +3557,24 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 return GeminiApi.chatOpenAi(
                     openaiBase, openaiKey, openaiModel.ifBlank { OPENAI_DEFAULT_MODEL },
-                    system, hist, text
+                    system, hist, text, ::trackActiveCall
                 )
             } catch (e: GeminiApi.JarvisError) {
                 if (effectiveKey.isBlank()) throw e
                 // fall through to Gemini
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 if (effectiveKey.isBlank()) throw GeminiApi.JarvisError("Other-AI failed and no Gemini key is set.")
                 // fall through to Gemini
             }
         }
         return try {
-            GeminiApi.chat(effectiveKey, resolveModels(false), system, hist, text).first
+            GeminiApi.chat(effectiveKey, resolveModels(false, ::trackActiveCall), system, hist, text, ::trackActiveCall).first
         } catch (e: GeminiApi.JarvisError) {
             if (!e.message.orEmpty().contains("404")) throw e
             // Model list went stale — rediscover once and retry.
-            GeminiApi.chat(effectiveKey, resolveModels(true), system, hist, text).first
+            GeminiApi.chat(effectiveKey, resolveModels(true, ::trackActiveCall), system, hist, text, ::trackActiveCall).first
         }
     }
 
@@ -3459,94 +3591,108 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         }
         val sendChatId = activeChatId
         if (text.isEmpty()) return false
-        if (busy) { toast("Still thinking — one sec"); return false }
+        if (!tryStartProcessing()) { toast("Still thinking — one sec"); return false }
         messages.add(ChatMessage("user", text))
         persist()
         HudStateBus.update(online = brainOk)
         Router.detect(text)?.let { hit ->
             if (toolYieldsScreen(hit.tool)) requestCaptureHide()
             if (hit.tool == "weather" || hit.tool == "fx" || hit.tool.startsWith("github") || hit.tool == "screen_watch") {
-                busy = true
+                markProcessingBusy()
                 HudStateBus.update(thinking = true)
-                viewModelScope.launch {
+                rememberActiveJob(viewModelScope.launch {
                     try {
                         val reply = if (hit.tool == "fx") fetchFx(hit.arg)
                         else if (hit.tool.startsWith("github")) fetchGithub(hit)
                         else if (hit.tool == "screen_watch") {
                             requestCaptureHide()
                             delay(assistCaptureSettleMs())
-                            watchScreen(hit.arg)
+                            watchScreen(hit.arg, ::trackActiveCall)
                         }
                         else fetchWeather(hit.arg)
                         deliverReply(sendChatId, reply)
                         if (fromVoice) speak(reply, voiceCmd = true)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
+                        coroutineContext.ensureActive()
                         deliverReply(sendChatId, "⚠️ " + if (hit.tool == "fx") "Couldn't fetch rates." else if (hit.tool == "screen_watch") "Couldn't watch the screen." else "Couldn't reach the weather service.")
                     } finally {
-                        busy = false
+                        activeHttpCall = null
+                        finishProcessing()
                         HudStateBus.update(thinking = false)
                         persist()
                     }
-                }
+                })
                 return true
             }
             if (hit.tool == "gen_image") {
-                busy = true
+                markProcessingBusy()
                 HudStateBus.update(thinking = true)
                 voiceNote = "Painting your image…"
-                viewModelScope.launch {
+                rememberActiveJob(viewModelScope.launch {
                     try {
                         val (caption, path) = generateImageFull(hit.arg)
                         deliverImageReply(sendChatId, caption, path)
                         if (fromVoice) speak(caption, voiceCmd = true)
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
+                        coroutineContext.ensureActive()
                         deliverReply(sendChatId, "\u26a0\ufe0f " + (e.message?.take(200) ?: "Couldn't generate the image."))
                     } finally {
-                        busy = false
+                        activeHttpCall = null
+                        finishProcessing()
                         HudStateBus.update(thinking = false)
                         voiceNote = null
                         persist()
                     }
-                }
+                })
                 return true
             }
             val reply = runTool(hit)
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
+            releaseProcessingSlot()
             return true
         }
         matchHook(text, store.loadHooks())?.let { hook ->
-            busy = true
+            markProcessingBusy()
             HudStateBus.update(thinking = true)
-            viewModelScope.launch {
+            rememberActiveJob(viewModelScope.launch {
                 try {
                     val reply = fireHook(hook)
                     deliverReply(sendChatId, reply)
                     if (fromVoice) speak(reply, voiceCmd = true)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
+                    coroutineContext.ensureActive()
                     deliverReply(sendChatId, "⚠️ " + hook.name + " failed: " + e.message?.take(120))
                 } finally {
-                    busy = false
+                    activeHttpCall = null
+                    finishProcessing()
                     HudStateBus.update(thinking = false)
                     persist()
                 }
-            }
+            })
             return true
         }
         if (!brainOk) {
-            val reply = if (builtinKey.isNotBlank()) "🔑 Install your Master Key to unlock the brain — or add your own Gemini / Other-AI key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
+            val reply = if (builtinKeyPresent) "🔑 Install your Master Key to unlock the private/dev brain — or add your own Gemini / Other-AI key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             else "🔑 I need an AI API key for that (free Gemini key from aistudio.google.com, or any OpenAI-compatible key — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
+            releaseProcessingSlot()
             return true
         }
-        busy = true
+        markProcessingBusy()
         HudStateBus.update(thinking = true)
         HudStateBus.postTicker(if (masterInstalled) "[MASTER UPLINK]" else if (aiProvider == AI_OPENAI && openaiKey.isNotBlank()) "[UPLINK: OTHER-AI]" else "[UPLINK: GEMINI]")
         val t0 = System.currentTimeMillis()
-        viewModelScope.launch {
+        rememberActiveJob(viewModelScope.launch {
             try {
                 val system = buildSystem(store.facts())
                 val hist = messages.dropLast(1).takeLast(40)
@@ -3560,14 +3706,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
                     if (fromVoice) speak(reply, voiceCmd = true)
                 }
                 HudStateBus.postTicker("[UPLINK: " + (System.currentTimeMillis() - t0) + "ms]")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                coroutineContext.ensureActive()
                 deliverReply(sendChatId, "⚠️ ${e.message}")
             } finally {
-                busy = false
+                activeHttpCall = null
+                finishProcessing()
                 HudStateBus.update(thinking = false)
                 persist()
             }
-        }
+        })
         return true
     }
 
@@ -3660,8 +3810,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     /** Generate, save (files + gallery), return caption + filesDir path. */
     private suspend fun generateImageFull(arg: String): Pair<String, String?> {
         if (!brainOk) throw GeminiApi.JarvisError("I need a Gemini API key for image generation (free from aistudio.google.com — add it in Settings \u2699\ufe0f).")
-        val models = genImageModels(resolveModels(false))
-        val (mime, bytes) = GeminiApi.generateImage(effectiveKey, models, arg)
+        val models = genImageModels(resolveModels(false, ::trackActiveCall))
+        val (mime, bytes) = GeminiApi.generateImage(effectiveKey, models, arg, ::trackActiveCall)
         val ext = if (mime.contains("jpeg") || mime.contains("jpg")) "jpg" else "png"
         val dir = java.io.File(getApplication<Application>().filesDir, "gen").apply { mkdirs() }
         val f = java.io.File(dir, "img-" + System.currentTimeMillis() + "." + ext)
@@ -3742,7 +3892,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val (v, from, to) = parseCurrency(arg) ?: throw IllegalStateException("bad fx request")
         val req = Request.Builder()
             .url("https://api.frankfurter.app/latest?from=$from&to=$to").build()
-        http.newCall(req).execute().use { resp ->
+        http.executeCancellable(req, ::trackActiveCall).use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("fx HTTP " + resp.code)
             val rate = parseFxRate(resp.body?.string().orEmpty(), to)
                 ?: throw IllegalStateException("bad fx data")
@@ -3755,7 +3905,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         val url = if (city.isBlank()) "https://wttr.in/?format=j1"
         else "https://wttr.in/" + Uri.encode(city) + "?format=j1"
         val req = Request.Builder().url(url).header("User-Agent", "curl/8.0").build()
-        http.newCall(req).execute().use { resp ->
+        http.executeCancellable(req, ::trackActiveCall).use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("weather HTTP " + resp.code)
             val w = parseWttr(resp.body?.string().orEmpty())
                 ?: throw IllegalStateException("bad weather data")
@@ -4330,11 +4480,11 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     private var repoCacheAt = 0L
     private var repoCache: List<RepoInfo> = emptyList()
 
-    private suspend fun resolveGithubRepo(token: String, query: String): String? {
+    private suspend fun resolveGithubRepo(token: String, query: String, onCallCreated: ((Call) -> Unit)? = null): String? {
         if ("/" in query) return query
         val now = System.currentTimeMillis()
         if (now - repoCacheAt > 10 * 60 * 1000 || repoCache.isEmpty()) {
-            repoCache = GithubApi.listRepos(token)
+            repoCache = GithubApi.listRepos(token, onCallCreated)
             repoCacheAt = now
         }
         return resolveMatch(repoCache.map { it.full }, query)
@@ -4346,36 +4496,39 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         return try {
             when (hit.tool) {
                 "github_repos" -> {
-                    repoCache = GithubApi.listRepos(tok)
+                    repoCache = GithubApi.listRepos(tok, ::trackActiveCall)
                     repoCacheAt = System.currentTimeMillis()
                     formatRepoList(repoCache)
                 }
                 "github_repo" -> {
-                    val full = resolveGithubRepo(tok, hit.arg)
+                    val full = resolveGithubRepo(tok, hit.arg, ::trackActiveCall)
                         ?: return "I couldn't find a repo matching '${hit.arg}'. Say 'my repos' to see them."
-                    formatRepoBrief(GithubApi.repoBrief(tok, full))
+                    formatRepoBrief(GithubApi.repoBrief(tok, full, ::trackActiveCall))
                 }
                 "github_builds" -> {
                     if (hit.arg.isBlank()) return "Which repo? Say 'check builds for ...' or 'my repos' first."
-                    val full = resolveGithubRepo(tok, hit.arg)
+                    val full = resolveGithubRepo(tok, hit.arg, ::trackActiveCall)
                         ?: return "I couldn't find a repo matching '${hit.arg}'. Say 'my repos' to see them."
-                    formatRuns(full, GithubApi.runs(tok, full))
+                    formatRuns(full, GithubApi.runs(tok, full, ::trackActiveCall))
                 }
                 "github_issues" -> {
-                    val full = resolveGithubRepo(tok, hit.arg)
+                    val full = resolveGithubRepo(tok, hit.arg, ::trackActiveCall)
                         ?: return "I couldn't find a repo matching '${hit.arg}'. Say 'my repos' to see them."
-                    formatIssues(full, GithubApi.issues(tok, full))
+                    formatIssues(full, GithubApi.issues(tok, full, ::trackActiveCall))
                 }
                 "github_read" -> {
                     val q = hit.arg.substringAfter("|")
-                    val full = resolveGithubRepo(tok, q)
+                    val full = resolveGithubRepo(tok, q, ::trackActiveCall)
                         ?: return "I couldn't find a repo matching '$q'. Say 'my repos' to see them."
-                    val (text, trunc) = GithubApi.fileText(tok, full, hit.arg.substringBefore("|"))
+                    val (text, trunc) = GithubApi.fileText(tok, full, hit.arg.substringBefore("|"), ::trackActiveCall)
                     formatFile(full, hit.arg.substringBefore("|"), text, trunc)
                 }
                 else -> "?"
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            coroutineContext.ensureActive()
             val m = e.message.orEmpty()
             when {
                 m.contains("401") -> "GitHub rejected the token \u2014 check it in Settings."

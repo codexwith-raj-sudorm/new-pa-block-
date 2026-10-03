@@ -40,9 +40,37 @@ fun visionPromptFor(question: String): String {
         "Describe what's on this phone screenshot in 2-3 short sentences. Lead with the app or content, then key details."
 }
 
+/** True for packages where screenshot-to-remote-AI should be refused. Pure, tested. */
+fun screenVisionPackageBlocked(pkg: String?): Boolean {
+    val p = pkg?.trim()?.lowercase().orEmpty()
+    if (p.isBlank()) return false
+    val exact = setOf(
+        "com.google.android.apps.authenticator2",
+        "com.azure.authenticator",
+        "com.authy.authy",
+        "com.onepassword.android",
+        "com.agilebits.onepassword",
+        "com.lastpass.lpandroid",
+        "com.dashlane",
+        "com.x8bit.bitwarden",
+        "net.one97.paytm",
+        "com.phonepe.app",
+        "com.google.android.apps.nbu.paisa.user",
+        "com.google.android.apps.walletnfcrel",
+        "in.org.npci.upiapp",
+        "com.mobikwik_new",
+        "com.dreamplug.androidapp",
+        "com.paypal.android.p2pmobile"
+    )
+    if (p in exact) return true
+    val tokens = listOf("password", "authenticator", "banking", ".bank.", "wallet", ".upi.")
+    return tokens.any { it in p }
+}
+
 /** True when a watch-capture error means stale consent -> re-prompt once. Pure, tested. */
 fun watchErrorNeedsReprompt(err: String): Boolean {
     val e = err.lowercase()
+    if ("protected" in e || "blank" in e) return false
     return "consent" in e || "projection" in e || "permission" in e || "security" in e
 }
 
@@ -109,27 +137,47 @@ class ScreenshotService : Service() {
             try {
                 if (code == 0 || data == null) throw IllegalStateException("no consent — approve the prompt")
                 val bmp = grabFrame(code, data)
-                if (mode == "watch") {
-                    val small = scaleDown(bmp, 768)
-                    val f = File(cacheDir, "watch.jpg")
-                    FileOutputStream(f).use { small.compress(Bitmap.CompressFormat.JPEG, 82, it) }
-                    receiver?.send(0, Bundle().apply { putString("path", f.absolutePath) })
-                } else {
-                    val f = File(cacheDir, "shot-" + System.currentTimeMillis() + ".png")
-                    FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                    val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
-                    val share = Intent(Intent.ACTION_SEND).setType("image/png")
-                        .putExtra(Intent.EXTRA_STREAM, uri)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    startActivity(Intent.createChooser(share, "Share screenshot"))
+                try {
+                    if (looksBlankOrProtected(bmp)) {
+                        throw IllegalStateException("screen is blank or protected by Android security controls")
+                    }
+                    if (mode == "watch") {
+                        val small = scaleDown(bmp, 768)
+                        try {
+                            val f = File(cacheDir, "watch.jpg")
+                            FileOutputStream(f).use { small.compress(Bitmap.CompressFormat.JPEG, 82, it) }
+                            receiver?.send(0, Bundle().apply { putString("path", f.absolutePath) })
+                        } finally {
+                            if (small !== bmp) small.recycle()
+                        }
+                    } else {
+                        val f = File(cacheDir, "shot-" + System.currentTimeMillis() + ".png")
+                        FileOutputStream(f).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+                        val share = Intent(Intent.ACTION_SEND).setType("image/png")
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(Intent.createChooser(share, "Share screenshot"))
+                    }
+                } finally {
+                    bmp.recycle()
                 }
             } catch (e: Exception) {
                 val msg = e.message ?: "failed"
+                if (watchErrorNeedsReprompt(msg)) {
+                    ScreenConsent.code = 0
+                    ScreenConsent.data = null
+                }
                 if (mode == "watch") {
                     receiver?.send(1, Bundle().apply { putString("error", msg) })
                 } else {
                     Handler(mainLooper).post {
-                        Toast.makeText(this, "Screenshot failed", Toast.LENGTH_SHORT).show()
+                        val text = if (msg.contains("protected", ignoreCase = true) || msg.contains("blank", ignoreCase = true)) {
+                            "Protected screen can't be captured"
+                        } else {
+                            "Screenshot failed"
+                        }
+                        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
                     }
                 }
             } finally {
@@ -167,7 +215,9 @@ class ScreenshotService : Service() {
                             w + rowPad / plane.pixelStride, h, Bitmap.Config.ARGB_8888
                         )
                         full.copyPixelsFromBuffer(plane.buffer)
-                        bmp = Bitmap.createBitmap(full, 0, 0, w, h)
+                        val cropped = Bitmap.createBitmap(full, 0, 0, w, h)
+                        if (cropped !== full) full.recycle()
+                        bmp = cropped
                     } finally {
                         img.close()
                     }
@@ -188,6 +238,37 @@ class ScreenshotService : Service() {
             } catch (_: Exception) {
             }
         }
+    }
+
+    /** FLAG_SECURE/protected windows commonly mirror as an all-black buffer. */
+    private fun looksBlankOrProtected(b: Bitmap): Boolean {
+        val w = b.width
+        val h = b.height
+        if (w <= 0 || h <= 0) return true
+        val stepX = maxOf(1, w / 32)
+        val stepY = maxOf(1, h / 32)
+        var samples = 0
+        var nearBlack = 0
+        var lumaSum = 0L
+        var y = stepY / 2
+        while (y < h) {
+            var x = stepX / 2
+            while (x < w) {
+                val c = b.getPixel(x, y)
+                val r = (c shr 16) and 0xff
+                val g = (c shr 8) and 0xff
+                val blue = c and 0xff
+                val luma = (r * 299 + g * 587 + blue * 114) / 1000
+                if (luma <= 6) nearBlack++
+                lumaSum += luma.toLong()
+                samples++
+                x += stepX
+            }
+            y += stepY
+        }
+        if (samples == 0) return true
+        val avgLuma = lumaSum / samples
+        return nearBlack * 1000 >= samples * 985 && avgLuma <= 8
     }
 
     private fun scaleDown(b: Bitmap, maxDim: Int): Bitmap {

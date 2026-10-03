@@ -53,6 +53,12 @@ class JarvisAccessService : AccessibilityService() {
 object AccessBridge {
     var bound: JarvisAccessService? = null
 
+    fun activePackage(): String? = try {
+        bound?.rootInActiveWindow?.packageName?.toString()
+    } catch (_: Exception) {
+        null
+    }
+
     fun read(): String? {
         val root = try {
             bound?.rootInActiveWindow

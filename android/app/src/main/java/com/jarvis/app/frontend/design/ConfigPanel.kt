@@ -85,18 +85,17 @@ fun configNetLabel(online: Boolean): String = if (online) "Network Secure" else 
 fun masterCardTitle(installed: Boolean): String =
     if (installed) "Master Mode Active" else "Install Master Key"
 
-/** Master gate status: any installed master unlocks the built-in brain. Pure. */
+/** Master gate status. Public/release builds require a user-supplied AI key. Pure. */
 fun masterBrainLine(installed: Boolean, builtin: Boolean, online: Boolean): String = when {
     !installed -> "NO MASTER — paste a Gemini key below"
-    online -> "MASTER MODE — built-in brain unlocked"
+    online -> if (builtin) "MASTER MODE — private/dev brain unlocked" else "MASTER MODE — AI brain online"
     !builtin -> "MASTER MODE — this build has no built-in key; paste yours below"
     else -> "MASTER MODE — reconnecting…"
 }
 
-/** GitHub status badge: explicit status wins, else master-backed token. Pure, tested. */
-fun githubBadge(status: String, masterInstalled: Boolean): String? = when {
+/** GitHub status badge: only explicit token/build status is trusted. Pure, tested. */
+fun githubBadge(status: String, @Suppress("UNUSED_PARAMETER") masterInstalled: Boolean): String? = when {
     status.isNotBlank() -> status
-    masterInstalled -> "✓ Active via Master"
     else -> null
 }
 

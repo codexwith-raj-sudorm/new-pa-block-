@@ -16,6 +16,8 @@ import kotlinx.coroutines.delay
 
 /** Full-screen wake-mode interface: orbiting HUD over the shared ViewModel. */
 class WakeHudActivity : ComponentActivity() {
+    private var openingJarvis = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val vm = sharedJarvisVm(application as Application)
@@ -56,12 +58,24 @@ class WakeHudActivity : ComponentActivity() {
                             Intent(this, MainActivity::class.java)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                         )
+                        openingJarvis = true
                     } catch (_: Exception) {
+                        openingJarvis = false
                     }
                     finish()
                 },
-                onClose = { finish() }
+                onClose = {
+                    vm.abortProcessing()
+                    finish()
+                }
             )
         }
+    }
+
+    override fun onDestroy() {
+        if (!openingJarvis) {
+            sharedJarvisVm(application as Application).abortProcessing()
+        }
+        super.onDestroy()
     }
 }

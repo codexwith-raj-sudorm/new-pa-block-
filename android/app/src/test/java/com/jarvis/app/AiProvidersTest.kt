@@ -3,7 +3,9 @@ package com.jarvis.app
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.jarvis.app.backend.ai.isLocalOrPrivateHost
 import com.jarvis.app.backend.ai.jsonEscape
+import com.jarvis.app.backend.ai.openAiBaseValidationError
 import com.jarvis.app.backend.ai.openAiChatBody
 import com.jarvis.app.backend.ai.openAiEndpoint
 
@@ -28,6 +30,17 @@ class AiProvidersTest {
             "https://api.groq.com/openai/v1/chat/completions",
             openAiEndpoint("https://api.groq.com/openai/v1/chat/completions")
         )
+    }
+
+    @Test fun endpointValidationBlocksLocalReleaseTargets() {
+        assertEquals(null, openAiBaseValidationError(""))
+        assertEquals(null, openAiBaseValidationError("https://api.groq.com/openai/v1"))
+        assertTrue(isLocalOrPrivateHost("localhost"))
+        assertTrue(isLocalOrPrivateHost("127.0.0.1"))
+        assertTrue(isLocalOrPrivateHost("192.168.1.5"))
+        assertTrue(openAiBaseValidationError("http://localhost:11434/v1")!!.contains("https"))
+        assertTrue(openAiBaseValidationError("https://127.0.0.1:11434/v1")!!.contains("Local/private"))
+        assertEquals(null, openAiBaseValidationError("http://localhost:11434/v1", allowLocal = true))
     }
 
     @Test fun escapeHandlesQuotesAndNewlines() {

@@ -12,7 +12,11 @@ val CHANGELOG = listOf(
         72, "6.21", listOf(
             "Zero-API media router: 'play X' opens your music or YouTube app directly",
             "First-time app chooser with remember; System default anytime",
-            "Spoken handoff plus web fallback when no app can play it"
+            "Spoken handoff plus web fallback when no app can play it",
+            "Overlay dismiss now cancels active AI/network work",
+            "Public release builds are BYOK with R8 shrink/obfuscation enabled",
+            "Screen vision shows a privacy notice and refuses protected/sensitive frames",
+            "Other-AI endpoint validation blocks local/private targets in release builds"
         )
     ),
     ChangelogEntry(
@@ -63,7 +67,7 @@ val CHANGELOG = listOf(
     ChangelogEntry(
         64, "6.13", listOf(
             "Jarvis addresses you as sir",
-            "Any master key unlocks the built-in brain and repo access"
+            "Private/dev master unlocks the optional built-in brain and repo access"
         )
     ),
     ChangelogEntry(
@@ -77,7 +81,7 @@ val CHANGELOG = listOf(
             "Floating dynamic island title, chats dim around it and the dialogue",
             "Idle bubble always docks after 45s (stuck voice flags can't block it)",
             "Master identity restores itself after reinstall (no re-typing)",
-            "Baked master key revocable without typing it",
+            "Private/dev master key revocable without typing it",
             "CI toolchain: Gradle 8.14.5, pinned Ubuntu 24.04"
         )
     ),
@@ -116,7 +120,7 @@ val CHANGELOG = listOf(
             "Chat area strictly bounded — bottom bar always visible",
             "Flashlight control removed (no hardware toggles)",
             "Voice warnings auto-dismiss after 4 seconds",
-            "Baked keys activate on owner-grade master only",
+            "Private/dev keys activate on owner-grade master only",
             "API keys + master key move to encrypted storage"
         )
     ),
@@ -187,7 +191,7 @@ val CHANGELOG = listOf(
     ChangelogEntry(
         48, "5.7", listOf(
             "GitHub by voice: repos, status, builds, issues, read files",
-            "Baked keys auto-activate with the Master Key — zero typing",
+            "Private/dev keys auto-activate with the Master Key — zero typing",
             "Master Key stamps Raj identity and re-hides after install",
             "Typed questions stay silent; settings features are voice tools"
         )
@@ -273,14 +277,14 @@ val CHANGELOG = listOf(
     ),
     ChangelogEntry(
         36, "4.5", listOf(
-            "Master Raj Thakur baked into the code — recognized on every device",
+            "Owner Raj Thakur identity metadata in app; secrets stay outside source",
             "First wake each morning/afternoon/evening greets “Master Raj”"
         )
     ),
     ChangelogEntry(
         35, "4.4", listOf(
             "Master Card: share your identity to other devices, import by paste",
-            "Baked-in master: APKs built with MASTER_IDENTITY recognize you instantly"
+            "Private/dev master: builds with MASTER_IDENTITY recognize you instantly"
         )
     ),
     ChangelogEntry(

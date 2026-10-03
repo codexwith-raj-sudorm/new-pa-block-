@@ -3,8 +3,10 @@ package com.jarvis.app.backend.net
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
+import com.jarvis.app.backend.ai.executeCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -105,22 +107,22 @@ data class IssueBrief(val num: Int, val title: String)
 object GithubApi {
     private val client by lazy { OkHttpClient.Builder().callTimeout(20, TimeUnit.SECONDS).build() }
 
-    private suspend fun getRaw(token: String, path: String): String = withContext(Dispatchers.IO) {
+    private suspend fun getRaw(token: String, path: String, onCallCreated: ((Call) -> Unit)? = null): String = withContext(Dispatchers.IO) {
         val req = Request.Builder()
             .url("https://api.github.com$path")
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()
-        client.newCall(req).execute().use { resp ->
+        client.executeCancellable(req, onCallCreated).use { resp ->
             val body = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
             body
         }
     }
 
-    suspend fun listRepos(token: String): List<RepoInfo> {
-        val arr = JSONArray(getRaw(token, "/user/repos?per_page=100&sort=pushed"))
+    suspend fun listRepos(token: String, onCallCreated: ((Call) -> Unit)? = null): List<RepoInfo> {
+        val arr = JSONArray(getRaw(token, "/user/repos?per_page=100&sort=pushed", onCallCreated))
         return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             RepoInfo(
@@ -131,8 +133,8 @@ object GithubApi {
         }
     }
 
-    suspend fun repoBrief(token: String, full: String): RepoBrief {
-        val o = JSONObject(getRaw(token, "/repos/$full"))
+    suspend fun repoBrief(token: String, full: String, onCallCreated: ((Call) -> Unit)? = null): RepoBrief {
+        val o = JSONObject(getRaw(token, "/repos/$full", onCallCreated))
         return RepoBrief(
             o.optString("full_name"), o.optString("description"),
             o.optInt("stargazers_count"), o.optInt("forks_count"),
@@ -141,8 +143,8 @@ object GithubApi {
         )
     }
 
-    suspend fun runs(token: String, full: String): List<RunBrief> {
-        val arr = JSONObject(getRaw(token, "/repos/$full/actions/runs?per_page=3"))
+    suspend fun runs(token: String, full: String, onCallCreated: ((Call) -> Unit)? = null): List<RunBrief> {
+        val arr = JSONObject(getRaw(token, "/repos/$full/actions/runs?per_page=3", onCallCreated))
             .optJSONArray("workflow_runs") ?: return emptyList()
         return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
@@ -154,8 +156,8 @@ object GithubApi {
         }
     }
 
-    suspend fun issues(token: String, full: String): List<IssueBrief> {
-        val arr = JSONArray(getRaw(token, "/repos/$full/issues?state=open&per_page=5"))
+    suspend fun issues(token: String, full: String, onCallCreated: ((Call) -> Unit)? = null): List<IssueBrief> {
+        val arr = JSONArray(getRaw(token, "/repos/$full/issues?state=open&per_page=5", onCallCreated))
         return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             val pr = if (o.has("pull_request")) " [PR]" else ""
@@ -164,9 +166,9 @@ object GithubApi {
     }
 
     /** Returns (text, truncated). Throws on dirs, huge blobs, missing files. */
-    suspend fun fileText(token: String, full: String, path: String): Pair<String, Boolean> {
+    suspend fun fileText(token: String, full: String, path: String, onCallCreated: ((Call) -> Unit)? = null): Pair<String, Boolean> {
         val safe = path.replace(" ", "%20")
-        val o = JSONObject(getRaw(token, "/repos/$full/contents/$safe"))
+        val o = JSONObject(getRaw(token, "/repos/$full/contents/$safe", onCallCreated))
         if (o.optString("type") != "file") throw IllegalStateException("not a file")
         if (o.optLong("size") > 60000) throw IllegalStateException("too large")
         val raw = o.optString("content").replace("\\s".toRegex(), "")

@@ -9,23 +9,28 @@ android {
     namespace 'com.jarvis.app'
     compileSdk 34
 
+    def obfuscatedEnv = { String name ->
+        def raw = System.getenv(name) ?: ''
+        raw ? java.util.Base64.getEncoder().encodeToString(raw.reverse().bytes) : ''
+    }
+    def base64Env = { String name ->
+        def raw = System.getenv(name) ?: ''
+        raw ? java.util.Base64.getEncoder().encodeToString(raw.bytes) : ''
+    }
+    def quoted = { String value -> "\"${value}\"" }
+
     defaultConfig {
         applicationId 'com.jarvis.app'
         minSdk 26
         targetSdk 34
         versionCode 72
         versionName '6.21'
-        // Built-in default key from CI secret (empty when the secret is unset).
-        // Lightly obfuscated (reversed Base64) so the plain key isn't greppable in the APK.
-        def _rawKey = System.getenv('GEMINI_API_KEY') ?: ''
-        def _obfKey = _rawKey ? java.util.Base64.getEncoder().encodeToString(_rawKey.reverse().bytes) : ''
-        buildConfigField 'String', 'DEFAULT_GEMINI_KEY', "\"${_obfKey}\""
-        def _rawMaster = System.getenv('MASTER_IDENTITY') ?: ''
-        def _b64Master = _rawMaster ? java.util.Base64.getEncoder().encodeToString(_rawMaster.bytes) : ''
-        buildConfigField 'String', 'DEFAULT_MASTER', "\"${_b64Master}\""
-        def _rawGh = System.getenv('GH_READ_TOKEN') ?: ''
-        def _obfGh = _rawGh ? java.util.Base64.getEncoder().encodeToString(_rawGh.reverse().bytes) : ''
-        buildConfigField 'String', 'DEFAULT_GITHUB_TOKEN', "\"${_obfGh}\""
+        // Public-safe defaults. Optional owner secrets are injected only into
+        // debug/private builds below; release builds intentionally stay empty.
+        buildConfigField 'String', 'DEFAULT_GEMINI_KEY', quoted('')
+        buildConfigField 'String', 'DEFAULT_MASTER', quoted('')
+        buildConfigField 'String', 'DEFAULT_MASTER_KEY', quoted('')
+        buildConfigField 'String', 'DEFAULT_GITHUB_TOKEN', quoted('')
     }
 
     signingConfigs {
@@ -39,9 +44,23 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Private/dev convenience only. Never relied upon by public release APKs.
+            buildConfigField 'String', 'DEFAULT_GEMINI_KEY', quoted(obfuscatedEnv('GEMINI_API_KEY'))
+            buildConfigField 'String', 'DEFAULT_MASTER', quoted(base64Env('MASTER_IDENTITY'))
+            buildConfigField 'String', 'DEFAULT_MASTER_KEY', quoted(obfuscatedEnv('MASTER_KEY'))
+            buildConfigField 'String', 'DEFAULT_GITHUB_TOKEN', quoted(obfuscatedEnv('GH_READ_TOKEN'))
+        }
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Explicitly keep public/release artifacts free of built-in owner secrets.
+            buildConfigField 'String', 'DEFAULT_GEMINI_KEY', quoted('')
+            buildConfigField 'String', 'DEFAULT_MASTER', quoted('')
+            buildConfigField 'String', 'DEFAULT_MASTER_KEY', quoted('')
+            buildConfigField 'String', 'DEFAULT_GITHUB_TOKEN', quoted('')
         }
     }
     compileOptions {
