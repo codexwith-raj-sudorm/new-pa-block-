@@ -85,14 +85,14 @@ fun configNetLabel(online: Boolean): String = if (online) "Network Secure" else 
 
 /** Security card title by install state. Pure, tested. */
 fun masterCardTitle(installed: Boolean): String =
-    if (installed) "Master Mode Active" else "Install Master Key"
+    if (installed) "Admin Mode Active" else "Private Admin"
 
-/** Master gate status. Public/release builds require a user-supplied AI key. Pure. */
-fun masterBrainLine(installed: Boolean, builtin: Boolean, online: Boolean): String = when {
-    !installed -> "NO MASTER — paste a Gemini key below"
-    online -> if (builtin) "MASTER MODE — private/dev brain unlocked" else "MASTER MODE — AI brain online"
-    !builtin -> "MASTER MODE — this build has no built-in key; paste yours below"
-    else -> "MASTER MODE — reconnecting…"
+/** Private brain status. Built-in local.properties keys are preferred. Pure. */
+fun masterBrainLine(@Suppress("UNUSED_PARAMETER") installed: Boolean, builtin: Boolean, online: Boolean): String = when {
+    online && builtin -> "PRIVATE BRAIN — built-in key active"
+    online -> "PRIVATE BRAIN — custom key active"
+    builtin -> "PRIVATE BRAIN — reconnecting…"
+    else -> "PRIVATE BRAIN — add GEMINI_API_KEY to local.properties"
 }
 
 /** GitHub status badge: only explicit token/build status is trusted. Pure, tested. */
@@ -450,7 +450,7 @@ fun ConfigPanel(vm: JarvisViewModel) {
                             ConfigInput(key, { key = it.trim() }, "Paste your key (AIza...)", password = true)
                             if (!vm.builtinKeyPresent && vm.apiKey.isBlank()) {
                                 Text(
-                                    "No built-in key in this build — paste yours (free from aistudio.google.com).",
+                                    "No built-in key found — add GEMINI_API_KEY to local.properties or paste one here.",
                                     color = Color(0xFFF59E0B), fontSize = 10.sp
                                 )
                             }

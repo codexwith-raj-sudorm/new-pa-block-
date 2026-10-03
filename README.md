@@ -28,24 +28,26 @@ Full list: [FEATURES.md](FEATURES.md) · in-app history: Settings → updates ·
 1. Open this repo on GitHub → **Actions** tab → latest green `android` run
 2. Download **jarvis-apk** under Artifacts (it's a `.zip` — unzip it)
 3. Open the `.apk` → **Install** (allow “install unknown apps” if asked)
-4. Open **Jarvis** and chat! 🎉 Paste your own free key from `aistudio.google.com` in ⚙️ Settings (public/release APKs do not activate baked owner keys).
+4. Open **Jarvis** and chat! 🎉 Private builds can start online immediately when local/CI secrets are configured.
 
 Every push to this branch rebuilds the APK automatically. Updates install in place — chats, keys and permissions stay.
 
-## AI key policy
+## Private build keys
 
-Public/release APKs are BYOK: they ship with empty built-in Gemini/GitHub/Master secrets, so each user pastes their own free key from `aistudio.google.com` in ⚙️ Settings.
+This branch is optimized for a personal APK. Put secrets in untracked `local.properties` (or CI environment secrets) and Gradle injects them into `BuildConfig` for both debug and release builds:
 
-Private/dev builds can still inject convenience keys from local/CI environment variables (`GEMINI_API_KEY`, `GH_READ_TOKEN`, `MASTER_IDENTITY`, `MASTER_KEY`). Those keys are lightly obfuscated, not encrypted, and are never a public-distribution security boundary.
+```properties
+GEMINI_API_KEY="AIza..."
+GH_READ_TOKEN="ghp_..."
+MASTER_IDENTITY='{"k":"optional-key","n":"Raj","a":"West Bengal, India"}'
+MASTER_KEY="optional-key"
+```
 
-⚠️ If you make a private build with injected keys, restrict them by API/scope, keep that APK private, and rotate immediately if it leaks.
+User-entered keys in Settings still override the built-in private defaults. Keep APKs with injected keys on owned devices only, restrict token/API scopes, and rotate if a private APK leaks.
 
-## Master identity on every device (no retyping)
+## Private identity
 
-Two ways — pick either:
-- **Master Card (easiest):** on your main phone go to ⚙️ → Master Key → **Share master card** → send it to your other device → on the other device paste it into **Import**. Done — Master recognized, zero typing.
-- **Private/dev baked-in (zero-touch):** set `MASTER_IDENTITY`/`MASTER_KEY` in your private build environment → rebuild a debug/private APK → every install from that private APK recognizes you automatically.
-- Same warning as API keys: anyone holding the card or private APK can read the owner secret — keep both private.
+Entering **Raj** in onboarding resolves the local role as **Admin** across the hero card and profile hub. The old Master Key panel is intentionally hidden from the user-facing Settings UI to keep the personal build clean.
 
 ## Project layout
 

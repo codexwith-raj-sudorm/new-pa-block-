@@ -17,16 +17,16 @@ class ConfigPanelTest {
 
     @Test
     fun cardTitleReflectsInstall() {
-        assertEquals("Master Mode Active", masterCardTitle(true))
-        assertEquals("Install Master Key", masterCardTitle(false))
+        assertEquals("Admin Mode Active", masterCardTitle(true))
+        assertEquals("Private Admin", masterCardTitle(false))
     }
 
     @Test
-    fun masterBrainLineSeparatesByokFromPrivateBuiltIn() {
-        assertEquals("NO MASTER — paste a Gemini key below", masterBrainLine(false, builtin = false, online = false))
-        assertEquals("MASTER MODE — this build has no built-in key; paste yours below", masterBrainLine(true, builtin = false, online = false))
-        assertEquals("MASTER MODE — AI brain online", masterBrainLine(true, builtin = false, online = true))
-        assertEquals("MASTER MODE — private/dev brain unlocked", masterBrainLine(true, builtin = true, online = true))
+    fun masterBrainLineShowsPrivateKeyState() {
+        assertEquals("PRIVATE BRAIN — add GEMINI_API_KEY to local.properties", masterBrainLine(false, builtin = false, online = false))
+        assertEquals("PRIVATE BRAIN — add GEMINI_API_KEY to local.properties", masterBrainLine(true, builtin = false, online = false))
+        assertEquals("PRIVATE BRAIN — custom key active", masterBrainLine(true, builtin = false, online = true))
+        assertEquals("PRIVATE BRAIN — built-in key active", masterBrainLine(true, builtin = true, online = true))
     }
 
     @Test

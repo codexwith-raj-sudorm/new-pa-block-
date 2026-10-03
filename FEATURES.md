@@ -5,7 +5,7 @@
 > Everything below runs on-device except Gemini cloud calls for chat.
 
 ## 1. Core AI Chat
-- Chat with Google Gemini (free AI Studio key; public/release APKs are BYOK)
+- Chat with Google Gemini (private builds can inject a built-in key from `local.properties`)
 - Multi-model with automatic fallback on quota errors
 - Multiple chats: create, rename, search, per-chat delete (tap-again to confirm), clear-all
 - Code blocks render as terminal panels with Copy + Share (shares with language fence)
@@ -27,12 +27,11 @@
 - "Yes sir?" reply; once-per-day-part greeting (Good morning/afternoon/evening, Master Raj)
 - Quick Settings tile to toggle wake; reactor widget tap to arm/disarm or interrupt speech
 
-## 4. Master Key System
-- Install a master key → Jarvis recognizes you as Master (identity injected into replies, tickers, greetings)
-- Private/dev owner identity via `MASTER_IDENTITY`/`MASTER_KEY` environment secrets — never committed, release builds empty
-- Shareable Master Card — import on any device, zero typing
-- Master section hidden in Settings — **tap the "System Config" title 5× to unlock**
-- Master voice guard + 3-sample voiceprint enrollment — strangers are ignored on locked commands
+## 4. Private Identity
+- Entering **Raj** in onboarding resolves local clearance as Admin
+- Optional built-in Gemini/GitHub keys load from untracked `local.properties` or CI secrets
+- Master Key controls remain in backend for compatibility, but the user-facing Settings panel is hidden
+- Master voice guard + 3-sample voiceprint enrollment remain available for locked voice commands
 
 ## 5. Memory
 - "Remember that …" / "recall …" voice + text commands

@@ -11,6 +11,7 @@ import com.jarvis.app.backend.data.wakeBucket
 import com.jarvis.app.backend.data.wakeGreet
 import com.jarvis.app.backend.data.wakeGreetStamp
 import com.jarvis.app.frontend.design.clearanceLabel
+import com.jarvis.app.frontend.design.resolveUserRole
 
 class MasterTest {
     @Test fun identityNamesMaster() {
@@ -78,5 +79,11 @@ class MasterTest {
         assertEquals("ADMIN", clearanceLabel(true, false))
         assertEquals("GUEST", clearanceLabel(false, false))
         assertEquals("GUEST", clearanceLabel(false, true))
+    }
+
+    @Test fun rajResolvesAsAdmin() {
+        assertEquals("Admin", resolveUserRole("Raj"))
+        assertEquals("Admin", resolveUserRole(" raj "))
+        assertEquals("User", resolveUserRole("Alex"))
     }
 }

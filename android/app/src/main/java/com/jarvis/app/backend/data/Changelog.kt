@@ -14,9 +14,9 @@ val CHANGELOG = listOf(
             "First-time app chooser with remember; System default anytime",
             "Spoken handoff plus web fallback when no app can play it",
             "Overlay dismiss now cancels active AI/network work",
-            "Public release builds are BYOK with R8 shrink/obfuscation enabled",
+            "Private builds load built-in Gemini/GitHub keys from local.properties or CI secrets",
             "Screen vision shows a privacy notice and refuses protected/sensitive frames",
-            "Other-AI endpoint validation blocks local/private targets in release builds",
+            "Other-AI endpoint validation keeps release safe while debug can use local Ollama endpoints",
             "Calibration tour now spotlights menu, profile, status and input without skip-tap freeze",
             "Master Key panel is suppressed from the user-facing settings/profile UI"
         )

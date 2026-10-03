@@ -16,7 +16,6 @@ import com.jarvis.app.frontend.design.JarvisHeader
 import com.jarvis.app.frontend.design.MediaChooserDialog
 import com.jarvis.app.frontend.design.NavDrawerContent
 import com.jarvis.app.frontend.design.ProfileHubOverlay
-import com.jarvis.app.frontend.design.clearanceLabel
 import com.jarvis.app.frontend.design.JarvisGlassDialog
 import com.jarvis.app.frontend.design.JarvisGlassFill
 import com.jarvis.app.frontend.design.JarvisGlassEdge
@@ -27,6 +26,7 @@ import com.jarvis.app.frontend.design.PremiumNeon
 import com.jarvis.app.frontend.design.SwirlCore
 import com.jarvis.app.frontend.design.avatarLetter
 import com.jarvis.app.frontend.design.modelShortName
+import com.jarvis.app.frontend.design.resolveUserRole
 import com.jarvis.app.frontend.design.premiumGlass
 import com.jarvis.app.frontend.design.premiumHeroVisible
 import com.jarvis.app.frontend.widgets.StarkWidgetProvider
@@ -498,6 +498,8 @@ fun JarvisScreen() {
 
     val bgLvl by BubbleLevelBus.level.collectAsState()
     val hudUi by HudStateBus.state.collectAsState()
+    val identityName = vm.masterName.ifBlank { vm.userName }.ifBlank { "Raj" }
+    val identityRole = resolveUserRole(identityName)
     PremiumBackdrop(bgLvl) {
     // System Calibration overlay needs window-space target rects.
     var calibParent by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -527,7 +529,9 @@ fun JarvisScreen() {
                 onMemory = { vm.showMemory = true },
                 onList = { vm.showList = true },
                 onToggleTts = vm::toggleTts,
-                onToggleWake = { onWakeTap() }
+                onToggleWake = { onWakeTap() },
+                name = identityName,
+                role = identityRole
             )
         },
         drawerState = drawerState,
@@ -609,18 +613,18 @@ fun JarvisScreen() {
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                avatarLetter(vm.masterName.ifBlank { "Master" }),
+                                avatarLetter(identityName),
                                 color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.SemiBold
                             )
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                vm.masterName.ifBlank { "Master" },
+                                identityName,
                                 color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Medium
                             )
                             Text(
-                                if (vm.masterInstalled) "Authorized User" else "Guest",
+                                identityRole,
                                 color = PremiumMuted, fontSize = 11.sp
                             )
                         }
@@ -684,7 +688,7 @@ fun JarvisScreen() {
             online = vm.brainOk,
             wakeOn = vm.wakeOn,
             speaking = hudUi.speaking,
-            avatarLetter = avatarLetter(vm.masterName.ifBlank { "Master" }),
+            avatarLetter = avatarLetter(identityName),
             onMenu = { scope.launch { drawerState.open() } },
             onAvatar = { showHub = true },
             onStatusTap = { if (hudUi.speaking) vm.interruptSpeech() else vm.showChats = true },
@@ -695,8 +699,8 @@ fun JarvisScreen() {
         )
         ProfileHubOverlay(
             show = showHub,
-            name = vm.masterName.ifBlank { "Master" },
-            clearance = clearanceLabel(vm.masterInstalled, vm.isBakedMaster),
+            name = identityName,
+            clearance = identityRole.uppercase(),
             onEditProfile = { showHub = false; vm.showProfile = true },
             onSettings = { showHub = false; vm.openSettings() },
             onDismiss = { showHub = false }
@@ -732,7 +736,7 @@ fun JarvisScreen() {
     if (vm.showMemory) MemoryDialog(vm)
     if (vm.showList) ListDialog(vm)
     if (vm.showOnboard) OnboardDialog(vm, ::onMicTap, { onWakeTap() })
-    else if (vm.showAuthGate) AuthGate(clearanceLabel(vm.masterInstalled, vm.isBakedMaster), vm::completeAuthGate)
+    else if (vm.showAuthGate) AuthGate(identityRole.uppercase(), vm::completeAuthGate)
     else if (vm.showProfile) ProfileDialog(vm)
     else if (vm.showWhatsNew) WhatsNewDialog(vm)
     if (vm.showBriefing) BriefingDialog(vm)

@@ -13,7 +13,7 @@
 
 Jarvis is a native Android assistant that chats with Google Gemini directly from the phone — no server, no hosting, no sleep. It blends a premium green-glass HUD with voice-first interaction: you can type, speak, or say "Hey Jarvis" from any screen and get a warm, witty, helpful reply.
 
-Public/release APKs are BYOK: users paste their own free key from `aistudio.google.com` in Settings. Private/dev builds can inject owner convenience keys from environment secrets, but release builds keep those BuildConfig fields empty.
+This branch targets a personal/private APK: untracked `local.properties` or CI secrets can inject Gemini/GitHub defaults into `BuildConfig` so owned devices work immediately after install. User-entered Settings keys still override built-ins.
 
 ## 2. Target audience
 
@@ -23,7 +23,7 @@ Public/release APKs are BYOK: users paste their own free key from `aistudio.goog
 
 ## 3. Principles & constraints
 
-- **BYOK, no paid SDK in public APKs:** the app never ships a hard-coded paid key in git; public/release builds leave built-in Gemini/GitHub/Master secrets empty. Private/dev convenience keys are obfuscated only and must stay private. User keys always win.
+- **Private key injection, no secrets in git:** real Gemini/OpenAI/GitHub tokens stay out of source. Personal builds read untracked `local.properties` or CI secrets into `BuildConfig`; user keys always win.
 - **On-device first:** chats, memories, lists, reminders live in Room / EncryptedSharedPrefs. Gemini is the only cloud call.
 - **Hardware-safe:** no torch / brightness / Wi-Fi toggles — those requests get an honest refusal, never a hallucinated toggle.
 - **Voice is a feature, not the only UI:** full chat UI exists; voice, wake word, and hands-free are additive.

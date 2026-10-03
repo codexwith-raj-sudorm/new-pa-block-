@@ -60,7 +60,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-/** Clearance label for the identity card. Pure, tested. */
+/** Personal/private role resolver. Pure, tested. */
+fun resolveUserRole(name: String): String =
+    if (name.trim().equals("Raj", ignoreCase = true)) "Admin" else "User"
+
+/** Legacy clearance label for existing master installs. Pure, tested. */
 fun clearanceLabel(masterInstalled: Boolean, baked: Boolean): String = when {
     baked && masterInstalled -> "OWNER"
     masterInstalled -> "ADMIN"
@@ -167,7 +171,9 @@ fun NavDrawerContent(
     onMemory: () -> Unit,
     onList: () -> Unit,
     onToggleTts: () -> Unit,
-    onToggleWake: () -> Unit
+    onToggleWake: () -> Unit,
+    name: String = "Raj",
+    role: String = resolveUserRole(name)
 ) {
     val scope = rememberCoroutineScope()
     fun go(action: () -> Unit) {
@@ -194,7 +200,13 @@ fun NavDrawerContent(
                     fontFamily = FontFamily.Monospace
                 )
             }
-            Spacer(Modifier.height(24.dp))
+            Text(
+                name + " · " + role,
+                color = PremiumNeon,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            Spacer(Modifier.height(20.dp))
             Button(
                 onClick = { go(onNewChat) },
                 modifier = Modifier.fillMaxWidth(),

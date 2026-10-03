@@ -195,7 +195,7 @@ fun WakeHarmonicHud(
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "AUTH: " + vm.masterName.ifBlank { "Master" },
+                        "AUTH: " + vm.masterName.ifBlank { vm.userName }.ifBlank { "Raj" },
                         color = Color(0xFF6B7280), fontSize = 9.sp,
                         fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
                     )

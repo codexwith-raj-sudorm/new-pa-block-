@@ -4,7 +4,7 @@
 
 ## 1. Product integrity
 
-- **BYOK, no paid SDK in git/public APKs:** never commit a real Gemini / OpenAI / GitHub token. Public/release `BuildConfig` secret fields stay empty. Private/dev builds may inject `GEMINI_API_KEY`, `GH_READ_TOKEN`, `MASTER_IDENTITY`, and `MASTER_KEY` from the local/CI environment, lightly obfuscated only — warn in README.
+- **Private keys, no secrets in git:** never commit a real Gemini / OpenAI / GitHub token. Personal builds may inject `GEMINI_API_KEY`, `GH_READ_TOKEN`, `MASTER_IDENTITY`, and `MASTER_KEY` from untracked `local.properties` or CI secrets into `BuildConfig`; keep those APKs private.
 - **Encrypted storage:** user keys + master key live in `EncryptedSharedPreferences` (see `JarvisVault` / `MasterCore`). No plaintext prefs.
 - **Hardware-safe refusals:** never actually toggle torch/brightness/Wi-Fi. Reply honestly that it's unsupported (tested in `DeviceTest` / `StarkLogicTest`).
 - **Sir, always:** when a Master identity is installed, address the owner as "sir" in greetings, tickers, and spoken replies.
@@ -33,7 +33,7 @@
 
 ## 5. Master key discipline
 
-- **Owner identity:** `MASTER_IDENTITY` JSON `{"k":"key","n":"name","a":"about"}` and optional `MASTER_KEY` are private/dev build inputs only. Public/release builds ship empty built-in Gemini/GitHub/Master secrets; users paste their own keys.
+- **Owner identity:** `Raj` resolves as Admin in the personal UI. `MASTER_IDENTITY` JSON `{"k":"key","n":"name","a":"about"}` and optional `MASTER_KEY` remain private build inputs for backend compatibility, but the visible Master Key panel stays hidden.
 - **Cards travel:** `JARVIS-MASTER:` cards import on any device; same leak warning as Gemini keys.
 - **Updates are in-place:** stable signing (`keystore.p12` from `ANDROID_KEYSTORE_B64`) — new APKs must not lose chats/keys/permissions.
 

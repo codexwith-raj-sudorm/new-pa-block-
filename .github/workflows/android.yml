@@ -6,6 +6,11 @@ jobs:
   build:
     # Pinned: ubuntu-latest migrates to Ubuntu 26 (Oct 2026); stay on 24.04 LTS.
     runs-on: ubuntu-24.04
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      MASTER_IDENTITY: ${{ secrets.MASTER_IDENTITY }}
+      MASTER_KEY: ${{ secrets.MASTER_KEY }}
+      GH_READ_TOKEN: ${{ secrets.GH_READ_TOKEN }}
     defaults:
       run:
         working-directory: android

@@ -22,7 +22,6 @@ import com.jarvis.app.backend.ai.EngineVoiceInfo
 import com.jarvis.app.backend.ai.personaForKey
 import com.jarvis.app.backend.ai.resolvePersonaVoices
 import com.jarvis.app.backend.brain.Store
-import com.jarvis.app.backend.brain.unobscureKey
 import com.jarvis.app.frontend.widgets.SpeechState
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -187,9 +186,7 @@ fun resolveProactiveText(appCtx: Context, kind: String, detail: String, arg: Str
     return try {
         val store = Store(appCtx)
         val name = store.masterName.ifBlank { store.userName }.ifBlank { "sir" }
-        val key = store.apiKey.ifBlank {
-            if (BuildConfig.DEBUG && store.masterKey.isNotBlank()) unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY) else ""
-        }
+        val key = store.apiKey.ifBlank { BuildConfig.DEFAULT_GEMINI_KEY.trim() }
         val g = if (key.isNotBlank()) {
             geminiUtterance(key, store.model, proactivePrompt(kind, detail, name))
                 ?.take(280)?.trim()?.takeIf { it.isNotEmpty() }

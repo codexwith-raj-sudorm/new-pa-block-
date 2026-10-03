@@ -164,10 +164,6 @@ class ScreenshotService : Service() {
                 }
             } catch (e: Exception) {
                 val msg = e.message ?: "failed"
-                if (watchErrorNeedsReprompt(msg)) {
-                    ScreenConsent.code = 0
-                    ScreenConsent.data = null
-                }
                 if (mode == "watch") {
                     receiver?.send(1, Bundle().apply { putString("error", msg) })
                 } else {

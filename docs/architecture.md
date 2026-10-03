@@ -374,7 +374,7 @@ Here is the fully engineered, interactive prototype of this new architecture.
                     <i class="fa-solid fa-sliders text-gray-500 w-4"></i> System Settings
                 </button>
                 <button class="flex items-center gap-3 text-gray-300 hover:text-white hover:bg-white/5 text-[13px] font-medium p-3 rounded-lg transition-colors">
-                    <i class="fa-solid fa-key text-gray-500 w-4"></i> Master Lock
+                    <i class="fa-solid fa-brain text-gray-500 w-4"></i> Memories
                 </button>
             </div>
         </div>

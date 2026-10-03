@@ -179,7 +179,6 @@ import com.jarvis.app.backend.system.openAutoStartSettings
 import com.jarvis.app.backend.system.screenVisionPackageBlocked
 import com.jarvis.app.backend.system.sendSmsNow
 import com.jarvis.app.backend.system.visionPromptFor
-import com.jarvis.app.backend.system.watchErrorNeedsReprompt
 import com.jarvis.app.backend.voice.CONVO_MAX_CONSEC_ERRORS
 import com.jarvis.app.backend.voice.VP_ENROLL_MAX_SPREAD
 import com.jarvis.app.backend.voice.VoiceCapture
@@ -1729,6 +1728,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showOnboard by mutableStateOf(!store.onboarded)
     var calibrated by mutableStateOf(store.calibrated)
         private set
+    var userName by mutableStateOf(store.userName)
+        private set
     var showProfile by mutableStateOf(false)
     var showAuthGate by mutableStateOf(!store.profileDone && store.masterKey.isBlank())
     var masterInstalled by mutableStateOf(store.masterKey.isNotBlank())
@@ -1857,29 +1858,26 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         HudStateBus.update(thinking = false, listening = false)
     }
 
-    // Optional owner key, injected only for private/dev builds. It is never used
-    // by release builds; public APKs must use a user-supplied API key.
-    // NOTE: obfuscation, not encryption — anyone decompiling the APK can recover it.
-    private val builtinKey: String = unobscureKey(BuildConfig.DEFAULT_GEMINI_KEY)
-    private val builtinMasterKey: String = unobscureKey(BuildConfig.DEFAULT_MASTER_KEY)
-    /** False when no private/dev Gemini key is injected, or for release builds. */
-    val builtinKeyPresent: Boolean get() = BuildConfig.DEBUG && builtinKey.isNotBlank()
+    // Personal/private built-in key from local.properties or CI secrets.
+    // NOTE: BuildConfig strings are recoverable from an APK; keep private APKs on owned devices only.
+    private val builtinKey: String = BuildConfig.DEFAULT_GEMINI_KEY.trim()
+    private val builtinMasterKey: String = BuildConfig.DEFAULT_MASTER_KEY.trim()
+    /** True when local.properties/CI supplied the private Gemini key. */
+    val builtinKeyPresent: Boolean get() = builtinKey.isNotBlank()
 
-    /** User's own key if pasted, else the private/dev built-in key once Master is installed. */
-    private val effectiveKey: String get() = apiKey.ifBlank { if (BuildConfig.DEBUG && masterInstalled) builtinKey else "" }
+    /** User's own key if pasted, else the private built-in key. */
+    private val effectiveKey: String get() = apiKey.ifBlank { builtinKey }
 
-    // Optional owner GitHub token, injected only for private/dev builds (same obfuscation).
-    private val builtinGh: String = unobscureKey(BuildConfig.DEFAULT_GITHUB_TOKEN)
+    // Optional owner GitHub token from local.properties/CI.
+    private val builtinGh: String = BuildConfig.DEFAULT_GITHUB_TOKEN.trim()
 
-    /** Pasted token first, else the private/dev baked token once the Master Key is installed. */
+    /** Pasted token first, else the private built-in token. */
     val effectiveGithubToken: String
-        get() = githubToken.ifBlank { if (BuildConfig.DEBUG && masterInstalled) builtinGh else "" }
+        get() = githubToken.ifBlank { builtinGh }
 
     fun githubStatus(): String = when {
         githubToken.isNotBlank() -> "✓ Custom token active"
-        BuildConfig.DEBUG && builtinGh.isNotBlank() && masterInstalled -> "✓ Repo access active via Master Key"
-        BuildConfig.DEBUG && builtinGh.isNotBlank() -> "Install Master Key to activate repo access"
-        !BuildConfig.DEBUG && builtinGh.isNotBlank() -> "Built-in repo access disabled in release builds"
+        builtinGh.isNotBlank() -> "✓ Built-in private token active"
         else -> ""
     }
 
@@ -2049,7 +2047,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun saveProfile(name: String, about: String) {
-        store.userName = name.trim().take(40)
+        userName = name.trim().take(40)
+        store.userName = userName
         store.userAbout = about.trim().take(200)
         store.profileDone = true
         showProfile = false
@@ -2064,7 +2063,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** §10 gate completion: stamp the local identity and enter. */
     fun completeAuthGate(name: String) {
-        store.userName = name.take(40)
+        userName = name.trim().take(40)
+        store.userName = userName
         store.profileDone = true
         showAuthGate = false
         showProfile = false
@@ -2380,12 +2380,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Capture one JPEG for vision (cached consent, else prompt). Base64 or null. */
     private suspend fun captureScreenForWatch(): String? {
-        var path = awaitWatchCapture()
-        if (path == null && lastWatchUsedCache && lastWatchErr != null && watchErrorNeedsReprompt(lastWatchErr!!)) {
-            ScreenConsent.code = 0
-            ScreenConsent.data = null
-            path = awaitWatchCapture()
-        }
+        val path = awaitWatchCapture()
         if (path == null) return null
         val b64 = withContext(Dispatchers.IO) {
             try {
@@ -3683,8 +3678,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
             return true
         }
         if (!brainOk) {
-            val reply = if (builtinKeyPresent) "🔑 Install your Master Key to unlock the private/dev brain — or add your own Gemini / Other-AI key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
-            else "🔑 I need an AI API key for that (free Gemini key from aistudio.google.com, or any OpenAI-compatible key — add it in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
+            val reply = if (builtinKeyPresent) "🔑 Built-in private key is present, but the brain is offline. Check connectivity or add a custom Gemini / Other-AI key in Settings ⚙️. Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
+            else "🔑 I need an AI API key for that (add GEMINI_API_KEY to local.properties, or paste any Gemini / OpenAI-compatible key in Settings ⚙️). Offline I can still do time, calculations, memory, reminders, device control, todos, and notes."
             messages.add(ChatMessage("bot", reply))
             if (fromVoice) speak(reply, voiceCmd = true)
             persist()
