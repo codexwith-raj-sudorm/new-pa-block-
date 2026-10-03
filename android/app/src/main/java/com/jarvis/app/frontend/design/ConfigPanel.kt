@@ -78,6 +78,8 @@ import com.jarvis.app.backend.system.defaultAssistantSettingsIntent
 import com.jarvis.app.backend.system.isJarvisDefaultAssistant
 import kotlinx.coroutines.delay
 
+private const val SHOW_MASTER_SECTION = false
+
 /** Header network subtitle. Pure, tested. */
 fun configNetLabel(online: Boolean): String = if (online) "Network Secure" else "Offline Mode"
 
@@ -318,7 +320,6 @@ fun MasterClearanceCard(vm: JarvisViewModel) {
 @Composable
 fun ConfigPanel(vm: JarvisViewModel) {
     val setCtx = LocalContext.current
-    var masterTaps by remember { mutableStateOf(0) }
     var key by remember { mutableStateOf(vm.apiKey) }
     var gh by remember { mutableStateOf(vm.githubToken) }
     val models = vm.availableModels.toList().ifEmpty { Models.FALLBACK }
@@ -378,17 +379,7 @@ fun ConfigPanel(vm: JarvisViewModel) {
                         Icon(Icons.Filled.Tune, contentDescription = null, tint = PremiumNeon, modifier = Modifier.size(14.dp))
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column(
-                        Modifier.weight(1f).clickable {
-                            if (!vm.masterUnlocked) {
-                                masterTaps++
-                                if (masterTaps >= 5) {
-                                    vm.setMasterUnlocked()
-                                    Toast.makeText(setCtx, "Master section unlocked", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    ) {
+                    Column(Modifier.weight(1f)) {
                         Text("System Config", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             configNetLabel(vm.brainOk), color = PremiumNeon, fontSize = 9.sp,
@@ -406,7 +397,7 @@ fun ConfigPanel(vm: JarvisViewModel) {
                         .padding(horizontal = 24.dp, vertical = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(32.dp)
                 ) {
-                    if (vm.masterUnlocked) {
+                    if (SHOW_MASTER_SECTION && vm.masterUnlocked) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             ConfigSection("SECURITY CLEARANCE")
                             MasterClearanceCard(vm)

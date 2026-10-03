@@ -512,18 +512,6 @@ fun JarvisScreen() {
     val chatTopPadding = 72.dp + safeTop
     val chatBottomPadding = 132.dp + navBottom
     val heroVisible = premiumHeroVisible(vm.messages.count { it.role == "user" }, vm.busy)
-    // A chat that already has messages has no hero targets - retire silently.
-    if (vm.showCalib && !heroVisible) {
-        LaunchedEffect(Unit) { vm.finishCalibration() }
-    }
-    // The mic step has no target on devices without recognition - skip it.
-    LaunchedEffect(calibStep, vm.showCalib) {
-        if (vm.showCalib && calibStep == 1 && !voiceAvailable(context)) calibStep = 2
-    }
-    // Keep the Execute step on screen on short displays.
-    LaunchedEffect(calibStep, vm.showCalib) {
-        if (vm.showCalib && calibStep == 2) heroScroll.animateScrollTo(heroScroll.maxValue)
-    }
     Box(
         Modifier.fillMaxSize()
             .onGloballyPositioned { calibParent = it }
@@ -596,7 +584,6 @@ fun JarvisScreen() {
             ) {
                 SwirlCore(
                     level = if (vm.listening) 1f else if (hudUi.speaking) 0.6f else 0.2f,
-                    modifier = Modifier.onGloballyPositioned { calibTargets[0] = it },
                     diameter = 148.dp
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -644,7 +631,7 @@ fun JarvisScreen() {
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         HomeTile(Icons.Filled.Shield, vm.masterInstalled, Modifier.weight(1f)) {
-                            vm.setMasterUnlocked(); vm.openSettings()
+                            vm.openSettings()
                         }
                         HomeTile(Icons.Filled.Terminal, false, Modifier.weight(1f)) { vm.showHooks = true }
                         HomeTile(Icons.Filled.FolderOpen, false, Modifier.weight(1f)) { vm.showChats = true }
@@ -660,7 +647,7 @@ fun JarvisScreen() {
                     )
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    NeonPillButton("Execute Script", Modifier.onGloballyPositioned { calibTargets[2] = it }) { vm.showHooks = true }
+                    NeonPillButton("Execute Script") { vm.showHooks = true }
                 }
                 Row(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -701,7 +688,10 @@ fun JarvisScreen() {
             onMenu = { scope.launch { drawerState.open() } },
             onAvatar = { showHub = true },
             onStatusTap = { if (hudUi.speaking) vm.interruptSpeech() else vm.showChats = true },
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp)
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp),
+            onMenuPositioned = { calibTargets[0] = it },
+            onAvatarPositioned = { calibTargets[1] = it },
+            onStatusPositioned = { calibTargets[2] = it }
         )
         ProfileHubOverlay(
             show = showHub,
@@ -709,14 +699,13 @@ fun JarvisScreen() {
             clearance = clearanceLabel(vm.masterInstalled, vm.isBakedMaster),
             onEditProfile = { showHub = false; vm.showProfile = true },
             onSettings = { showHub = false; vm.openSettings() },
-            onMasterLock = { showHub = false; vm.setMasterUnlocked(); vm.openSettings() },
             onDismiss = { showHub = false }
         )
         Box(Modifier.align(Alignment.BottomCenter)) {
             InputRow(
                 onSend = vm::send,
                 onMic = ::onMicTap,
-                onMicPositioned = { calibTargets[1] = it },
+                onDockPositioned = { calibTargets[3] = it },
                 micVisible = voiceAvailable(context),
                 listening = vm.listening,
                 heard = vm.lastHeard,
@@ -726,12 +715,12 @@ fun JarvisScreen() {
         }
     }
     }
-    if (vm.showCalib && heroVisible) {
+    if (vm.showCalib) {
         CalibrationOverlay(
             step = calibStep,
             rect = calibRect(calibStep, calibTargets.toMap(), calibParent),
             parent = calibParent,
-            onTargetTap = { if (calibStep < 3) calibStep++ },
+            onNext = { if (calibStep < 3) calibStep++ else vm.finishCalibration() },
             onFinish = { vm.finishCalibration() }
         )
     }
@@ -968,7 +957,17 @@ private fun HomeTile(icon: ImageVector, active: Boolean, modifier: Modifier = Mo
 }
 
 @Composable
-fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, listening: Boolean, heard: String, heardFresh: Boolean, voiceNote: String?, onMicPositioned: (LayoutCoordinates) -> Unit = {}) {
+fun InputRow(
+    onSend: (String) -> Unit,
+    onMic: () -> Unit,
+    micVisible: Boolean,
+    listening: Boolean,
+    heard: String,
+    heardFresh: Boolean,
+    voiceNote: String?,
+    onDockPositioned: (LayoutCoordinates) -> Unit = {},
+    onMicPositioned: (LayoutCoordinates) -> Unit = {}
+) {
     var input by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
     val focusReq = remember { FocusRequester() }
@@ -997,6 +996,7 @@ fun InputRow(onSend: (String) -> Unit, onMic: () -> Unit, micVisible: Boolean, l
             Row(
                 Modifier.fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .onGloballyPositioned(onDockPositioned)
                     .premiumGlass(RoundedCornerShape(50))
                     .padding(6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -1403,99 +1403,146 @@ private fun calibRect(step: Int, targets: Map<Int, LayoutCoordinates>, parent: L
  * Taps inside the hole advance; everything else is consumed. SKIP is always
  * visible and a crash only restarts the tour at step 0 - never a lock.
  */
+private data class CalibrationCopy(val title: String, val description: String)
+
+private fun calibrationCopy(step: Int): CalibrationCopy = when (step.coerceIn(0, 3)) {
+    0 -> CalibrationCopy(
+        "Navigation & Chats",
+        "Swipe from the left edge or tap the menu to access your chat history, memory vault, and start a new conversation."
+    )
+    1 -> CalibrationCopy(
+        "Profile & Settings Hub",
+        "Access your identity clearance, manage system preferences, and configure your API integrations."
+    )
+    2 -> CalibrationCopy(
+        "System Telemetry",
+        "Monitor active neural connection status and wake listening states in real time."
+    )
+    else -> CalibrationCopy(
+        "Interaction Deck",
+        "Type text commands, tap the mic to speak, or use hands-free wake words."
+    )
+}
+
+/**
+ * System Calibration: dynamic spotlight over measured UI anchors.
+ * The scrim owns its own tap layer behind the card/buttons so Skip/Next never
+ * lose the first tap to background pointer consumption.
+ */
 @Composable
 private fun BoxScope.CalibrationOverlay(
     step: Int,
     rect: Rect?,
     parent: LayoutCoordinates?,
-    onTargetTap: () -> Unit,
+    onNext: () -> Unit,
     onFinish: () -> Unit
 ) {
     val density = LocalDensity.current
-    val handoff = step >= 3
+    val boundedStep = step.coerceIn(0, 3)
+    val copy = calibrationCopy(boundedStep)
     var entered by remember { mutableStateOf(false) }
-    // Pitch-black entry beat, then the tour fades in.
-    LaunchedEffect(Unit) { delay(1500); entered = true }
+    LaunchedEffect(Unit) { delay(350); entered = true }
+
     val hole = rect?.inflate(with(density) { 14.dp.toPx() })
-    val holeCornerPx = with(density) { 28.dp.toPx() }
+    val holeCornerPx = with(density) { if (boundedStep == 3) 28.dp.toPx() else 22.dp.toPx() }
     val pw = parent?.size?.width ?: 0
     val ph = parent?.size?.height ?: 0
-    val below = hole != null && hole.bottom + 170 < ph
-    val tipW = (pw - 64).coerceAtLeast(200)
+    val below = hole != null && hole.bottom + 190 < ph
+    val tipW = (pw - 64).coerceAtLeast(220)
     val tipY = when {
-        handoff -> (ph / 2 - 90).coerceAtLeast(0)
-        hole == null -> 200
-        below -> (hole.bottom + 16).toInt()
-        else -> (hole.top - 170).toInt().coerceAtLeast(0)
+        hole == null -> with(density) { 140.dp.roundToPx() }
+        below -> (hole.bottom + 18).toInt()
+        else -> (hole.top - 190).toInt().coerceAtLeast(with(density) { 88.dp.roundToPx() })
     }
-    val fullText = when (step) {
-        0 -> "[SYS] CALIBRATING NEURAL LINK. TAP CORE TO INITIATE."
-        1 -> "[SYS] AUDIO TELEMETRY OFFLINE. TAP TO OPEN COMM CHANNEL."
-        2 -> "[SYS] COMMAND TERMINAL. DEPLOY LOCAL SCRIPTS HERE."
-        else -> "[SYS] CALIBRATION COMPLETE. JARVIS IS LISTENING. TAP ANYWHERE."
-    }
-    var shown by remember(step) { mutableStateOf(0) }
-    LaunchedEffect(step, entered) {
+    var shownTitle by remember(boundedStep) { mutableStateOf(0) }
+    var shownBody by remember(boundedStep) { mutableStateOf(0) }
+    LaunchedEffect(boundedStep, entered) {
         if (!entered) return@LaunchedEffect
-        shown = 0
-        while (shown < fullText.length) { delay(14); shown++ }
+        shownTitle = 0
+        shownBody = 0
+        while (shownTitle < copy.title.length) { delay(12); shownTitle++ }
+        while (shownBody < copy.description.length) { delay(7); shownBody++ }
     }
-    Box(
-        Modifier.fillMaxSize()
-            .pointerInput(step, hole, handoff, entered) {
-                detectTapGestures { off ->
-                    if (!entered) return@detectTapGestures
-                    if (handoff) { onFinish(); return@detectTapGestures }
-                    if (hole != null && hole.contains(off)) onTargetTap()
-                }
-            }
-    ) {
-        if (!handoff) {
-            Canvas(
-                Modifier.fillMaxSize()
-                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            ) {
-                drawRect(Color.Black.copy(alpha = if (entered) 0.85f else 1f))
-                if (entered && hole != null) {
-                    if (step == 0) {
-                        drawCircle(
-                            Color.Transparent, radius = hole.width / 2f, center = hole.center,
-                            blendMode = BlendMode.Clear
-                        )
-                    } else {
-                        drawRoundRect(
-                            Color.Transparent, topLeft = hole.topLeft, size = hole.size,
-                            cornerRadius = CornerRadius(holeCornerPx), blendMode = BlendMode.Clear
-                        )
+
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize()
+                .pointerInput(boundedStep, entered) {
+                    detectTapGestures {
+                        if (entered) onNext()
                     }
-                    // Connector stub bridging the hole toward the tooltip.
-                    val from = if (below) Offset(hole.center.x, hole.bottom)
-                    else Offset(hole.center.x, hole.top)
-                    val dir = if (below) Offset(0f, 1f) else Offset(0f, -1f)
-                    drawLine(PremiumNeon, from, from + dir * 14f, strokeWidth = 2f)
                 }
+        )
+        Canvas(
+            Modifier.fillMaxSize()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        ) {
+            drawRect(Color.Black.copy(alpha = if (entered) 0.84f else 1f))
+            if (entered && hole != null) {
+                if (boundedStep == 0 || boundedStep == 1) {
+                    drawCircle(
+                        Color.Transparent,
+                        radius = maxOf(hole.width, hole.height) / 2f,
+                        center = hole.center,
+                        blendMode = BlendMode.Clear
+                    )
+                } else {
+                    drawRoundRect(
+                        Color.Transparent,
+                        topLeft = hole.topLeft,
+                        size = hole.size,
+                        cornerRadius = CornerRadius(holeCornerPx),
+                        blendMode = BlendMode.Clear
+                    )
+                }
+                val from = if (below) Offset(hole.center.x, hole.bottom) else Offset(hole.center.x, hole.top)
+                val dir = if (below) Offset(0f, 1f) else Offset(0f, -1f)
+                drawLine(PremiumNeon, from, from + dir * 14f, strokeWidth = 2f)
             }
         }
         if (entered) {
-            Box(
+            Column(
                 Modifier.align(Alignment.TopStart)
                     .offset { IntOffset(32, tipY) }
                     .width(with(density) { tipW.toDp() })
                     .background(Color(0xFF111418), RoundedCornerShape(16.dp))
                     .border(1.dp, PremiumNeon, RoundedCornerShape(16.dp))
-                    .padding(14.dp)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    fullText.take(shown), color = Color.White, fontSize = 13.sp,
-                    fontFamily = FontFamily.Monospace, lineHeight = 18.sp
+                    copy.title.take(shownTitle),
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
                 )
+                Text(
+                    copy.description.take(shownBody),
+                    color = Color(0xFFD1D5DB),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (boundedStep < 3) {
+                        TextButton(onClick = onFinish) {
+                            Text("Skip", color = PremiumMuted)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = onNext) {
+                            Text("Next", color = PremiumNeon, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else {
+                        TextButton(onClick = onFinish) {
+                            Text("Finish", color = PremiumNeon, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
-        }
-        TextButton(onClick = onFinish, modifier = Modifier.align(Alignment.TopEnd)) {
-            Text(
-                "SKIP", fontSize = 12.sp, color = PremiumMuted,
-                fontFamily = FontFamily.Monospace, letterSpacing = 2.sp
-            )
         }
     }
 }

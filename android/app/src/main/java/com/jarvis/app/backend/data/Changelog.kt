@@ -16,7 +16,9 @@ val CHANGELOG = listOf(
             "Overlay dismiss now cancels active AI/network work",
             "Public release builds are BYOK with R8 shrink/obfuscation enabled",
             "Screen vision shows a privacy notice and refuses protected/sensitive frames",
-            "Other-AI endpoint validation blocks local/private targets in release builds"
+            "Other-AI endpoint validation blocks local/private targets in release builds",
+            "Calibration tour now spotlights menu, profile, status and input without skip-tap freeze",
+            "Master Key panel is suppressed from the user-facing settings/profile UI"
         )
     ),
     ChangelogEntry(

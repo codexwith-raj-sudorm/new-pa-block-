@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Menu
@@ -53,6 +52,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -79,7 +80,10 @@ fun JarvisHeader(
     onMenu: () -> Unit,
     onAvatar: () -> Unit,
     onStatusTap: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMenuPositioned: (LayoutCoordinates) -> Unit = {},
+    onStatusPositioned: (LayoutCoordinates) -> Unit = {},
+    onAvatarPositioned: (LayoutCoordinates) -> Unit = {}
 ) {
     Row(
         modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -87,13 +91,17 @@ fun JarvisHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(40.dp).premiumGlass(CircleShape).clickable(onClick = onMenu),
+            Modifier.size(40.dp)
+                .onGloballyPositioned(onMenuPositioned)
+                .premiumGlass(CircleShape)
+                .clickable(onClick = onMenu),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color(0xFFD1D5DB), modifier = Modifier.size(14.dp))
         }
         Column(
-            Modifier.premiumGlass(RoundedCornerShape(50))
+            Modifier.onGloballyPositioned(onStatusPositioned)
+                .premiumGlass(RoundedCornerShape(50))
                 .clickable(onClick = onStatusTap)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -107,6 +115,7 @@ fun JarvisHeader(
         }
         Box(
             Modifier.size(40.dp)
+                .onGloballyPositioned(onAvatarPositioned)
                 .shadow(8.dp, CircleShape, ambientColor = PremiumNeon.copy(alpha = 0.15f), spotColor = PremiumNeon.copy(alpha = 0.15f))
                 .clip(CircleShape)
                 .background(PremiumNeon.copy(alpha = 0.1f))
@@ -239,7 +248,6 @@ fun ProfileHubOverlay(
     clearance: String,
     onEditProfile: () -> Unit,
     onSettings: () -> Unit,
-    onMasterLock: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AnimatedVisibility(visible = show, enter = fadeIn(tween(250)), exit = fadeOut(tween(200))) {
@@ -299,7 +307,6 @@ fun ProfileHubOverlay(
                 Column(Modifier.padding(8.dp)) {
                     HubRow(Icons.Filled.Edit, "Edit Profile", onEditProfile)
                     HubRow(Icons.Filled.Settings, "System Settings", onSettings)
-                    HubRow(Icons.Filled.Key, "Master Lock", onMasterLock)
                 }
             }
         }

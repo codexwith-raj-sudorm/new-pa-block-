@@ -1727,6 +1727,8 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var showReminders by mutableStateOf(false)
     var remTick by mutableStateOf(0)
     var showOnboard by mutableStateOf(!store.onboarded)
+    var calibrated by mutableStateOf(store.calibrated)
+        private set
     var showProfile by mutableStateOf(false)
     var showAuthGate by mutableStateOf(!store.profileDone && store.masterKey.isBlank())
     var masterInstalled by mutableStateOf(store.masterKey.isNotBlank())
@@ -2058,7 +2060,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
         showProfile = false
     }
 
-    val showCalib: Boolean get() = !store.calibrated && !showOnboard && !showProfile && !showAuthGate
+    val showCalib: Boolean get() = !calibrated && !showOnboard && !showProfile && !showAuthGate
 
     /** §10 gate completion: stamp the local identity and enter. */
     fun completeAuthGate(name: String) {
@@ -2069,6 +2071,7 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun finishCalibration() {
+        calibrated = true
         store.calibrated = true
     }
 
