@@ -40,3 +40,4 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
 -dontwarn javax.annotation.**
+-dontwarn com.google.errorprone.annotations.**
