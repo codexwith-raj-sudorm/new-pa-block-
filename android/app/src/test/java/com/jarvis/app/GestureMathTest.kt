@@ -3,6 +3,7 @@ package com.jarvis.app
 import com.jarvis.app.backend.gesture.ExponentialPointSmoother
 import com.jarvis.app.backend.gesture.GestureDebouncer
 import com.jarvis.app.backend.gesture.GestureEvent
+import com.jarvis.app.backend.gesture.ModelDownloadProgress
 import com.jarvis.app.backend.gesture.NormalizedPoint
 import com.jarvis.app.backend.gesture.mapToScreen
 import org.junit.Assert.assertEquals
@@ -41,6 +42,17 @@ class GestureMathTest {
         assertNull(debouncer.observe("Closed_Fist", 0.9f, 4L))
         assertNull(debouncer.observe(null, 0f, 5L))
         assertTrue(debouncer.observe("Closed_Fist", 0.9f, 6L) == null)
+    }
+
+    @Test
+    fun modelProgressReportsDownloadFraction() {
+        val progress = ModelDownloadProgress(5L * 1024L, 10L * 1024L)
+        assertEquals(0.5f, progress.fraction ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun unknownModelSizeHasNoFraction() {
+        assertNull(ModelDownloadProgress(1024L, null).fraction)
     }
 
     @Test

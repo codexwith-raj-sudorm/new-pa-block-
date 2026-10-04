@@ -33,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -57,6 +58,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.jarvis.app.backend.gesture.GestureCameraSession
 import com.jarvis.app.backend.gesture.GestureEvent
+import com.jarvis.app.backend.gesture.ModelDownloadProgress
 import com.jarvis.app.backend.gesture.NormalizedPoint
 import com.jarvis.app.backend.gesture.ScreenPoint
 import com.jarvis.app.backend.system.AccessBridge
@@ -66,8 +68,17 @@ import kotlin.math.roundToInt
 private val GestureGreen = Color(0xFF7CFFB2)
 private val GesturePanel = Color(0xE6141B2D)
 
+private fun formatDataSize(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val kb = bytes / 1024f
+    if (kb < 1024f) return "${"%.0f".format(kb)} KB"
+    return "${"%.1f".format(kb / 1024f)} MB"
+}
+
 private data class GestureUiState(
     val status: String = "Starting local gesture control…",
+    val modelProgress: ModelDownloadProgress? = null,
+    val modelReady: Boolean = false,
     val pointer: NormalizedPoint? = null,
     val label: String? = null,
     val confidence: Float = 0f,
@@ -82,6 +93,18 @@ class GestureActivity : ComponentActivity() {
     private val sessionListener = object : GestureCameraSession.Listener {
         override fun onStatus(text: String) {
             uiState.value = uiState.value.copy(status = text, error = null)
+        }
+
+        override fun onModelProgress(progress: ModelDownloadProgress) {
+            uiState.value = uiState.value.copy(modelProgress = progress, modelReady = false)
+        }
+
+        override fun onModelReady(bytes: Long) {
+            uiState.value = uiState.value.copy(
+                modelProgress = ModelDownloadProgress(bytes, bytes),
+                modelReady = true,
+                status = "Installing local gesture module…",
+            )
         }
 
         override fun onPointer(point: NormalizedPoint) {
@@ -283,6 +306,27 @@ private fun GestureStatusPanel(
             Icon(Icons.Filled.TouchApp, contentDescription = null, tint = GestureGreen, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text(state.status, color = Color.White, fontSize = 13.sp)
+        }
+        state.modelProgress?.let { progress ->
+            val fraction = progress.fraction
+            if (!state.modelReady) {
+                LinearProgressIndicator(
+                    progress = { fraction ?: 0f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = GestureGreen,
+                    trackColor = Color.White.copy(alpha = 0.15f),
+                )
+            }
+            Text(
+                if (fraction != null && progress.totalBytes != null) {
+                    "Data required: ${formatDataSize(progress.totalBytes)} • " +
+                        "${formatDataSize(progress.downloadedBytes)} downloaded (${(fraction * 100f).roundToInt()}%)"
+                } else {
+                    "Data downloaded: ${formatDataSize(progress.downloadedBytes)} • total size from server unavailable"
+                },
+                color = Color(0xFFB6C2D9),
+                fontSize = 11.sp,
+            )
         }
         state.error?.let { Text(it, color = Color(0xFFFF9B9B), fontSize = 12.sp) }
         Text(

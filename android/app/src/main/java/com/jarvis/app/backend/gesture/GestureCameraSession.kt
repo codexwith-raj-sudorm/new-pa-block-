@@ -32,6 +32,8 @@ class GestureCameraSession(
 ) {
     interface Listener {
         fun onStatus(text: String)
+        fun onModelProgress(progress: ModelDownloadProgress)
+        fun onModelReady(bytes: Long)
         fun onPointer(point: NormalizedPoint)
         fun onObservation(label: String?, confidence: Float)
         fun onAction(event: GestureEvent, screenPoint: ScreenPoint?)
@@ -62,11 +64,15 @@ class GestureCameraSession(
             context = appContext,
             executor = executor,
             onStatus = { text -> postStatus(text) },
+            onProgress = { progress -> postModelProgress(progress) },
             onReady = { result ->
                 main.post {
                     if (closed.get()) return@post
                     result.fold(
-                        onSuccess = { file -> initializeRecognizer(file.absolutePath, view) },
+                        onSuccess = { file ->
+                            listener.onModelReady(file.length())
+                            initializeRecognizer(file.absolutePath, view)
+                        },
                         onFailure = { error ->
                             postError("Gesture model unavailable: ${error.message ?: "download failed"}")
                         },
@@ -184,6 +190,10 @@ class GestureCameraSession(
         view.getLocationOnScreen(location)
         val local = mapToScreen(point, view.width.toFloat(), view.height.toFloat(), mirrorX = true)
         return ScreenPoint(location[0] + local.x, location[1] + local.y)
+    }
+
+    private fun postModelProgress(progress: ModelDownloadProgress) = main.post {
+        if (!closed.get()) listener.onModelProgress(progress)
     }
 
     private fun postStatus(text: String) = main.post {
