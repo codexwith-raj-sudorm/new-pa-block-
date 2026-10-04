@@ -15,6 +15,7 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizer
 import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizerResult
+import com.google.mediapipe.tasks.vision.core.ImageProcessingOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
@@ -132,8 +133,13 @@ class GestureCameraSession(
                             val bitmap = image.toBitmap()
                             val frameTime = max(SystemClock.uptimeMillis(), lastTimestampMs + 1L)
                             lastTimestampMs = frameTime
+                            val rotation = image.imageInfo.rotationDegrees
+                            val processingOptions = ImageProcessingOptions.builder()
+                                .setRotationDegrees(rotation)
+                                .build()
                             recognizer?.recognizeAsync(
                                 BitmapImageBuilder(bitmap).build(),
+                                processingOptions,
                                 frameTime,
                             )
                         } catch (t: Throwable) {
