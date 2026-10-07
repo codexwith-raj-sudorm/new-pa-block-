@@ -1,4 +1,4 @@
-package com.jarvis.app.backend.gesture
+package com.jarvis.gesturelab
 
 import android.content.Context
 import java.io.BufferedInputStream

@@ -1,10 +1,8 @@
 package com.jarvis.app.backend.system
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
 import android.content.Context
 import android.content.Intent
-import android.graphics.Path
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -178,26 +176,6 @@ object AccessBridge {
         val svc = bound ?: return false
         return try {
             svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS)
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Dispatch one bounded tap from the visible gesture-control session.
-     * Coordinates are screen pixels and are rejected when the service is absent.
-     */
-    fun dispatchTap(x: Float, y: Float): Boolean {
-        val svc = bound ?: return false
-        if (!x.isFinite() || !y.isFinite() || x < 0f || y < 0f) return false
-        val path = Path().apply { moveTo(x, y) }
-        val stroke = GestureDescription.StrokeDescription(path, 0L, 70L)
-        return try {
-            svc.dispatchGesture(
-                GestureDescription.Builder().addStroke(stroke).build(),
-                null,
-                null,
-            )
         } catch (_: Exception) {
             false
         }

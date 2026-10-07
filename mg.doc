@@ -1,0 +1,111 @@
+GESTURE MOTION LAB
+===================
+
+Purpose
+-------
+
+Gesture Motion Lab is a standalone Android app for testing hand tracking and air-cursor movement before connecting the system to Jarvis.
+
+The Jarvis application no longer contains the camera/MediaPipe motion-tracking module. The test app has no Jarvis imports, no Gemini/GitHub integration, no AccessibilityService, no shell commands, and no tap dispatch. It only displays the camera preview, the smoothed pointer, recognition status, and frame telemetry.
+
+Project location
+-----------------
+
+Android module: android/gesture-lab
+Application id: com.jarvis.gesturelab
+Launcher label: Gesture Motion Lab
+
+Build locally
+-------------
+
+From the repository's android directory, using the system Gradle installation:
+
+    gradle :gesture-lab:testDebugUnitTest
+    gradle :gesture-lab:assembleDebug
+
+APK output:
+
+    android/gesture-lab/build/outputs/apk/debug/gesture-lab-debug.apk
+
+Install with ADB
+----------------
+
+Enable Developer options and USB debugging on the test phone, then run:
+
+    adb install -r android/gesture-lab/build/outputs/apk/debug/gesture-lab-debug.apk
+
+If the app is already installed and Android rejects the update because of a signing change:
+
+    adb uninstall com.jarvis.gesturelab
+    adb install android/gesture-lab/build/outputs/apk/debug/gesture-lab-debug.apk
+
+First-run data and permissions
+------------------------------
+
+1. Open Gesture Motion Lab.
+2. Grant the normal Android camera permission.
+3. On first use, the app downloads the official MediaPipe gesture_recognizer.task model over HTTPS.
+4. The app shows a progress bar, downloaded bytes, total data required, and percentage when the server reports a size.
+5. The model is cached privately in the app's files directory as gesture_recognizer.task.
+6. Later launches reuse the cached model and do not download it again unless the cached file is missing or invalid.
+
+The app needs approximately the model's reported download size plus temporary filesystem space for a partial download. The downloader rejects a model larger than 32 MB and removes incomplete files after an error.
+
+What to test
+------------
+
+- Portrait phone orientation.
+- 0, 90, 180, and 270 degree camera metadata where the device exposes them.
+- Left/right movement with the front camera.
+- Up/down movement with the front camera.
+- Slow movement and fast movement.
+- Open palm, pointing, fist, and no-hand states.
+- Pointer behavior near all four screen edges.
+- Temporary hand loss and reacquisition.
+- Camera permission denial and later permission grant.
+- First-run model download, interrupted download, retry, and cached startup.
+- Rotation telemetry shown in the bottom panel.
+- Frame dimensions; the analyzer is capped at 640 by 480 with keep-latest backpressure.
+
+Current processing pipeline
+---------------------------
+
+    CameraX ImageAnalysis
+      -> 640 x 480 capped frame
+      -> ImageProxy.toBitmap()
+      -> MediaPipe BitmapImageBuilder
+      -> ImageProcessingOptions rotation from imageProxy.imageInfo.rotationDegrees
+      -> LIVE_STREAM GestureRecognizer
+      -> normalized index-finger point
+      -> front-camera X mirror
+      -> EMA smoothing, alpha 0.5
+      -> visible pointer only
+
+The app intentionally does not apply a second Matrix rotation. The native MediaPipe processing option owns sensor rotation. Mirroring is kept separate so front-camera movement feels natural.
+
+Acceptance criteria for the lab
+--------------------------------
+
+- No Jarvis screen, chat, voice, API, AccessibilityService, or system action is required.
+- Camera frames remain on-device and are not uploaded.
+- The model download shows progress and can recover from a failed or partial download.
+- A visible pointer follows the index-finger landmark.
+- Rotation telemetry is visible for every analyzed frame.
+- The pointer does not generate taps or control another app.
+- Unit tests cover mirroring, smoothing, data-size formatting, and model-progress math.
+- The standalone debug APK builds independently as :gesture-lab:assembleDebug.
+
+Tuning notes
+------------
+
+EMA alpha is currently 0.5. If the pointer drags behind the finger, increase it toward 0.65. If the pointer jitters, decrease it toward 0.35. Change one value at a time and test slow and fast movements separately.
+
+Integration plan after testing
+------------------------------
+
+1. Record measured rotation, mirroring, frame-rate, and pointer-lag results from a real phone.
+2. Add calibration for preview crop and display insets.
+3. Add a small recorded-landmark test fixture for repeatable tuning.
+4. Decide which gestures are safe and useful for Jarvis.
+5. Move only the validated tracking core into Jarvis.
+6. Keep the standalone lab available as a regression-test app.

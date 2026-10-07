@@ -23,7 +23,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.14.5'
-      - run: gradle clean :app:testDebugUnitTest --console=plain > ../build-output.log 2>&1
+      - run: gradle clean :app:testDebugUnitTest :gesture-lab:testDebugUnitTest --console=plain > ../build-output.log 2>&1
       - name: Diagnose failures
         if: failure()
         run: |
@@ -63,6 +63,8 @@ jobs:
             exit "$code"
           fi
           cp "$apk" ../jarvis.apk
+          gradle :gesture-lab:assembleDebug --stacktrace --console=plain > ../gesture-lab-output.log 2>&1
+          cp gesture-lab/build/outputs/apk/debug/gesture-lab-debug.apk ../gesture-motion-lab.apk
         env:
           KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -71,3 +73,7 @@ jobs:
         with:
           name: jarvis-apk
           path: jarvis.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: gesture-motion-lab-apk
+          path: gesture-motion-lab.apk

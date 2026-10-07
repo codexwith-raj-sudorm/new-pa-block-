@@ -1,20 +1,18 @@
-package com.jarvis.app.frontend.screens
+package com.jarvis.gesturelab
 
 import android.Manifest
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,14 +26,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +40,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -53,94 +49,67 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.camera.view.PreviewView
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.Constraints
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.jarvis.app.backend.gesture.GestureCameraSession
-import com.jarvis.app.backend.gesture.GestureEvent
-import com.jarvis.app.backend.gesture.ModelDownloadProgress
-import com.jarvis.app.backend.gesture.NormalizedPoint
-import com.jarvis.app.backend.gesture.ScreenPoint
-import com.jarvis.app.backend.system.AccessBridge
-import com.jarvis.app.backend.system.isAccessEnabled
 import kotlin.math.roundToInt
 
-private val GestureGreen = Color(0xFF7CFFB2)
-private val GesturePanel = Color(0xE6141B2D)
+private val LabGreen = Color(0xFF7CFFB2)
+private val LabPanel = Color(0xE6141B2D)
 
-private fun formatDataSize(bytes: Long): String {
-    if (bytes < 1024L) return "$bytes B"
-    val kb = bytes / 1024f
-    if (kb < 1024f) return "${"%.0f".format(kb)} KB"
-    return "${"%.1f".format(kb / 1024f)} MB"
-}
-
-private data class GestureUiState(
-    val status: String = "Starting local gesture control…",
+private data class LabUiState(
+    val status: String = "Starting motion lab…",
     val modelProgress: ModelDownloadProgress? = null,
     val modelReady: Boolean = false,
     val pointer: NormalizedPoint? = null,
     val label: String? = null,
     val confidence: Float = 0f,
+    val rotation: Int = 0,
+    val frameWidth: Int = 0,
+    val frameHeight: Int = 0,
     val error: String? = null,
-    val actionCount: Int = 0,
 )
 
-/** Visible, user-started gesture-control screen. */
-class GestureActivity : ComponentActivity() {
-    private var uiState = mutableStateOf(GestureUiState())
+class GestureLabActivity : ComponentActivity() {
+    private var state = mutableStateOf(LabUiState())
     private lateinit var cameraPermissionLauncher: ActivityResultLauncher<String>
-    private val sessionListener = object : GestureCameraSession.Listener {
+
+    private val listener = object : GestureCameraSession.Listener {
         override fun onStatus(text: String) {
-            uiState.value = uiState.value.copy(status = text, error = null)
+            state.value = state.value.copy(status = text, error = null)
         }
 
         override fun onModelProgress(progress: ModelDownloadProgress) {
-            uiState.value = uiState.value.copy(modelProgress = progress, modelReady = false)
+            state.value = state.value.copy(modelProgress = progress, modelReady = false)
         }
 
         override fun onModelReady(bytes: Long) {
-            uiState.value = uiState.value.copy(
+            state.value = state.value.copy(
                 modelProgress = ModelDownloadProgress(bytes, bytes),
                 modelReady = true,
-                status = "Installing local gesture module…",
+                status = "Loading local gesture module…",
+            )
+        }
+
+        override fun onFrameInfo(rotationDegrees: Int, width: Int, height: Int) {
+            state.value = state.value.copy(
+                rotation = rotationDegrees,
+                frameWidth = width,
+                frameHeight = height,
             )
         }
 
         override fun onPointer(point: NormalizedPoint) {
-            uiState.value = uiState.value.copy(pointer = point)
+            state.value = state.value.copy(pointer = point)
         }
 
         override fun onObservation(label: String?, confidence: Float) {
-            uiState.value = uiState.value.copy(label = label, confidence = confidence)
-        }
-
-        override fun onAction(event: GestureEvent, screenPoint: ScreenPoint?) {
-            when (event) {
-                GestureEvent.Click -> {
-                    if (!isAccessEnabled(this@GestureActivity)) {
-                        uiState.value = uiState.value.copy(
-                            status = "Closed fist detected — enable Screen control to allow taps",
-                        )
-                        return
-                    }
-                    val ok = screenPoint != null && AccessBridge.dispatchTap(screenPoint.x, screenPoint.y)
-                    uiState.value = uiState.value.copy(
-                        status = if (ok) "Tap dispatched" else "Tap was rejected by Screen control",
-                        actionCount = if (ok) uiState.value.actionCount + 1 else uiState.value.actionCount,
-                    )
-                }
-                GestureEvent.Confirm -> {
-                    uiState.value = uiState.value.copy(
-                        status = "Thumbs up detected — no pending action to confirm",
-                    )
-                }
-                is GestureEvent.PointerMoved -> Unit
-            }
+            state.value = state.value.copy(label = label, confidence = confidence)
         }
 
         override fun onError(text: String) {
-            uiState.value = uiState.value.copy(status = "Gesture control stopped", error = text)
+            state.value = state.value.copy(status = "Motion lab stopped", error = text)
         }
     }
 
@@ -150,8 +119,8 @@ class GestureActivity : ComponentActivity() {
             ActivityResultContracts.RequestPermission()
         ) { granted ->
             if (!granted) {
-                uiState.value = uiState.value.copy(
-                    status = "Camera permission is required for gesture control",
+                state.value = state.value.copy(
+                    status = "Camera permission is required for the motion lab",
                     error = "Permission denied",
                 )
             }
@@ -159,13 +128,12 @@ class GestureActivity : ComponentActivity() {
         }
         setContent {
             MaterialTheme(colorScheme = androidx.compose.material3.darkColorScheme()) {
-                GestureScreen(
-                    state = uiState.value,
+                MotionLabScreen(
+                    state = state.value,
                     cameraGranted = hasCameraPermission(),
-                    onRequestCamera = { requestCameraPermission() },
-                    onOpenAccessibility = { openAccessibilitySettings() },
+                    onRequestCamera = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
                     onBack = { finish() },
-                    listener = sessionListener,
+                    listener = listener,
                 )
             }
         }
@@ -174,32 +142,21 @@ class GestureActivity : ComponentActivity() {
     private fun hasCameraPermission(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
-
-    private fun requestCameraPermission() {
-        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
-    private fun openAccessibilitySettings() {
-        runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-    }
 }
 
 @Composable
-private fun GestureScreen(
-    state: GestureUiState,
+private fun MotionLabScreen(
+    state: LabUiState,
     cameraGranted: Boolean,
     onRequestCamera: () -> Unit,
-    onOpenAccessibility: () -> Unit,
     onBack: () -> Unit,
     listener: GestureCameraSession.Listener,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var previewView by remember { mutableStateOf<PreviewView?>(null) }
-
     Surface(Modifier.fillMaxSize(), color = Color(0xFF070B14)) {
         if (!cameraGranted) {
-            PermissionPanel(onBack = onBack, onRequestCamera = onRequestCamera)
+            PermissionPanel(onBack, onRequestCamera)
         } else {
             val cameraView = remember {
                 PreviewView(context).apply {
@@ -208,26 +165,15 @@ private fun GestureScreen(
                 }
             }
             DisposableEffect(lifecycleOwner, cameraView) {
-                previewView = cameraView
                 val session = GestureCameraSession(context, lifecycleOwner, listener)
                 session.start(cameraView)
-                onDispose {
-                    previewView = null
-                    session.close()
-                }
+                onDispose { session.close() }
             }
             Box(Modifier.fillMaxSize()) {
-                AndroidView(
-                    factory = { cameraView },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                AndroidView({ cameraView }, Modifier.fillMaxSize())
                 PointerOverlay(state.pointer)
-                GestureTopBar(onBack = onBack)
-                GestureStatusPanel(
-                    state = state,
-                    onOpenAccessibility = onOpenAccessibility,
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
+                TopBar(onBack)
+                StatusPanel(state, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
@@ -243,34 +189,34 @@ private fun PermissionPanel(onBack: () -> Unit, onRequestCamera: () -> Unit) {
         IconButton(onClick = onBack, modifier = Modifier.align(Alignment.Start)) {
             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
-        Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = GestureGreen, modifier = Modifier.size(48.dp))
+        Icon(Icons.Filled.CameraAlt, contentDescription = null, tint = LabGreen, modifier = Modifier.size(48.dp))
         Spacer(Modifier.height(18.dp))
-        Text("Gesture Control", color = Color.White, fontSize = 24.sp)
+        Text("Gesture Motion Lab", color = Color.White, fontSize = 24.sp)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Jarvis uses the camera locally to track your hand. The session is visible and can be stopped at any time.",
+            "A standalone local test app for hand tracking. It does not connect to Jarvis or dispatch taps.",
             color = Color(0xFFB6C2D9), fontSize = 14.sp,
         )
         Spacer(Modifier.height(22.dp))
         Button(
             onClick = onRequestCamera,
-            colors = ButtonDefaults.buttonColors(containerColor = GestureGreen, contentColor = Color.Black),
+            colors = ButtonDefaults.buttonColors(containerColor = LabGreen, contentColor = Color.Black),
         ) { Text("Allow camera") }
     }
 }
 
 @Composable
-private fun GestureTopBar(onBack: () -> Unit) {
+private fun TopBar(onBack: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(top = 12.dp, start = 8.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.Filled.ArrowBack, contentDescription = "Stop gesture control", tint = Color.White)
+            Icon(Icons.Filled.ArrowBack, contentDescription = "Stop motion lab", tint = Color.White)
         }
-        Text("GESTURE CONTROL", color = Color.White, fontSize = 13.sp, letterSpacing = 2.sp)
+        Text("MOTION LAB", color = Color.White, fontSize = 13.sp, letterSpacing = 2.sp)
         Spacer(Modifier.weight(1f))
-        Text("LIVE", color = GestureGreen, fontSize = 11.sp)
+        Text("LOCAL ONLY", color = LabGreen, fontSize = 11.sp)
     }
 }
 
@@ -278,32 +224,28 @@ private fun GestureTopBar(onBack: () -> Unit) {
 private fun PointerOverlay(point: NormalizedPoint?) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (point != null) {
-            val x = ((1f - point.x).coerceIn(0f, 1f) * constraints.maxWidth).roundToInt()
+            val x = (point.x.coerceIn(0f, 1f) * constraints.maxWidth).roundToInt()
             val y = (point.y.coerceIn(0f, 1f) * constraints.maxHeight).roundToInt()
             Box(
                 Modifier.offset { IntOffset(x - 14, y - 14) }
                     .size(28.dp)
                     .alpha(0.9f)
-                    .background(GestureGreen.copy(alpha = 0.75f), CircleShape),
+                    .background(LabGreen.copy(alpha = 0.75f), CircleShape),
             )
         }
     }
 }
 
 @Composable
-private fun GestureStatusPanel(
-    state: GestureUiState,
-    onOpenAccessibility: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun StatusPanel(state: LabUiState, modifier: Modifier = Modifier) {
     Column(
         modifier.padding(16.dp).fillMaxWidth()
-            .background(GesturePanel, RoundedCornerShape(20.dp))
+            .background(LabPanel, RoundedCornerShape(20.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.TouchApp, contentDescription = null, tint = GestureGreen, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Tune, contentDescription = null, tint = LabGreen, modifier = Modifier.size(18.dp))
             Spacer(Modifier.size(8.dp))
             Text(state.status, color = Color.White, fontSize = 13.sp)
         }
@@ -313,7 +255,7 @@ private fun GestureStatusPanel(
                 LinearProgressIndicator(
                     progress = { fraction ?: 0f },
                     modifier = Modifier.fillMaxWidth(),
-                    color = GestureGreen,
+                    color = LabGreen,
                     trackColor = Color.White.copy(alpha = 0.15f),
                 )
             }
@@ -322,24 +264,23 @@ private fun GestureStatusPanel(
                     "Data required: ${formatDataSize(progress.totalBytes)} • " +
                         "${formatDataSize(progress.downloadedBytes)} downloaded (${(fraction * 100f).roundToInt()}%)"
                 } else {
-                    "Data downloaded: ${formatDataSize(progress.downloadedBytes)} • total size from server unavailable"
+                    "Data downloaded: ${formatDataSize(progress.downloadedBytes)} • total unavailable"
                 },
-                color = Color(0xFFB6C2D9),
-                fontSize = 11.sp,
+                color = Color(0xFFB6C2D9), fontSize = 11.sp,
             )
         }
         state.error?.let { Text(it, color = Color(0xFFFF9B9B), fontSize = 12.sp) }
         Text(
-            "Pose: ${state.label ?: "No hand"}  ${(state.confidence * 100f).roundToInt()}%  •  Taps: ${state.actionCount}",
+            "Pose: ${state.label ?: "No hand"}  ${(state.confidence * 100f).roundToInt()}%",
             color = Color(0xFFB6C2D9), fontSize = 11.sp,
         )
         Text(
-            "Open palm moves the pointer. Hold a closed fist to tap. Camera frames stay on this device.",
+            "Rotation: ${state.rotation}°  •  Frame: ${state.frameWidth}×${state.frameHeight}",
+            color = Color(0xFFB6C2D9), fontSize = 11.sp,
+        )
+        Text(
+            "Open palm and pointing movement are visualized only. No Jarvis actions are connected in this app.",
             color = Color(0xFF8F9BB2), fontSize = 11.sp,
         )
-        OutlinedButton(
-            onClick = onOpenAccessibility,
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-        ) { Text("Enable Screen control", fontSize = 12.sp) }
     }
 }
