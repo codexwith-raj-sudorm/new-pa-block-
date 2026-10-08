@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-study-assistant"
+version = "0.2.0"
+description = "A free-first, local-first study assistant built incrementally"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Local Study Assistant contributors" }]
+dependencies = [
+  "pypdf>=4.0,<7",
+  "langchain-text-splitters>=0.2,<2",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=3.0,<6"]
+media = ["yt-dlp>=2024.1"]
+transcription = ["faster-whisper>=1.0,<2"]
+ui = ["streamlit>=1.35,<2"]
+all = [
+  "sentence-transformers>=3.0,<6",
+  "yt-dlp>=2024.1",
+  "faster-whisper>=1.0,<2",
+  "streamlit>=1.35,<2",
+]
+dev = ["pytest>=8,<9", "pytest-cov>=5,<7"]
+
+[project.scripts]
+study-assistant = "study_assistant.cli:main"
+study-assistant-ui = "study_assistant.ui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
