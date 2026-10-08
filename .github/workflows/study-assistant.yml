@@ -1,0 +1,44 @@
+name: Study assistant build
+
+on:
+  push:
+    paths:
+      - 'study-assistant/**'
+      - '.github/workflows/study-assistant.yml'
+  pull_request:
+    paths:
+      - 'study-assistant/**'
+      - '.github/workflows/study-assistant.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Test and package local study assistant
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: study-assistant
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: study-assistant/pyproject.toml
+      - name: Install build and test dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
+      - name: Run test suite
+        run: python -m pytest
+      - name: Build wheel and source archive
+        run: python -m build --sdist --wheel
+      - name: Upload Python build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-study-assistant-${{ github.sha }}
+          path: study-assistant/dist/*
+          if-no-files-found: error

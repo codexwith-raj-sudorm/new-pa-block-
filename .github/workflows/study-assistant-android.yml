@@ -1,0 +1,40 @@
+name: Study assistant Android APK
+
+on:
+  push:
+    paths:
+      - 'study-assistant-android/**'
+      - '.github/workflows/study-assistant-android.yml'
+  pull_request:
+    paths:
+      - 'study-assistant-android/**'
+      - '.github/workflows/study-assistant-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: Build standalone Study Assistant APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build debug APK
+        run: gradle -p study-assistant-android assembleDebug --no-daemon
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: study-assistant-debug-apk-${{ github.sha }}
+          path: study-assistant-android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

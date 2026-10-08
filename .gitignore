@@ -27,3 +27,24 @@ Thumbs.db
 *.env
 secrets/
 scratch/
+
+# Local study-assistant environment, caches, models, and staging data
+study-assistant/.venv/
+study-assistant/var/
+study-assistant/models/
+study-assistant/.cache/
+study-assistant/__pycache__/
+study-assistant/.pytest_cache/
+study-assistant/.mypy_cache/
+study-assistant/.ruff_cache/
+study-assistant/**/*.py[cod]
+study-assistant/*.bin
+study-assistant/*.ct2
+study-assistant/*.safetensors
+study-assistant/**/*.egg-info/
+
+# Separate Study Assistant Android build output
+study-assistant-android/.gradle/
+study-assistant-android/build/
+study-assistant-android/app/build/
+study-assistant-android/local.properties
