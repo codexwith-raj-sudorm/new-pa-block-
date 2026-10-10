@@ -90,6 +90,7 @@ import com.jarvis.app.backend.voice.verifyVoiceprint
 import com.jarvis.app.backend.voice.voiceGateDecision
 import com.jarvis.app.backend.voice.vpThresholdFor
 import com.jarvis.app.frontend.design.HubBubble
+import com.jarvis.app.frontend.design.JarvisShimejiOverlay
 import com.jarvis.app.frontend.design.nearestDockSide
 import com.jarvis.app.frontend.widgets.SpeechState
 import com.jarvis.app.frontend.widgets.refreshReactorWidgets
@@ -130,6 +131,8 @@ class WakeService : Service() {
     private var bubbleView: ComposeView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleLifecycle: ServiceLifecycleOwner? = null
+    private var shimejiView: ComposeView? = null
+    private var shimejiLifecycle: ServiceLifecycleOwner? = null
     private var islandView: ComposeView? = null
     private var islandLifecycle: ServiceLifecycleOwner? = null
     private val accentOverride = kotlinx.coroutines.flow.MutableStateFlow<Color?>(null)
@@ -243,6 +246,7 @@ class WakeService : Service() {
         }
         StandbyBus.set(true)
         addBubble()
+        addShimeji()
         addIsland()
         muteBlip(800) // cover any start beep on arming
         refreshReactorWidgets(this)
@@ -267,6 +271,7 @@ class WakeService : Service() {
         stopCallWatch()
         haltLoop()
         removeBubble()
+        removeShimeji()
         removeIsland()
         unmute()
         try {
@@ -590,7 +595,10 @@ class WakeService : Service() {
                         TelephonyManager.CALL_STATE_IDLE -> if (CallStateBus.current) {
                             CallStateBus.set(false)
                             HudStateBus.postTicker("[CALL: END]")
-                            if (started) addBubble()
+                            if (started) {
+                                addBubble()
+                                addShimeji()
+                            }
                             if (started && !pausedByApp && wakeRecognizer == null && !MicHandoff.appActive) startWakeLoop()
                         }
                         else -> if (!CallStateBus.current) {
@@ -598,6 +606,7 @@ class WakeService : Service() {
                             HudStateBus.postTicker("[CALL: PAUSED]")
                             haltLoop()
                             removeBubble()
+                            removeShimeji()
                         }
                     }
                 }
@@ -918,6 +927,59 @@ class WakeService : Service() {
         runCatching { bubbleLifecycle?.handleDestroy() }
         bubbleLifecycle = null
         bubbleParams = null
+    }
+
+    // ---- Shimeji companion (system-wide, camera-free) ----
+
+    /**
+     * Adds a non-touchable companion beside the existing wake bubble. It uses
+     * the same foreground service and overlay permission, so no second service,
+     * camera permission, CameraX, or MediaPipe runtime is needed.
+     */
+    private fun addShimeji() {
+        if (shimejiView != null) return
+        try {
+            if (Build.VERSION.SDK_INT >= 23 && !Settings.canDrawOverlays(this)) return
+            val owner = ServiceLifecycleOwner()
+            owner.handleCreate()
+            val view = ComposeView(this)
+            view.setViewTreeLifecycleOwner(owner)
+            view.setViewTreeViewModelStoreOwner(owner)
+            view.setViewTreeSavedStateRegistryOwner(owner)
+            val density = resources.displayMetrics.density
+            val widthPx = (176 * density).toInt()
+            val heightPx = (160 * density).toInt()
+            val marginPx = (12 * density).toInt()
+            val bottomInsetPx = (92 * density).toInt()
+            val dm = resources.displayMetrics
+            val p = WindowManager.LayoutParams(
+                widthPx,
+                heightPx,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            p.gravity = Gravity.TOP or Gravity.START
+            p.x = (dm.widthPixels - widthPx - marginPx).coerceAtLeast(0)
+            p.y = (dm.heightPixels - heightPx - bottomInsetPx).coerceAtLeast(0)
+            view.setContent { JarvisShimejiOverlay() }
+            wm.addView(view, p)
+            shimejiView = view
+            shimejiLifecycle = owner
+            owner.handleResume()
+        } catch (_: Exception) {
+            shimejiView = null
+            shimejiLifecycle = null
+        }
+    }
+
+    private fun removeShimeji() {
+        val v = shimejiView ?: return
+        shimejiView = null
+        runCatching { wm.removeView(v) }
+        runCatching { shimejiLifecycle?.handleDestroy() }
+        shimejiLifecycle = null
     }
 
     // ---- standby island (§8): cutout-tethered arm indicator ----
