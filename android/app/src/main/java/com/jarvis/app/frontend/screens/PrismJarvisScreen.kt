@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -100,7 +99,9 @@ fun JarvisScreen() {
         } else {
             LegacyJarvisScreen()
         }
-        DesignPickerButton(design = design, onClick = { chooserOpen = true })
+        Box(Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 92.dp)) {
+            DesignPickerButton(design = design, onClick = { chooserOpen = true })
+        }
     }
     if (chooserOpen) {
         DesignChooserDialog(current = design, onPick = ::choose, onDismiss = { chooserOpen = false })
@@ -112,8 +113,6 @@ private fun DesignPickerButton(design: String, onClick: () -> Unit) {
     TextButton(
         onClick = onClick,
         modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(end = 18.dp, bottom = 92.dp)
             .background(Color.Black.copy(alpha = if (design == DESIGN_PRISM) 0.04f else 0.58f), RoundedCornerShape(12.dp)),
         colors = ButtonDefaults.textButtonColors(contentColor = if (design == DESIGN_PRISM) Color(0xFF475569) else Color.White),
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
