@@ -1738,4 +1738,5 @@ new chat,menu, personal info design
 </body>
 </html>
 
+<img width="1200" height="896" alt="image" src="https://github.com/user-attachments/assets/e866adad-d148-43a3-898f-b4eaf5778317" />
 
