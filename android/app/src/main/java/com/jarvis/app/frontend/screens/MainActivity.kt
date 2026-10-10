@@ -312,7 +312,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun JarvisScreen() {
+fun LegacyJarvisScreen() {
     val context = LocalContext.current
     val vm: JarvisViewModel = remember {
         sharedJarvisVm(context.applicationContext as Application)
