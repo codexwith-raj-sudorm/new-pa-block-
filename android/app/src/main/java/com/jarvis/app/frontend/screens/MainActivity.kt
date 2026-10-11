@@ -163,6 +163,15 @@ class JarvisVmFactory(private val app: Application) : ViewModelProvider.Factory 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // A normal app launch starts a clean conversation. The shared ViewModel
+        // persists the previous chat first and guards against rotation; an
+        // explicit widget NEW_CHAT intent already performs this action below.
+        if (intent?.action != "com.jarvis.app.NEW_CHAT") {
+            try {
+                sharedJarvisVm(application).startFreshChatForAppOpen()
+            } catch (_: Exception) {
+            }
+        }
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 JarvisScreen()

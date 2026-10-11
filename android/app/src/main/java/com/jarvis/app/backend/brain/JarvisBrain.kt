@@ -1710,6 +1710,9 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
     var openaiModel by mutableStateOf(store.openaiModel)
     var activeChatId by mutableStateOf("")
         private set
+    // Guards the automatic fresh-chat action against configuration changes or
+    // multiple screens being created during the same app process session.
+    private var freshChatStartedForProcess = false
     var memTick by mutableStateOf(0)
     var listTick by mutableStateOf(0)
         private set
@@ -2943,6 +2946,18 @@ class JarvisViewModel(app: Application) : AndroidViewModel(app) {
 
 
     // ---- multi-chat ----
+
+    /**
+     * Starts one fresh chat for each app-process session. The existing active
+     * conversation is persisted by [newChat] before the blank chat is added.
+     * The process guard prevents rotation or a second screen from creating
+     * duplicate chats during the same launch.
+     */
+    fun startFreshChatForAppOpen() {
+        if (freshChatStartedForProcess) return
+        freshChatStartedForProcess = true
+        newChat()
+    }
 
     fun newChat() {
         stopSpeaking()
